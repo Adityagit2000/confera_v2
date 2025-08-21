@@ -1,6 +1,10 @@
 import { Button } from "@/components/ui/button";
 
-const CTA = () => {
+interface CTAProps {
+  onGetStarted?: () => void;
+}
+
+const CTA = ({ onGetStarted }: CTAProps) => {
   return (
     <section className="py-24 px-6">
       <div className="container mx-auto max-w-4xl text-center">
@@ -21,6 +25,7 @@ const CTA = () => {
               size="lg" 
               variant="hero"
               className="px-12 py-6 text-lg animate-pulse-glow"
+              onClick={onGetStarted}
             >
               Start Free Practice Session
             </Button>

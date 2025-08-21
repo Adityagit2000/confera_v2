@@ -1,7 +1,11 @@
 import { Button } from "@/components/ui/button";
 import heroImage from "@/assets/hero-interview.jpg";
 
-const Hero = () => {
+interface HeroProps {
+  onStartFreeInterview?: () => void;
+}
+
+const Hero = ({ onStartFreeInterview }: HeroProps) => {
   return (
     <section className="pt-24 pb-16 px-6">
       <div className="container mx-auto max-w-7xl">
@@ -25,6 +29,7 @@ const Hero = () => {
               <Button 
                 size="lg" 
                 className="gradient-accent text-accent-foreground font-semibold px-8 py-6 text-lg hover:shadow-glow transition-all duration-300 animate-pulse-glow"
+                onClick={onStartFreeInterview}
               >
                 Start Free Interview
               </Button>

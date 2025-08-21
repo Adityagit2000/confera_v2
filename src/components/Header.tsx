@@ -1,6 +1,9 @@
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 const Header = () => {
+  const navigate = useNavigate();
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-muted">
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
@@ -18,10 +21,10 @@ const Header = () => {
         </nav>
         
         <div className="flex items-center space-x-4">
-          <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
+          <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => navigate('/auth')}>
             Sign In
           </Button>
-          <Button variant="hero" className="gradient-accent text-accent-foreground font-semibold hover:shadow-glow transition-all duration-300">
+          <Button variant="hero" className="gradient-accent text-accent-foreground font-semibold hover:shadow-glow transition-all duration-300" onClick={() => navigate('/auth')}>
             Get Started
           </Button>
         </div>
