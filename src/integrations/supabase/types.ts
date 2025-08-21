@@ -14,6 +14,124 @@ export type Database = {
   }
   public: {
     Tables: {
+      event_logs: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          payload: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          payload?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          payload?: Json | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      feedback_reports: {
+        Row: {
+          behavior_score: number | null
+          communication_score: number | null
+          created_at: string
+          id: string
+          overall_score: number | null
+          pdf_url: string | null
+          recommendations: Json | null
+          resume_score: number | null
+          session_id: string
+          summary: string | null
+          technical_score: number | null
+        }
+        Insert: {
+          behavior_score?: number | null
+          communication_score?: number | null
+          created_at?: string
+          id?: string
+          overall_score?: number | null
+          pdf_url?: string | null
+          recommendations?: Json | null
+          resume_score?: number | null
+          session_id: string
+          summary?: string | null
+          technical_score?: number | null
+        }
+        Update: {
+          behavior_score?: number | null
+          communication_score?: number | null
+          created_at?: string
+          id?: string
+          overall_score?: number | null
+          pdf_url?: string | null
+          recommendations?: Json | null
+          resume_score?: number | null
+          session_id?: string
+          summary?: string | null
+          technical_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_reports_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "interview_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_answers: {
+        Row: {
+          answer_text: string | null
+          answer_transcript: string | null
+          created_at: string
+          id: string
+          question: string
+          raw_audio_url: string | null
+          score: number | null
+          session_id: string
+          tags: Json | null
+        }
+        Insert: {
+          answer_text?: string | null
+          answer_transcript?: string | null
+          created_at?: string
+          id?: string
+          question: string
+          raw_audio_url?: string | null
+          score?: number | null
+          session_id: string
+          tags?: Json | null
+        }
+        Update: {
+          answer_text?: string | null
+          answer_transcript?: string | null
+          created_at?: string
+          id?: string
+          question?: string
+          raw_audio_url?: string | null
+          score?: number | null
+          session_id?: string
+          tags?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_answers_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "interview_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interview_sessions: {
         Row: {
           created_at: string | null
@@ -49,11 +167,42 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          id: string
+          name?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       resumes: {
         Row: {
           ats_score: number | null
           created_at: string | null
           id: string
+          keywords_missing: Json | null
           parsed_data: Json | null
           user_id: string | null
         }
@@ -61,6 +210,7 @@ export type Database = {
           ats_score?: number | null
           created_at?: string | null
           id?: string
+          keywords_missing?: Json | null
           parsed_data?: Json | null
           user_id?: string | null
         }
@@ -68,6 +218,7 @@ export type Database = {
           ats_score?: number | null
           created_at?: string | null
           id?: string
+          keywords_missing?: Json | null
           parsed_data?: Json | null
           user_id?: string | null
         }
@@ -107,10 +258,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_current_user_role: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
-      [_ in never]: never
+      interview_type: "dsa" | "system_design" | "hr"
+      session_status: "scheduled" | "active" | "completed" | "cancelled"
+      user_role: "student" | "admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -237,6 +393,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      interview_type: ["dsa", "system_design", "hr"],
+      session_status: ["scheduled", "active", "completed", "cancelled"],
+      user_role: ["student", "admin"],
+    },
   },
 } as const
