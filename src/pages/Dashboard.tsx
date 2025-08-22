@@ -100,7 +100,7 @@ const Dashboard = () => {
         .insert({
           user_id: user.id,
           type: interviewType as 'dsa' | 'system_design' | 'hr',
-          status: 'active'
+          status: 'scheduled'
         })
         .select()
         .single();
@@ -109,13 +109,15 @@ const Dashboard = () => {
 
       toast({
         title: "Interview Started",
-        description: "Your mock interview session has begun!",
+        description: "Your mock interview session has been created!",
       });
 
       setShowInterviewDialog(false);
-      // Here you would navigate to interview session page
-      // navigate(`/interview/${data.id}`);
-    } catch (error) {
+      
+      // Navigate to interview session page
+      window.location.href = `/interview/${data.id}`;
+      
+    } catch (error: any) {
       console.error('Error starting interview:', error);
       toast({
         title: "Error",
