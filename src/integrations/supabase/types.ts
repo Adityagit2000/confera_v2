@@ -138,24 +138,30 @@ export type Database = {
           feedback_report: Json | null
           id: string
           scheduled_at: string | null
+          status: string | null
           type: string | null
           user_id: string | null
+          vapi_call_id: string | null
         }
         Insert: {
           created_at?: string | null
           feedback_report?: Json | null
           id?: string
           scheduled_at?: string | null
+          status?: string | null
           type?: string | null
           user_id?: string | null
+          vapi_call_id?: string | null
         }
         Update: {
           created_at?: string | null
           feedback_report?: Json | null
           id?: string
           scheduled_at?: string | null
+          status?: string | null
           type?: string | null
           user_id?: string | null
+          vapi_call_id?: string | null
         }
         Relationships: [
           {

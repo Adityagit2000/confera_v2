@@ -18,6 +18,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import ResumeUpload from '@/components/ResumeUpload';
 
 interface DashboardStats {
   totalSessions: number;
@@ -37,6 +38,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [interviewType, setInterviewType] = useState<string>('');
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
+  const [showResumeDialog, setShowResumeDialog] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -225,13 +227,26 @@ const Dashboard = () => {
             </DialogContent>
           </Dialog>
 
-          <Card className="cursor-pointer hover:shadow-elegant transition-all duration-300">
-            <CardContent className="p-6 text-center">
-              <Upload className="w-8 h-8 mx-auto mb-3 text-primary" />
-              <h3 className="font-semibold text-lg">Upload Resume</h3>
-              <p className="text-sm text-muted-foreground mt-1">Get ATS score & analysis</p>
-            </CardContent>
-          </Card>
+          <Dialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
+            <DialogTrigger asChild>
+              <Card className="cursor-pointer hover:shadow-elegant transition-all duration-300">
+                <CardContent className="p-6 text-center">
+                  <Upload className="w-8 h-8 mx-auto mb-3 text-primary" />
+                  <h3 className="font-semibold text-lg">Upload Resume</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Get ATS score & analysis</p>
+                </CardContent>
+              </Card>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Upload Your Resume</DialogTitle>
+              </DialogHeader>
+              <ResumeUpload onAnalysisComplete={() => {
+                setShowResumeDialog(false);
+                fetchDashboardData(); // Refresh dashboard data
+              }} />
+            </DialogContent>
+          </Dialog>
 
           <Card className="cursor-pointer hover:shadow-elegant transition-all duration-300">
             <CardContent className="p-6 text-center">
