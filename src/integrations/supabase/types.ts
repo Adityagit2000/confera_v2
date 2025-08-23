@@ -207,24 +207,36 @@ export type Database = {
         Row: {
           ats_score: number | null
           created_at: string | null
+          file_size: number | null
+          file_type: string | null
+          file_url: string | null
           id: string
           keywords_missing: Json | null
+          original_filename: string | null
           parsed_data: Json | null
           user_id: string | null
         }
         Insert: {
           ats_score?: number | null
           created_at?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           keywords_missing?: Json | null
+          original_filename?: string | null
           parsed_data?: Json | null
           user_id?: string | null
         }
         Update: {
           ats_score?: number | null
           created_at?: string | null
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           keywords_missing?: Json | null
+          original_filename?: string | null
           parsed_data?: Json | null
           user_id?: string | null
         }

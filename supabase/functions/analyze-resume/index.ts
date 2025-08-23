@@ -11,6 +11,121 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const huggingFaceKey = Deno.env.get('HUGGINGFACE_API_KEY')!;
 
+// Mock implementation functions for demonstration
+async function performDocumentQA(resumeId: string) {
+  // In a real implementation, this would use document AI to extract structured data
+  return {
+    contact: {
+      name: "John Doe",
+      email: "john.doe@email.com", 
+      phone: "+1-555-0123"
+    },
+    education: [
+      {
+        degree: "Bachelor of Science in Computer Science",
+        school: "University of Technology", 
+        year: "2020-2024",
+        gpa: "3.8/4.0"
+      }
+    ],
+    experience: [
+      {
+        title: "Software Engineering Intern",
+        company: "Tech Corp",
+        duration: "June 2023 - Aug 2023", 
+        description: "Developed React applications and REST APIs using modern frameworks"
+      },
+      {
+        title: "Full Stack Developer", 
+        company: "StartupXYZ",
+        duration: "Sep 2023 - Present",
+        description: "Built scalable web applications with Node.js, React, and PostgreSQL"
+      }
+    ],
+    projects: [
+      {
+        name: "E-commerce Platform",
+        description: "Built full-stack web application using MERN stack with payment integration",
+        technologies: ["React", "Node.js", "MongoDB", "Express", "Stripe"]
+      },
+      {
+        name: "AI Chat Application", 
+        description: "Real-time chat app with AI integration using OpenAI API",
+        technologies: ["React", "Socket.io", "OpenAI", "Redis"]
+      }
+    ]
+  };
+}
+
+async function performNER(documentData: any) {
+  // In a real implementation, this would use NLP models for Named Entity Recognition
+  const allText = JSON.stringify(documentData).toLowerCase();
+  
+  // Extract technical skills
+  const skillKeywords = [
+    "javascript", "python", "react", "node.js", "mongodb", "postgresql", 
+    "express", "git", "docker", "aws", "kubernetes", "typescript", "sql",
+    "redis", "graphql", "rest", "api", "microservices", "agile", "scrum"
+  ];
+  
+  const extractedSkills = skillKeywords.filter(skill => 
+    allText.includes(skill.toLowerCase())
+  );
+  
+  // Extract certifications
+  const certificationKeywords = [
+    "aws certified", "google cloud", "azure", "certified kubernetes",
+    "cisco", "comptia", "pmp", "scrum master"
+  ];
+  
+  const extractedCerts = certificationKeywords.filter(cert =>
+    allText.includes(cert.toLowerCase()) 
+  );
+  
+  return {
+    skills: extractedSkills,
+    certifications: extractedCerts
+  };
+}
+
+async function performZeroShotClassification(skills: string[], targetRole: string) {
+  // In a real implementation, this would use ML models for zero-shot classification
+  const roleCategories = {
+    "Software Engineer": {
+      "Frontend": ["react", "javascript", "typescript", "html", "css"],
+      "Backend": ["node.js", "python", "java", "sql", "api", "microservices"], 
+      "DevOps": ["docker", "kubernetes", "aws", "ci/cd", "jenkins"],
+      "Database": ["postgresql", "mongodb", "redis", "sql"]
+    },
+    "Data Scientist": {
+      "Programming": ["python", "r", "sql"],
+      "ML/AI": ["tensorflow", "scikit-learn", "pandas", "numpy"],
+      "Analytics": ["statistics", "data visualization", "tableau"],
+      "Big Data": ["spark", "hadoop", "elasticsearch"]
+    },
+    "Product Manager": {
+      "Strategy": ["product strategy", "roadmap", "market research"],
+      "Technical": ["sql", "analytics", "a/b testing"],
+      "Leadership": ["agile", "scrum", "stakeholder management"],
+      "Design": ["ux", "user research", "wireframing"]
+    }
+  };
+  
+  const categories = roleCategories[targetRole as keyof typeof roleCategories] || roleCategories["Software Engineer"];
+  const mapping: any = {};
+  
+  Object.entries(categories).forEach(([category, keywords]) => {
+    const matchedSkills = skills.filter(skill => 
+      keywords.some(keyword => skill.toLowerCase().includes(keyword.toLowerCase()))
+    );
+    if (matchedSkills.length > 0) {
+      mapping[category] = matchedSkills;
+    }
+  });
+  
+  return mapping;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -40,35 +155,42 @@ serve(async (req) => {
       throw new Error('Resume not found');
     }
 
-    // Mock parsed data for demonstration - in reality, you'd extract from PDF
-    const mockParsedData = {
-      name: "John Doe",
-      email: "john.doe@email.com",
-      phone: "+1-555-0123",
-      education: [
-        {
-          degree: "Bachelor of Science in Computer Science",
-          school: "University of Technology",
-          year: "2020-2024",
-          gpa: "3.8/4.0"
-        }
-      ],
-      experience: [
-        {
-          title: "Software Engineering Intern",
-          company: "Tech Corp",
-          duration: "June 2023 - Aug 2023",
-          description: "Developed React applications and REST APIs"
-        }
-      ],
-      skills: ["JavaScript", "React", "Node.js", "Python", "SQL", "Git"],
-      projects: [
-        {
-          name: "E-commerce Platform",
-          description: "Built full-stack web application using MERN stack",
-          technologies: ["React", "Node.js", "MongoDB", "Express"]
-        }
-      ]
+    // Enhanced Resume Analysis Pipeline
+    console.log('Starting enhanced resume analysis pipeline...');
+    
+    // Step 1: Document QA - Extract structured information
+    const documentQAResults = await performDocumentQA(resumeId);
+    
+    // Step 2: NER - Extract skills and certifications  
+    const nerResults = await performNER(documentQAResults);
+    
+    // Step 3: Zero-shot classification - Map skills to role categories
+    const roleMapping = await performZeroShotClassification(nerResults.skills, targetRole);
+    
+    // Combine all extracted data
+    const parsedData = {
+      // Contact Information
+      name: documentQAResults.contact.name || "N/A",
+      email: documentQAResults.contact.email || "N/A", 
+      phone: documentQAResults.contact.phone || "N/A",
+      
+      // Education
+      education: documentQAResults.education || [],
+      
+      // Experience  
+      experience: documentQAResults.experience || [],
+      
+      // Skills (from NER)
+      skills: nerResults.skills || [],
+      
+      // Certifications (from NER)
+      certifications: nerResults.certifications || [],
+      
+      // Projects
+      projects: documentQAResults.projects || [],
+      
+      // Role mapping
+      roleCategories: roleMapping
     };
 
     // Role-specific requirements
@@ -113,24 +235,63 @@ serve(async (req) => {
 
     const requirements = roleRequirements[targetRole as keyof typeof roleRequirements] || roleRequirements['Software Engineer'];
     
-    // Calculate ATS score based on keyword matching
-    const resumeText = JSON.stringify(mockParsedData).toLowerCase();
+    // Calculate ATS score based on keyword matching and enhanced metrics
+    const resumeText = JSON.stringify(parsedData).toLowerCase();
     const matchedSkills = requirements.filter(req => 
       resumeText.includes(req.toLowerCase()) || 
-      mockParsedData.skills.some(skill => 
+      parsedData.skills.some((skill: string) => 
         skill.toLowerCase().includes(req.toLowerCase().split(' ')[0])
       )
     );
 
-    const atsScore = Math.min(95, Math.round((matchedSkills.length / requirements.length) * 100));
+    // Enhanced ATS scoring with multiple factors
+    let baseScore = Math.round((matchedSkills.length / requirements.length) * 100);
     
-    // Find missing keywords
+    // Bonus points for recent experience (last 2 years)
+    const hasRecentExperience = parsedData.experience.some((exp: any) => 
+      exp.duration && (exp.duration.includes('2023') || exp.duration.includes('2024'))
+    );
+    if (hasRecentExperience) baseScore += 5;
+    
+    // Bonus points for relevant certifications
+    if (parsedData.certifications && parsedData.certifications.length > 0) {
+      baseScore += 5;
+    }
+    
+    // Bonus points for projects
+    if (parsedData.projects && parsedData.projects.length >= 2) {
+      baseScore += 5;
+    }
+    
+    // Bonus points for education relevance
+    const hasRelevantEducation = parsedData.education.some((edu: any) => 
+      edu.degree && (
+        edu.degree.toLowerCase().includes('computer science') ||
+        edu.degree.toLowerCase().includes('software') ||
+        edu.degree.toLowerCase().includes('engineering')
+      )
+    );
+    if (hasRelevantEducation) baseScore += 5;
+
+    const atsScore = Math.min(95, baseScore);
+    
+    // Enhanced missing keywords with importance scoring
     const missingKeywords = requirements.filter(req => 
       !matchedSkills.some(matched => matched === req)
-    ).map(keyword => ({
-      keyword,
-      importance: Math.floor(Math.random() * 5) + 6 // Mock importance 6-10
-    }));
+    ).map(keyword => {
+      // Determine importance based on keyword type
+      let importance = 5; // default
+      if (keyword.toLowerCase().includes('programming') || 
+          keyword.toLowerCase().includes('language')) importance = 9;
+      else if (keyword.toLowerCase().includes('database') || 
+               keyword.toLowerCase().includes('api')) importance = 8;
+      else if (keyword.toLowerCase().includes('git') || 
+               keyword.toLowerCase().includes('agile')) importance = 7;
+      else if (keyword.toLowerCase().includes('communication') || 
+               keyword.toLowerCase().includes('collaboration')) importance = 6;
+      
+      return { keyword, importance };
+    });
 
     console.log(`ATS Score calculated: ${atsScore}%`);
     console.log(`Missing keywords: ${missingKeywords.length}`);
@@ -139,7 +300,7 @@ serve(async (req) => {
     const { error: updateError } = await supabase
       .from('resumes')
       .update({
-        parsed_data: mockParsedData,
+        parsed_data: parsedData,
         ats_score: atsScore,
         keywords_missing: missingKeywords
       })
@@ -167,7 +328,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       ats_score: atsScore,
-      parsed_data: mockParsedData,
+      parsed_data: parsedData,
       keywords_missing: missingKeywords,
       message: `Resume analyzed successfully. ATS Score: ${atsScore}%`
     }), {
