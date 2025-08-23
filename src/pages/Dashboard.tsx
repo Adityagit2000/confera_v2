@@ -15,7 +15,7 @@ import {
   BarChart3,
   LogOut
 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import ResumeUpload from '@/components/ResumeUpload';
@@ -198,6 +198,9 @@ const Dashboard = () => {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Start Mock Interview</DialogTitle>
+                <DialogDescription>
+                  Choose the type of interview you'd like to practice with our AI interviewer.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <Label htmlFor="interview-type">Choose Interview Type:</Label>
@@ -240,6 +243,9 @@ const Dashboard = () => {
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Upload Your Resume</DialogTitle>
+                <DialogDescription>
+                  Upload your resume to get an ATS compatibility score and detailed analysis.
+                </DialogDescription>
               </DialogHeader>
               <ResumeUpload onAnalysisComplete={() => {
                 setShowResumeDialog(false);
