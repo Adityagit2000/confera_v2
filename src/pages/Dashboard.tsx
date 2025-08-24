@@ -48,11 +48,17 @@ const Dashboard = () => {
   }, [user]);
 
   const fetchDashboardData = async () => {
-    if (!user) return;
+    if (!user) {
+      console.log('No user found in fetchDashboardData');
+      return;
+    }
+    
+    console.log('User found:', user.id);
     
     try {
       // Fetch interview sessions
-      const { data: sessions } = await supabase
+      console.log('Fetching interview sessions...');
+      const { data: sessions, error: sessionsError } = await supabase
         .from('interview_sessions')
         .select(`
           *,
@@ -61,13 +67,26 @@ const Dashboard = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
+      if (sessionsError) {
+        console.error('Sessions error:', sessionsError);
+      } else {
+        console.log('Sessions fetched:', sessions);
+      }
+
       // Fetch resume data
-      const { data: resumes } = await supabase
+      console.log('Fetching resume data...');
+      const { data: resumes, error: resumesError } = await supabase
         .from('resumes')
         .select('ats_score')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1);
+
+      if (resumesError) {
+        console.error('Resumes error:', resumesError);
+      } else {
+        console.log('Resumes fetched:', resumes);
+      }
 
       const totalSessions = sessions?.length || 0;
       const scoresWithData = sessions?.filter(s => s.feedback_reports?.[0]?.overall_score) || [];
