@@ -168,7 +168,7 @@ export type Database = {
             foreignKeyName: "interview_sessions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -214,7 +214,7 @@ export type Database = {
           keywords_missing: Json | null
           original_filename: string | null
           parsed_data: Json | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           ats_score?: number | null
@@ -226,7 +226,7 @@ export type Database = {
           keywords_missing?: Json | null
           original_filename?: string | null
           parsed_data?: Json | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           ats_score?: number | null
@@ -238,14 +238,14 @@ export type Database = {
           keywords_missing?: Json | null
           original_filename?: string | null
           parsed_data?: Json | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "resumes_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
