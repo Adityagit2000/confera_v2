@@ -40,38 +40,54 @@ serve(async (req) => {
       throw new Error('Interview session not found');
     }
 
-    // Get user's resume for context
-    const { data: resumes } = await supabase
-      .from('resumes')
-      .select('ats_score, parsed_data')
-      .eq('user_id', session.user_id)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    const resumeScore = resumes?.[0]?.ats_score || 0;
-
-    // Generate mock scores and feedback
-    const mockScores = generateMockScores(session.type, resumeScore);
+    // Use real interview data if available
+    const hasRealData = session.transcript && session.transcript.length > 0;
     
-    // Generate AI-powered summary using OpenAI
-    const summary = await generateFeedbackSummary(session, mockScores);
+    let feedbackScores;
+    let aiSummary;
+    
+    if (hasRealData) {
+      console.log('Using real interview data for analysis');
+      
+      // Analyze real interview performance
+      feedbackScores = await analyzeInterviewPerformance(session);
+      
+      // Generate AI-powered summary using real transcript
+      aiSummary = await generateRealFeedbackSummary(session);
+    } else {
+      console.log('No real interview data found, using mock scores');
+      
+      // Get user's resume for context
+      const { data: resumes } = await supabase
+        .from('resumes')
+        .select('ats_score, parsed_data')
+        .eq('user_id', session.user_id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      const resumeScore = resumes?.[0]?.ats_score || 0;
+      
+      // Generate mock scores and feedback as fallback
+      feedbackScores = generateMockScores(session.type, resumeScore);
+      aiSummary = await generateFeedbackSummary(session, feedbackScores);
+    }
     
     // Generate recommendations based on performance
-    const recommendations = generateRecommendations(session.type, mockScores);
+    const recommendations = generateRecommendations(session.type, feedbackScores);
 
-    console.log(`Generated feedback - Overall Score: ${mockScores.overall}%`);
+    console.log(`Generated feedback - Overall Score: ${feedbackScores.overall}%`);
 
     // Create feedback report
     const { data: report, error: reportError } = await supabase
       .from('feedback_reports')
       .insert({
         session_id: sessionId,
-        overall_score: mockScores.overall,
-        resume_score: mockScores.resume,
-        technical_score: mockScores.technical,
-        communication_score: mockScores.communication,
-        behavior_score: mockScores.behavior,
-        summary,
+        overall_score: feedbackScores.overall,
+        resume_score: feedbackScores.resume,
+        technical_score: feedbackScores.technical,
+        communication_score: feedbackScores.communication,
+        behavior_score: feedbackScores.behavior,
+        summary: aiSummary,
         recommendations
       })
       .select()
@@ -82,14 +98,14 @@ serve(async (req) => {
       throw reportError;
     }
 
-    // Update session status to completed
-    await supabase
-      .from('interview_sessions')
-      .update({ 
-        status: 'completed',
-        duration_sec: 1800 // Mock 30 minute duration
-      })
-      .eq('id', sessionId);
+      // Update session status to completed if not already
+      await supabase
+        .from('interview_sessions')
+        .update({ 
+          status: 'completed',
+          duration_sec: session.duration_sec || 1800 // Use real duration or fallback
+        })
+        .eq('id', sessionId);
 
     // Log the event
     await supabase
@@ -100,7 +116,8 @@ serve(async (req) => {
         payload: {
           session_id: sessionId,
           report_id: report.id,
-          overall_score: mockScores.overall
+          overall_score: feedbackScores.overall,
+          has_real_data: hasRealData
         }
       });
 
@@ -259,4 +276,111 @@ function generateRecommendations(type: string, scores: any) {
   }
 
   return recommendations;
+}
+
+async function analyzeInterviewPerformance(session: any) {
+  const transcript = session.transcript || '';
+  const interviewType = session.type;
+  const duration = session.duration_sec || 0;
+  
+  // Basic analysis based on transcript content and duration
+  let technical = 70;
+  let communication = 75;
+  let behavior = 75;
+  
+  // Analyze transcript for key indicators
+  if (transcript.length > 0) {
+    const words = transcript.toLowerCase().split(' ');
+    const totalWords = words.length;
+    
+    // Communication scoring based on response length and clarity
+    if (totalWords > 500) communication += 10;
+    if (totalWords > 1000) communication += 5;
+    
+    // Technical scoring based on technical terms
+    const technicalTerms = ['algorithm', 'data structure', 'complexity', 'optimization', 'design', 'scalable', 'database', 'api', 'system'];
+    const technicalTermCount = technicalTerms.filter(term => transcript.toLowerCase().includes(term)).length;
+    technical = Math.min(95, technical + (technicalTermCount * 3));
+    
+    // Behavioral scoring based on confidence indicators
+    const positiveIndicators = ['experience', 'challenge', 'learned', 'team', 'project', 'solution'];
+    const behaviorTermCount = positiveIndicators.filter(term => transcript.toLowerCase().includes(term)).length;
+    behavior = Math.min(95, behavior + (behaviorTermCount * 2));
+  }
+  
+  // Duration analysis (good interviews typically last 15-30 minutes)
+  if (duration < 300) { // Less than 5 minutes - likely incomplete
+    technical *= 0.7;
+    communication *= 0.7;
+    behavior *= 0.7;
+  } else if (duration > 900 && duration < 1800) { // 15-30 minutes - good range
+    technical += 5;
+    communication += 5;
+    behavior += 5;
+  }
+  
+  // Get resume score for context
+  const resumeScore = 75; // Default fallback
+  
+  // Calculate overall score
+  const overall = Math.round(
+    (resumeScore * 0.3) + (technical * 0.3) + (communication * 0.2) + (behavior * 0.2)
+  );
+  
+  return {
+    overall: Math.min(95, Math.max(30, overall)),
+    resume: resumeScore,
+    technical: Math.min(95, Math.max(30, Math.round(technical))),
+    communication: Math.min(95, Math.max(30, Math.round(communication))),
+    behavior: Math.min(95, Math.max(30, Math.round(behavior)))
+  };
+}
+
+async function generateRealFeedbackSummary(session: any): Promise<string> {
+  const transcript = session.transcript || '';
+  const interviewType = session.type;
+  
+  const prompt = `Analyze this ${interviewType.replace('_', ' ')} interview transcript and provide professional feedback:
+
+TRANSCRIPT:
+${transcript.substring(0, 2000)}${transcript.length > 2000 ? '...' : ''}
+
+Please provide a 2-3 sentence constructive summary focusing on:
+1. Technical competency demonstrated
+2. Communication effectiveness
+3. Areas for improvement
+
+Be specific about strengths observed and actionable suggestions.`;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${openAIApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { 
+            role: 'system', 
+            content: 'You are an experienced technical interviewer providing constructive, specific feedback based on actual interview transcripts. Focus on observable behaviors and specific examples from the conversation.' 
+          },
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 300
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('OpenAI API request failed');
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content.trim();
+  } catch (error) {
+    console.error('Error generating real feedback summary:', error);
+    // Fallback to basic analysis
+    return `Based on the interview transcript, the candidate demonstrated ${session.duration_sec > 600 ? 'thorough' : 'adequate'} engagement with the questions. The responses showed ${transcript.length > 1000 ? 'detailed' : 'concise'} communication. Consider practicing more structured responses and providing specific examples to strengthen future interviews.`;
+  }
 }

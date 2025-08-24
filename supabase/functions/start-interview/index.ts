@@ -43,39 +43,82 @@ serve(async (req) => {
     // Generate interview questions based on type
     const questions = generateQuestionsByType(session.type);
     
-    // Create VAPI call configuration
-    const vapiConfig = {
+    // Create VAPI assistant configuration
+    const assistantConfig = {
+      name: `${getInterviewerRole(session.type)} Interviewer`,
       model: {
         provider: "openai",
         model: "gpt-4",
         messages: [
           {
             role: "system",
-            content: `You are an experienced ${getInterviewerRole(session.type)} conducting a ${session.type} interview. 
-            Ask one question at a time from this list: ${questions.join(', ')}. 
-            Listen to the candidate's response and provide brief, encouraging feedback before moving to the next question.
-            Keep responses concise and professional. After all questions, summarize the interview.`
+            content: `You are an experienced ${getInterviewerRole(session.type)} conducting a ${session.type.replace('_', ' ')} interview. 
+
+INTERVIEW PROCESS:
+1. Start with a friendly greeting and explain the interview format
+2. Ask questions ONE AT A TIME from this list: ${questions.join('; ')}
+3. Wait for the candidate's complete response before asking the next question
+4. Provide brief, encouraging feedback after each answer
+5. After all questions are completed, provide a brief summary of the interview
+
+IMPORTANT GUIDELINES:
+- Ask only ONE question at a time and wait for the response
+- Keep your feedback brief (1-2 sentences max)
+- Be encouraging and professional throughout
+- If the candidate asks for clarification, provide it
+- Take notes on their responses for evaluation
+- The interview should last approximately 15-20 minutes
+
+Remember: You are evaluating their ${session.type === 'dsa' ? 'technical problem-solving skills' : session.type === 'system_design' ? 'architectural thinking and system design knowledge' : 'behavioral responses and cultural fit'}.`
           }
-        ]
+        ],
+        temperature: 0.7,
+        maxTokens: 150
       },
       voice: {
         provider: "playht",
         voiceId: "jennifer"
       },
-      firstMessage: `Hello! I'm your AI interviewer today. We'll be conducting a ${session.type.replace('_', ' ')} interview. Are you ready to begin?`
+      firstMessage: `Hello! I'm your AI interviewer for today's ${session.type.replace('_', ' ')} interview. I'll be asking you several questions to assess your skills and fit for the role. The interview should take about 15-20 minutes. Are you ready to begin?`,
+      recordingEnabled: true,
+      endCallMessage: "Thank you for completing the interview. Your responses have been recorded and will be analyzed to generate your feedback report.",
+      serverUrl: `${supabaseUrl}/functions/v1/vapi-webhook`
     };
 
-    // Create VAPI call (mock implementation for demo)
-    const mockVapiCallId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const joinUrl = `https://vapi.ai/call/${mockVapiCallId}`;
+    // Create real VAPI call
+    console.log('Creating VAPI assistant call...');
+    const vapiResponse = await fetch('https://api.vapi.ai/call', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${vapiApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        assistant: assistantConfig,
+        phoneNumberId: null, // For web calls
+        customer: {
+          number: `session_${sessionId}` // Custom identifier
+        }
+      })
+    });
 
-    console.log(`Generated VAPI call ID: ${mockVapiCallId}`);
+    if (!vapiResponse.ok) {
+      const errorText = await vapiResponse.text();
+      console.error('VAPI API Error:', errorText);
+      throw new Error(`VAPI API call failed: ${errorText}`);
+    }
+
+    const vapiData = await vapiResponse.json();
+    const vapiCallId = vapiData.id;
+    const joinUrl = vapiData.webCallUrl || `https://vapi.ai/call/${vapiCallId}`;
+
+    console.log(`Created VAPI call ID: ${vapiCallId}`);
 
     // Update session with VAPI call ID and set status to active
     const { error: updateError } = await supabase
       .from('interview_sessions')
       .update({
-        vapi_call_id: mockVapiCallId,
+        vapi_call_id: vapiCallId,
         status: 'active'
       })
       .eq('id', sessionId);
@@ -94,14 +137,14 @@ serve(async (req) => {
         payload: {
           session_id: sessionId,
           type: session.type,
-          vapi_call_id: mockVapiCallId
+          vapi_call_id: vapiCallId
         }
       });
 
     return new Response(JSON.stringify({
       success: true,
       joinUrl,
-      vapiCallId: mockVapiCallId,
+      vapiCallId,
       questions,
       message: 'Interview session started successfully'
     }), {
