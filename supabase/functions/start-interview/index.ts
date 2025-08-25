@@ -85,9 +85,9 @@ Remember: You are evaluating their ${session.type === 'dsa' ? 'technical problem
       serverUrl: `${supabaseUrl}/functions/v1/vapi-webhook`
     };
 
-    // Create real VAPI call
-    console.log('Creating VAPI assistant call...');
-    const vapiResponse = await fetch('https://api.vapi.ai/call', {
+    // Create real VAPI call for web
+    console.log('Creating VAPI web call...');
+    const vapiResponse = await fetch('https://api.vapi.ai/call/web', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${vapiApiKey}`,
@@ -95,9 +95,9 @@ Remember: You are evaluating their ${session.type === 'dsa' ? 'technical problem
       },
       body: JSON.stringify({
         assistant: assistantConfig,
-        phoneNumberId: null, // For web calls
-        customer: {
-          number: `session_${sessionId}` // Custom identifier
+        metadata: {
+          sessionId: sessionId,
+          interviewType: session.type
         }
       })
     });

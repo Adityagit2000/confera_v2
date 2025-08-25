@@ -13,45 +13,56 @@ const huggingFaceKey = Deno.env.get('HUGGINGFACE_API_KEY')!;
 
 // Mock implementation functions for demonstration
 async function performDocumentQA(resumeId: string) {
-  // In a real implementation, this would use document AI to extract structured data
+  // Generate unique data based on resumeId to simulate different resume parsing
+  const hash = resumeId.split('-')[0]; // Use first part of UUID as seed
+  const nameOptions = ["Alice Johnson", "Bob Smith", "Carol Davis", "David Wilson", "Emma Brown", "Frank Miller"];
+  const emailOptions = ["alice.j@email.com", "bob.smith@gmail.com", "carol.d@company.com", "david.w@tech.co", "emma.b@startup.io", "frank.m@dev.org"];
+  const phoneOptions = ["+1-555-0101", "+1-555-0202", "+1-555-0303", "+1-555-0404", "+1-555-0505", "+1-555-0606"];
+  
+  const index = parseInt(hash, 16) % nameOptions.length;
+  
+  const schools = ["MIT", "Stanford University", "UC Berkeley", "Carnegie Mellon", "University of Washington", "Georgia Tech"];
+  const companies = ["Google", "Microsoft", "Amazon", "Meta", "Apple", "Netflix"];
+  const roles = ["Software Engineer", "Full Stack Developer", "Backend Engineer", "Frontend Developer", "DevOps Engineer"];
+  
   return {
     contact: {
-      name: "John Doe",
-      email: "john.doe@email.com", 
-      phone: "+1-555-0123"
+      name: nameOptions[index],
+      email: emailOptions[index],
+      phone: phoneOptions[index]
     },
     education: [
       {
         degree: "Bachelor of Science in Computer Science",
-        school: "University of Technology", 
-        year: "2020-2024",
-        gpa: "3.8/4.0"
+        school: schools[index],
+        year: `${2020 + (index % 3)}-${2024 + (index % 3)}`,
+        gpa: `${3.5 + (index * 0.1)}/4.0`
       }
     ],
     experience: [
       {
-        title: "Software Engineering Intern",
-        company: "Tech Corp",
-        duration: "June 2023 - Aug 2023", 
-        description: "Developed React applications and REST APIs using modern frameworks"
+        title: `${roles[index]} Intern`,
+        company: companies[index],
+        duration: `June ${2023 + (index % 2)} - Aug ${2023 + (index % 2)}`,
+        description: `Developed ${index % 2 === 0 ? 'React' : 'Vue'} applications and REST APIs using modern frameworks`
       },
       {
-        title: "Full Stack Developer", 
-        company: "StartupXYZ",
-        duration: "Sep 2023 - Present",
-        description: "Built scalable web applications with Node.js, React, and PostgreSQL"
+        title: roles[index],
+        company: companies[(index + 1) % companies.length],
+        duration: `Sep ${2023 + (index % 2)} - Present`,
+        description: `Built scalable web applications with ${index % 2 === 0 ? 'Node.js, React' : 'Python, Django'} and PostgreSQL`
       }
     ],
     projects: [
       {
-        name: "E-commerce Platform",
-        description: "Built full-stack web application using MERN stack with payment integration",
-        technologies: ["React", "Node.js", "MongoDB", "Express", "Stripe"]
+        name: index % 2 === 0 ? "E-commerce Platform" : "Social Media App",
+        description: `Built full-stack web application using ${index % 2 === 0 ? 'MERN' : 'MEAN'} stack with payment integration`,
+        technologies: index % 2 === 0 ? ["React", "Node.js", "MongoDB", "Express", "Stripe"] : ["Angular", "Node.js", "MySQL", "Express", "PayPal"]
       },
       {
-        name: "AI Chat Application", 
-        description: "Real-time chat app with AI integration using OpenAI API",
-        technologies: ["React", "Socket.io", "OpenAI", "Redis"]
+        name: index % 2 === 0 ? "AI Chat Application" : "Task Management System",
+        description: `${index % 2 === 0 ? 'Real-time chat app with AI integration using OpenAI API' : 'Project management tool with team collaboration features'}`,
+        technologies: index % 2 === 0 ? ["React", "Socket.io", "OpenAI", "Redis"] : ["Vue.js", "Firebase", "Node.js", "MongoDB"]
       }
     ]
   };
