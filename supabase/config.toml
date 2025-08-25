@@ -1,1 +1,13 @@
 project_id = "uqdioubnjfqzvpsxcyxz"
+
+[functions.analyze-resume]
+verify_jwt = true
+
+[functions.generate-feedback]
+verify_jwt = true
+
+[functions.start-interview]
+verify_jwt = true
+
+[functions.vapi-webhook]
+verify_jwt = false

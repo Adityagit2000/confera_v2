@@ -139,6 +139,8 @@ export type Database = {
           id: string
           scheduled_at: string | null
           status: string | null
+          summary: string | null
+          transcript: string | null
           type: string | null
           user_id: string | null
           vapi_call_id: string | null
@@ -149,6 +151,8 @@ export type Database = {
           id?: string
           scheduled_at?: string | null
           status?: string | null
+          summary?: string | null
+          transcript?: string | null
           type?: string | null
           user_id?: string | null
           vapi_call_id?: string | null
@@ -159,6 +163,8 @@ export type Database = {
           id?: string
           scheduled_at?: string | null
           status?: string | null
+          summary?: string | null
+          transcript?: string | null
           type?: string | null
           user_id?: string | null
           vapi_call_id?: string | null
