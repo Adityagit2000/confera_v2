@@ -273,7 +273,13 @@ const Dashboard = () => {
             </DialogContent>
           </Dialog>
 
-          <Card className="cursor-pointer hover:shadow-elegant transition-all duration-300">
+          <Card 
+            className="cursor-pointer hover:shadow-elegant transition-all duration-300"
+            onClick={() => {
+              // Scroll to recent sessions section
+              document.querySelector('#recent-sessions')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
             <CardContent className="p-6 text-center">
               <Calendar className="w-8 h-8 mx-auto mb-3 text-primary" />
               <h3 className="font-semibold text-lg">Past Sessions</h3>
@@ -281,7 +287,13 @@ const Dashboard = () => {
             </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-elegant transition-all duration-300">
+          <Card 
+            className="cursor-pointer hover:shadow-elegant transition-all duration-300"
+            onClick={() => {
+              // Scroll to stats section
+              document.querySelector('#stats-overview')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+          >
             <CardContent className="p-6 text-center">
               <BarChart3 className="w-8 h-8 mx-auto mb-3 text-primary" />
               <h3 className="font-semibold text-lg">Analytics</h3>
@@ -291,7 +303,7 @@ const Dashboard = () => {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div id="stats-overview" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
@@ -344,7 +356,7 @@ const Dashboard = () => {
         </div>
 
         {/* Recent Sessions */}
-        <Card>
+        <Card id="recent-sessions">
           <CardHeader>
             <CardTitle>Recent Interview Sessions</CardTitle>
             <CardDescription>Your latest mock interview attempts</CardDescription>
@@ -353,7 +365,17 @@ const Dashboard = () => {
             {stats.recentSessions.length > 0 ? (
               <div className="space-y-4">
                 {stats.recentSessions.map((session) => (
-                  <div key={session.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div 
+                    key={session.id} 
+                    className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      if (session.status === 'scheduled') {
+                        window.location.href = `/interview/${session.id}`;
+                      } else if (session.status === 'completed') {
+                        window.location.href = `/report/${session.id}`;
+                      }
+                    }}
+                  >
                     <div className="flex items-center space-x-4">
                       <div className={`w-3 h-3 rounded-full ${getStatusColor(session.status)}`}></div>
                       <div>
@@ -371,6 +393,11 @@ const Dashboard = () => {
                         <span className="text-sm font-medium text-primary">
                           {session.feedback_reports[0].overall_score}%
                         </span>
+                      )}
+                      {session.status === 'scheduled' && (
+                        <Button size="sm" variant="outline">
+                          Continue
+                        </Button>
                       )}
                     </div>
                   </div>
