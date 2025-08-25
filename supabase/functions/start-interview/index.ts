@@ -85,15 +85,16 @@ Remember: You are evaluating their ${session.type === 'dsa' ? 'technical problem
       serverUrl: `${supabaseUrl}/functions/v1/vapi-webhook`
     };
 
-    // Create real VAPI call for web
+    // Create real VAPI web call
     console.log('Creating VAPI web call...');
-    const vapiResponse = await fetch('https://api.vapi.ai/call/web', {
+    const vapiResponse = await fetch('https://api.vapi.ai/call', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${vapiApiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
+        type: 'webCall',
         assistant: assistantConfig,
         metadata: {
           sessionId: sessionId,
