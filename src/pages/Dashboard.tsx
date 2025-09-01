@@ -354,7 +354,15 @@ const Dashboard = () => {
               ) : (
                 <div className="text-center py-4">
                   <p className="text-muted-foreground text-sm">No resume uploaded yet</p>
-                  <Button variant="outline" size="sm" className="mt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowResumeDialog(true);
+                    }}
+                  >
                     Upload Resume
                   </Button>
                 </div>
