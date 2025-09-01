@@ -7,7 +7,7 @@ interface HeroProps {
 
 const Hero = ({ onStartFreeInterview }: HeroProps) => {
   return (
-    <section className="pt-24 pb-16 px-6">
+    <section className="pt-32 pb-16 px-6">
       <div className="container mx-auto max-w-7xl">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-8">

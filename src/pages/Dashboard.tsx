@@ -116,7 +116,8 @@ const Dashboard = () => {
     if (!interviewType || !user) return;
 
     try {
-      const { data, error } = await supabase
+      // Create session in database
+      const { data: sessionData, error: sessionError } = await supabase
         .from('interview_sessions')
         .insert({
           user_id: user.id,
@@ -126,23 +127,30 @@ const Dashboard = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (sessionError) throw sessionError;
+
+      // Start the interview via edge function
+      const { data: startData, error: startError } = await supabase.functions.invoke('start-interview', {
+        body: { sessionId: sessionData.id }
+      });
+
+      if (startError) throw startError;
 
       toast({
         title: "Interview Started",
-        description: "Your mock interview session has been created!",
+        description: "Your mock interview session is ready!",
       });
 
       setShowInterviewDialog(false);
       
       // Navigate to interview session page
-      window.location.href = `/interview/${data.id}`;
+      window.location.href = `/interview/${sessionData.id}`;
       
     } catch (error: any) {
       console.error('Error starting interview:', error);
       toast({
         title: "Error",
-        description: "Failed to start interview session",
+        description: error.message || "Failed to start interview session",
         variant: "destructive"
       });
     }
