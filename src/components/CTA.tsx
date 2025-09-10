@@ -11,7 +11,7 @@ const CTA = ({ onGetStarted }: CTAProps) => {
         <div className="space-y-8">
           <h2 className="text-4xl lg:text-5xl font-bold text-foreground">
             Ready to{" "}
-            <span className="gradient-hero bg-clip-text text-transparent">
+            <span className="gradient-hero bg-clip-text ">
               Ace Your Next Interview?
             </span>
           </h2>

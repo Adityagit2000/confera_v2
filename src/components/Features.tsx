@@ -40,7 +40,7 @@ const Features = () => {
         <div className="text-center mb-16">
           <h2 className="text-4xl lg:text-5xl font-bold text-foreground mb-6">
             Powered by Advanced{" "}
-            <span className="gradient-hero bg-clip-text text-transparent">
+            <span className="gradient-hero bg-clip-text ">
               AI Technology
             </span>
           </h2>

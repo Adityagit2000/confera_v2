@@ -14,7 +14,7 @@ const Hero = ({ onStartFreeInterview }: HeroProps) => {
             <div className="space-y-4">
               <h1 className="text-5xl lg:text-6xl font-bold text-foreground leading-tight">
                 Ace Your Interviews with{" "}
-                <span className="gradient-hero bg-clip-text text-transparent">
+                <span className=" bg-clip-text ">
                   AI Intelligence
                 </span>
               </h1>
