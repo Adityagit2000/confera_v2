@@ -90,6 +90,12 @@ ALTER TABLE public.feedback_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.event_logs ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies for profiles
+-- Make idempotent: drop if they already exist
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
+
 CREATE POLICY "Users can view their own profile" ON public.profiles
     FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users can update their own profile" ON public.profiles
@@ -105,6 +111,12 @@ CREATE POLICY "Admins can view all profiles" ON public.profiles
     );
 
 -- Create RLS policies for resumes
+-- Make idempotent: drop if they already exist
+DROP POLICY IF EXISTS "Users can view their own resumes" ON public.resumes;
+DROP POLICY IF EXISTS "Users can create their own resumes" ON public.resumes;
+DROP POLICY IF EXISTS "Users can update their own resumes" ON public.resumes;
+DROP POLICY IF EXISTS "Admins can view all resumes" ON public.resumes;
+
 CREATE POLICY "Users can view their own resumes" ON public.resumes
     FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can create their own resumes" ON public.resumes
@@ -120,6 +132,12 @@ CREATE POLICY "Admins can view all resumes" ON public.resumes
     );
 
 -- Create RLS policies for interview sessions
+-- Make idempotent: drop if they already exist
+DROP POLICY IF EXISTS "Users can view their own sessions" ON public.interview_sessions;
+DROP POLICY IF EXISTS "Users can create their own sessions" ON public.interview_sessions;
+DROP POLICY IF EXISTS "Users can update their own sessions" ON public.interview_sessions;
+DROP POLICY IF EXISTS "Admins can view all sessions" ON public.interview_sessions;
+
 CREATE POLICY "Users can view their own sessions" ON public.interview_sessions
     FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can create their own sessions" ON public.interview_sessions
@@ -135,6 +153,11 @@ CREATE POLICY "Admins can view all sessions" ON public.interview_sessions
     );
 
 -- Create RLS policies for interview answers
+-- First drop if they already exist to make this migration idempotent
+DROP POLICY IF EXISTS "Users can view answers for their sessions" ON public.interview_answers;
+DROP POLICY IF EXISTS "Users can create answers for their sessions" ON public.interview_answers;
+DROP POLICY IF EXISTS "Admins can view all answers" ON public.interview_answers;
+
 CREATE POLICY "Users can view answers for their sessions" ON public.interview_answers
     FOR SELECT USING (
         EXISTS (
@@ -158,6 +181,11 @@ CREATE POLICY "Admins can view all answers" ON public.interview_answers
     );
 
 -- Create RLS policies for feedback reports
+-- Make idempotent: drop if they already exist
+DROP POLICY IF EXISTS "Users can view reports for their sessions" ON public.feedback_reports;
+DROP POLICY IF EXISTS "Users can create reports for their sessions" ON public.feedback_reports;
+DROP POLICY IF EXISTS "Admins can view all reports" ON public.feedback_reports;
+
 CREATE POLICY "Users can view reports for their sessions" ON public.feedback_reports
     FOR SELECT USING (
         EXISTS (
@@ -181,6 +209,11 @@ CREATE POLICY "Admins can view all reports" ON public.feedback_reports
     );
 
 -- Create RLS policies for event logs
+-- Make idempotent: drop if they already exist
+DROP POLICY IF EXISTS "Users can view their own events" ON public.event_logs;
+DROP POLICY IF EXISTS "System can insert events" ON public.event_logs;
+DROP POLICY IF EXISTS "Admins can view all events" ON public.event_logs;
+
 CREATE POLICY "Users can view their own events" ON public.event_logs
     FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "System can insert events" ON public.event_logs

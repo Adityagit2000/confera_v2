@@ -2,49 +2,35 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   ArrowLeft, 
-  Download, 
-  Share2, 
-  TrendingUp, 
   MessageSquare, 
-  User, 
-  Brain,
-  CheckCircle,
-  AlertTriangle
+  Code,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
+  Users,
+  Target,
+  Zap,
+  TrendingUp,
+  Share2,
+  Download,
+  PlayCircle
 } from 'lucide-react';
-
-interface FeedbackReport {
-  id: string;
-  overall_score: number;
-  resume_score: number;
-  technical_score: number;
-  communication_score: number;
-  behavior_score: number;
-  summary: string;
-  recommendations: any;
-  created_at: string;
-  session_id: string;
-}
-
-interface InterviewSession {
-  id: string;
-  type: string;
-  created_at: string;
-}
+import { motion } from 'framer-motion';
+import { LearningPath } from '@/components/LearningPath';
 
 const Report = () => {
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [report, setReport] = useState<FeedbackReport | null>(null);
-  const [session, setSession] = useState<InterviewSession | null>(null);
+  
+  const [reportData, setReportData] = useState<any>(null);
+  const [sessionData, setSessionData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -55,44 +41,38 @@ const Report = () => {
 
   const fetchReportData = async () => {
     try {
-      // Fetch the report
-      const { data: reportData, error: reportError } = await supabase
-        .from('feedback_reports')
-        .select('*')
-        .eq('session_id', sessionId)
-        .single();
-
-      if (reportError && reportError.code !== 'PGRST116') {
-        throw reportError;
-      }
-
-      if (reportData) {
-        setReport(reportData);
-      }
-
-      // Fetch session data
-      const { data: sessionData, error: sessionError } = await supabase
+      const { data: session, error: sessError } = await supabase
         .from('interview_sessions')
         .select('*')
         .eq('id', sessionId)
-        .eq('user_id', user!.id)
         .single();
 
-      if (sessionError) throw sessionError;
+      if (sessError) throw sessError;
+      setSessionData(session);
 
-      setSession(sessionData);
+      const { data: report, error: repError } = await supabase
+        .from('feedback_reports')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
 
-      // If no report exists yet, try to generate it
-      if (!reportData) {
-        await generateReport();
+      if (repError && repError.code !== 'PGRST116') {
+         throw repError;
+      }
+
+      if (report) {
+         setReportData(report);
+      } else {
+         const transcript = typeof session.transcript === 'string' ? JSON.parse(session.transcript) : session.transcript;
+         if (transcript && transcript.length > 2) {
+             await generateReport();
+         }
       }
     } catch (error: any) {
-      console.error('Error fetching report:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load report",
-        variant: "destructive"
-      });
+      console.error('Error loading report:', error);
+      toast({ title: "Error", description: "Failed to load report", variant: "destructive" });
       navigate('/dashboard');
     } finally {
       setLoading(false);
@@ -101,297 +81,363 @@ const Report = () => {
 
   const generateReport = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase.functions.invoke('generate-feedback', {
         body: { sessionId }
       });
-
       if (error) throw error;
-
-      setReport(data.report);
-      toast({
-        title: "Report Generated",
-        description: "Your interview feedback is ready!",
-      });
+      
+      const { data: report } = await supabase
+        .from('feedback_reports')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+        
+      if (report) setReportData(report);
     } catch (error: any) {
-      console.error('Error generating report:', error);
-      toast({
-        title: "Report Generation Failed",
-        description: error.message || "Could not generate report",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const downloadPDF = () => {
-    toast({
-      title: "PDF Download",
-      description: "PDF generation feature coming soon!",
-    });
-  };
-
-  const shareReport = () => {
-    toast({
-      title: "Share Report",
-      description: "Sharing feature coming soon!",
-    });
-  };
-
-  const startNewInterview = () => {
-    navigate('/dashboard');
-  };
-
-  const getInterviewTypeLabel = (type: string) => {
-    switch (type) {
-      case 'dsa': return 'Data Structures & Algorithms';
-      case 'system_design': return 'System Design';
-      case 'hr': return 'HR & Behavioral';
-      default: return type;
+      toast({ title: "Error generating report", description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
+    if (score >= 80) return { text: 'text-success', bg: 'bg-success/10', border: 'border-success/20', stroke: 'stroke-success' };
+    if (score >= 60) return { text: 'text-yellow-500', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', stroke: 'stroke-yellow-500' };
+    return { text: 'text-destructive', bg: 'bg-destructive/10', border: 'border-destructive/20', stroke: 'stroke-destructive' };
   };
 
-  const getScoreLabel = (score: number) => {
-    if (score >= 80) return 'Excellent';
-    if (score >= 60) return 'Good';
-    return 'Needs Improvement';
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast({ title: "Link Copied", description: "Report link copied to clipboard." });
+  };
+
+  const handleDownload = () => {
+    window.print();
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-muted-foreground">Loading your report...</p>
-        </div>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center text-foreground">
+        <Loader2 className="w-12 h-12 animate-spin text-primary mb-6 shadow-glow" /> 
+        <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
+          Analyzing Performance
+        </h2>
+        <p className="text-muted-foreground mt-2 animate-pulse">Generating your comprehensive feedback report...</p>
       </div>
     );
   }
 
-  if (!report || !session) {
+  if (!reportData) {
     return (
-      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <h2 className="text-2xl font-bold">Report Not Found</h2>
-          <p className="text-muted-foreground">This interview report is not available.</p>
-          <Button onClick={() => navigate('/dashboard')}>
-            Return to Dashboard
-          </Button>
+      <div className="min-h-screen bg-background flex items-center justify-center text-center space-y-6 flex-col">
+        <div className="w-24 h-24 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+          <AlertTriangle className="w-10 h-10 text-muted-foreground" />
         </div>
+        <h2 className="text-3xl font-bold text-foreground">Report Not Ready</h2>
+        <p className="text-muted-foreground max-w-md">The interview session was likely too short or no feedback could be generated from the transcript.</p>
+        <Button variant="hero" onClick={() => navigate('/dashboard')} className="mt-4">Return to Dashboard</Button>
       </div>
     );
   }
+
+  const recommendations = typeof reportData.recommendations === 'string' 
+    ? JSON.parse(reportData.recommendations) 
+    : (reportData.recommendations || {});
+
+  const overallScoreColor = getScoreColor(reportData.overall_score || 0);
+
+  const CircularScore = ({ score, label, icon: Icon }: { score: number, label: string, icon: any }) => {
+    const colors = getScoreColor(score);
+    const radius = 40;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (score / 100) * circumference;
+
+    return (
+      <div className="flex flex-col items-center p-6 bg-card/50 rounded-2xl border border-border/50 shadow-sm relative overflow-hidden group hover:border-primary/50 transition-colors">
+        <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl -mr-10 -mt-10 opacity-50 ${colors.bg}`}></div>
+        
+        <div className="relative w-32 h-32 flex items-center justify-center mb-4">
+          <svg className="w-full h-full transform -rotate-90">
+            <circle cx="64" cy="64" r="40" className="stroke-muted fill-none" strokeWidth="6" />
+            <motion.circle 
+              cx="64" cy="64" r="40" 
+              className={`fill-none ${colors.stroke} transition-all duration-1000 ease-out`}
+              strokeWidth="6" 
+              strokeDasharray={circumference} 
+              initial={{ strokeDashoffset: circumference }}
+              animate={{ strokeDashoffset: offset }}
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className={`text-3xl font-black ${colors.text}`}>{score}</span>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mt-1">Score</span>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Icon className={`w-4 h-4 ${colors.text}`} />
+          <h3 className="font-semibold text-foreground tracking-wide">{label}</h3>
+        </div>
+      </div>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
-      {/* Header */}
-      <header className="bg-background/80 backdrop-blur-lg border-b border-muted sticky top-0 z-40">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard')}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Dashboard
+    <div className="min-h-screen bg-background overflow-x-hidden font-sans">
+      <div className="absolute inset-0 bg-mesh-gradient opacity-20 pointer-events-none fixed"></div>
+      
+      <header className="bg-background/60 backdrop-blur-xl border-b border-border/50 sticky top-0 z-40 p-4">
+        <div className="container mx-auto flex items-center justify-between max-w-6xl">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="rounded-full hover:bg-muted/50">
+              <ArrowLeft className="w-5 h-5 text-foreground" />
             </Button>
             <div>
-              <h1 className="text-lg font-semibold">Interview Report</h1>
-              <p className="text-sm text-muted-foreground">
-                {getInterviewTypeLabel(session.type)} • {new Date(session.created_at).toLocaleDateString()}
-              </p>
+              <h1 className="font-bold text-lg text-foreground capitalize flex items-center gap-2">
+                {sessionData?.type?.replace('_', ' ')} Report
+              </h1>
+              <p className="text-xs text-muted-foreground font-medium">{new Date(reportData.created_at).toLocaleDateString()}</p>
             </div>
           </div>
-          
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" onClick={shareReport}>
-              <Share2 className="w-4 h-4 mr-2" />
-              Share
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={handleShare} className="hidden sm:flex border-border/50 bg-card/50 hover:bg-muted/50">
+              <Share2 className="w-4 h-4 mr-2" /> Share
             </Button>
-            <Button variant="outline" size="sm" onClick={downloadPDF}>
-              <Download className="w-4 h-4 mr-2" />
-              PDF
+            <Button variant="outline" size="sm" onClick={handleDownload} className="hidden sm:flex border-border/50 bg-card/50 hover:bg-muted/50">
+              <Download className="w-4 h-4 mr-2" /> Download PDF
+            </Button>
+            <Button variant="hero" size="sm" onClick={() => navigate('/mock-interview', { state: { jobRole: sessionData?.job_role } })}>
+              <PlayCircle className="w-4 h-4 mr-2" /> Start Mock Interview
             </Button>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8">
-        <div className="max-w-4xl mx-auto space-y-8">
-          {/* Overall Score */}
-          <Card className="text-center">
-            <CardContent className="p-8">
-              <div className="space-y-4">
-                <div className="w-24 h-24 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-3xl font-bold text-primary">{report.overall_score}%</span>
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold mb-2">Overall Performance</h2>
-                  <p className={`text-lg font-semibold ${getScoreColor(report.overall_score)}`}>
-                    {getScoreLabel(report.overall_score)}
+      <main className="container mx-auto px-4 py-12 max-w-6xl relative z-10 space-y-12">
+        
+        {/* Hero Score Section */}
+        <section className="relative">
+          <div className={`absolute inset-0 ${overallScoreColor.bg} blur-3xl rounded-[3rem] opacity-30`}></div>
+          <Card className="bg-card/40 backdrop-blur-md border border-border/50 shadow-2xl rounded-[2.5rem] overflow-hidden">
+            <CardContent className="p-10 md:p-16 flex flex-col items-center justify-center text-center relative">
+              <div className="grid md:grid-cols-2 gap-12 items-center w-full">
+                
+                <div className="flex flex-col items-center md:items-start text-left order-2 md:order-1">
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary mb-6">
+                    <Target className="w-4 h-4" />
+                    <span className="text-sm font-semibold tracking-wide uppercase">Performance Analysis</span>
+                  </div>
+                  <h2 className="text-4xl md:text-5xl font-bold mb-6 text-foreground leading-tight">
+                    Your Interview Results are In
+                  </h2>
+                  <p className="text-lg text-muted-foreground leading-relaxed max-w-xl">
+                    {reportData.summary}
                   </p>
                 </div>
-                <p className="text-muted-foreground max-w-2xl mx-auto">
-                  {report.summary}
-                </p>
+
+                <div className="flex items-center justify-center order-1 md:order-2">
+                  <div className="relative w-64 h-64">
+                    <svg className="w-full h-full transform -rotate-90 drop-shadow-2xl">
+                      <circle cx="128" cy="128" r="110" className="stroke-muted/30 fill-none" strokeWidth="16" />
+                      <motion.circle 
+                        cx="128" cy="128" r="110" 
+                        className={`fill-none ${overallScoreColor.stroke} transition-all duration-1500 ease-out`}
+                        strokeWidth="16" 
+                        strokeDasharray={2 * Math.PI * 110} 
+                        initial={{ strokeDashoffset: 2 * Math.PI * 110 }}
+                        animate={{ strokeDashoffset: (2 * Math.PI * 110) - ((reportData.overall_score || 0) / 100) * (2 * Math.PI * 110) }}
+                        strokeLinecap="round"
+                        style={{ filter: 'drop-shadow(0px 0px 12px rgba(var(--primary-rgb), 0.5))' }}
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className={`text-7xl font-black ${overallScoreColor.text} tracking-tighter`}>{reportData.overall_score || 0}</span>
+                      <span className="text-sm text-muted-foreground uppercase tracking-widest font-bold mt-2">Overall Score</span>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </CardContent>
           </Card>
-
-          {/* Score Breakdown */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <TrendingUp className="w-8 h-8 text-blue-500" />
-                  <div>
-                    <h3 className="font-semibold">Resume</h3>
-                    <p className="text-2xl font-bold">{report.resume_score}%</p>
+        </section>
+        
+        {/* McKinsey Readiness Assessment */}
+        {recommendations.mckinsey_readiness && (
+          <section className="animate-in fade-in slide-in-from-bottom-5 duration-700">
+            <Card className="bg-gradient-to-br from-orange-500/10 via-card to-card border border-orange-500/20 rounded-[2.5rem] shadow-xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 rounded-full blur-3xl -mr-32 -mt-32" />
+              <CardHeader className="p-8 md:p-10 pb-6 border-b border-border/50">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <CardTitle className="text-2xl md:text-3xl flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-orange-500/10 flex items-center justify-center border border-orange-500/20 shadow-inner">
+                      <Target className="text-orange-500 h-7 w-7" />
+                    </div>
+                    McKinsey Readiness Assessment
+                  </CardTitle>
+                  <div className="w-fit px-4 py-2 rounded-full bg-orange-500 text-white text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-orange-500/20">
+                    QuantumBlack Standard
                   </div>
                 </div>
-                <Progress value={report.resume_score} className="mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  {getScoreLabel(report.resume_score)}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <Brain className="w-8 h-8 text-purple-500" />
-                  <div>
-                    <h3 className="font-semibold">Technical</h3>
-                    <p className="text-2xl font-bold">{report.technical_score}%</p>
-                  </div>
-                </div>
-                <Progress value={report.technical_score} className="mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  {getScoreLabel(report.technical_score)}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <MessageSquare className="w-8 h-8 text-green-500" />
-                  <div>
-                    <h3 className="font-semibold">Communication</h3>
-                    <p className="text-2xl font-bold">{report.communication_score}%</p>
-                  </div>
-                </div>
-                <Progress value={report.communication_score} className="mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  {getScoreLabel(report.communication_score)}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center space-x-3 mb-4">
-                  <User className="w-8 h-8 text-orange-500" />
-                  <div>
-                    <h3 className="font-semibold">Behavioral</h3>
-                    <p className="text-2xl font-bold">{report.behavior_score}%</p>
-                  </div>
-                </div>
-                <Progress value={report.behavior_score} className="mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  {getScoreLabel(report.behavior_score)}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Detailed Feedback */}
-          {report.recommendations && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Strengths */}
-              {report.recommendations.strengths?.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <CheckCircle className="w-5 h-5 text-green-500" />
-                      <span>Key Strengths</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-3">
-                      {report.recommendations.strengths.map((strength: string, index: number) => (
-                        <li key={index} className="flex items-start space-x-3">
-                          <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <span className="text-sm">{strength}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Areas for Improvement */}
-              {report.recommendations.improvements?.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                      <span>Areas for Improvement</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-3">
-                      {report.recommendations.improvements.map((improvement: string, index: number) => (
-                        <li key={index} className="flex items-start space-x-3">
-                          <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-                          <span className="text-sm">{improvement}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          )}
-
-          {/* Next Steps */}
-          {report.recommendations?.nextSteps?.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Recommended Next Steps</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {report.recommendations.nextSteps.map((step: string, index: number) => (
-                    <li key={index} className="flex items-start space-x-3 p-3 bg-muted rounded-lg">
-                      <span className="w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold mt-0.5">
-                        {index + 1}
-                      </span>
-                      <span className="text-sm">{step}</span>
-                    </li>
-                  ))}
-                </ul>
+              <CardContent className="p-8 md:p-10">
+                <div className="grid md:grid-cols-2 gap-10">
+                  <div className="space-y-8">
+                    <div>
+                      <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" /> Identified Gaps
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {recommendations.mckinsey_readiness.gaps?.map((gap: string, i: number) => (
+                          <span key={i} className="px-4 py-2 rounded-xl bg-orange-500/5 border border-orange-500/10 text-foreground/90 text-sm font-medium">
+                            {gap}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                        <TrendingUp className="w-4 h-4" /> Personalized Study Plan
+                      </h4>
+                      <p className="text-foreground/90 leading-relaxed text-sm bg-background/40 p-5 rounded-2xl border border-border/50 shadow-inner">
+                        {recommendations.mckinsey_readiness.study_plan}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    <h4 className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                      <Zap className="w-4 h-4" /> Recommended Study Path
+                    </h4>
+                    <div className="space-y-4">
+                      {recommendations.mckinsey_readiness.resources?.map((resource: string, i: number) => (
+                        <div key={i} className="flex gap-4 p-5 rounded-2xl bg-background/60 border border-border/50 hover:border-orange-500/30 transition-all group shadow-sm">
+                          <div className="w-8 h-8 rounded-full bg-orange-500/10 flex items-center justify-center shrink-0 border border-orange-500/20">
+                            <CheckCircle2 className="h-4 w-4 text-orange-500" />
+                          </div>
+                          <span className="text-foreground/90 text-sm font-medium group-hover:text-foreground transition-colors pt-1.5">{resource}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-          )}
+          </section>
+        )}
 
-          {/* Actions */}
-          <div className="text-center space-y-4">
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button variant="hero" onClick={startNewInterview} size="lg">
-                Practice Another Interview
-              </Button>
-              <Button variant="outline" onClick={() => navigate('/dashboard')} size="lg">
-                View All Sessions
-              </Button>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Keep practicing to improve your interview performance!
-            </p>
+        {/* Breakdown Scores */}
+        <section>
+          <h3 className="text-2xl font-bold text-foreground mb-6 flex items-center gap-3">
+            <Zap className="w-6 h-6 text-primary" /> Skill Breakdown
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <CircularScore score={reportData.technical_score || 0} label="Technical Depth" icon={Code} />
+            <CircularScore score={reportData.communication_score || 0} label="Communication" icon={MessageSquare} />
+            <CircularScore score={reportData.behavior_score || 0} label="Behavioral" icon={Users} />
           </div>
+        </section>
+
+        {/* Learning Path Checklist */}
+        <div className="pt-8">
+          <LearningPath sourceId={sessionId!} sourceType="mock_interview" />
         </div>
+
+        {/* Detailed Feedback */}
+        <section className="grid md:grid-cols-2 gap-6">
+          <Card className="bg-card/50 border border-border/50 rounded-[2rem] shadow-lg relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-success/5 rounded-full blur-2xl -mr-16 -mt-16" />
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                  <CheckCircle2 className="text-success h-5 w-5" />
+                </div>
+                Key Strengths
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-4">
+                {recommendations.strengths?.map((str: string, i: number) => (
+                  <motion.li 
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    key={i} 
+                    className="flex gap-4 p-4 rounded-xl bg-success/5 border border-success/10 hover:border-success/30 transition-colors"
+                  >
+                    <CheckCircle2 className="h-5 w-5 text-success shrink-0" />
+                    <span className="text-foreground/90 text-sm leading-relaxed">{str}</span>
+                  </motion.li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-card/50 border border-border/50 rounded-[2rem] shadow-lg relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/5 rounded-full blur-2xl -mr-16 -mt-16" />
+            <CardHeader className="pb-4">
+              <CardTitle className="text-xl flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center">
+                  <AlertTriangle className="text-yellow-500 h-5 w-5" />
+                </div>
+                Areas for Improvement
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-4">
+                {recommendations.improvements?.map((imp: string, i: number) => (
+                  <motion.li 
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    key={i} 
+                    className="flex gap-4 p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/10 hover:border-yellow-500/30 transition-colors"
+                  >
+                    <AlertTriangle className="h-5 w-5 text-yellow-500 shrink-0" />
+                    <span className="text-foreground/90 text-sm leading-relaxed">{imp}</span>
+                  </motion.li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* Action Plan */}
+        <section>
+          <Card className="bg-card/50 border border-border/50 rounded-[2rem] shadow-lg">
+            <CardHeader className="pb-6 border-b border-border/50">
+               <CardTitle className="text-2xl flex items-center gap-3">
+                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                   <TrendingUp className="text-primary h-6 w-6" />
+                 </div>
+                 Recommended Action Plan
+               </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8">
+               <ul className="space-y-6">
+                 {recommendations.nextSteps?.map((step: string, i: number) => (
+                   <li key={i} className="flex gap-5 items-start group">
+                     <div className="w-10 h-10 rounded-full bg-primary/10 text-primary border border-primary/20 flex flex-col items-center justify-center font-black shrink-0 shadow-sm group-hover:scale-110 group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                       {i+1}
+                     </div>
+                     <div className="pt-2">
+                       <p className="text-foreground/90 text-base leading-relaxed">{step}</p>
+                     </div>
+                   </li>
+                 ))}
+               </ul>
+            </CardContent>
+          </Card>
+        </section>
+
       </main>
+      
+      {/* Spacer for print downlaods */}
+      <div className="h-24"></div>
     </div>
   );
 };

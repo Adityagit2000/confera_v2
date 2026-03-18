@@ -102,6 +102,11 @@ CREATE POLICY "Admins can view all profiles" ON public.profiles
     FOR ALL USING (public.get_current_user_role() = 'admin');
 
 -- Create RLS policies for interview answers
+-- Make idempotent: drop if they already exist
+DROP POLICY IF EXISTS "Users can view answers for their sessions" ON public.interview_answers;
+DROP POLICY IF EXISTS "Users can create answers for their sessions" ON public.interview_answers;
+DROP POLICY IF EXISTS "Admins can view all answers" ON public.interview_answers;
+
 CREATE POLICY "Users can view answers for their sessions" ON public.interview_answers
     FOR SELECT USING (
         EXISTS (
@@ -120,6 +125,11 @@ CREATE POLICY "Admins can view all answers" ON public.interview_answers
     FOR ALL USING (public.get_current_user_role() = 'admin');
 
 -- Create RLS policies for feedback reports
+-- Make idempotent: drop if they already exist
+DROP POLICY IF EXISTS "Users can view reports for their sessions" ON public.feedback_reports;
+DROP POLICY IF EXISTS "Users can create reports for their sessions" ON public.feedback_reports;
+DROP POLICY IF EXISTS "Admins can view all reports" ON public.feedback_reports;
+
 CREATE POLICY "Users can view reports for their sessions" ON public.feedback_reports
     FOR SELECT USING (
         EXISTS (
@@ -138,6 +148,11 @@ CREATE POLICY "Admins can view all reports" ON public.feedback_reports
     FOR ALL USING (public.get_current_user_role() = 'admin');
 
 -- Create RLS policies for event logs
+-- Make idempotent: drop if they already exist
+DROP POLICY IF EXISTS "Users can view their own events" ON public.event_logs;
+DROP POLICY IF EXISTS "System can insert events" ON public.event_logs;
+DROP POLICY IF EXISTS "Admins can view all events" ON public.event_logs;
+
 CREATE POLICY "Users can view their own events" ON public.event_logs
     FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "System can insert events" ON public.event_logs

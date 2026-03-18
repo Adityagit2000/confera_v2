@@ -1,13 +1,21 @@
 project_id = "uqdioubnjfqzvpsxcyxz"
 
 [functions.analyze-resume]
-verify_jwt = true
+verify_jwt = false
+
+[functions.ai-interview-chat]
+verify_jwt = false
 
 [functions.generate-feedback]
-verify_jwt = true
+verify_jwt = false
 
 [functions.start-interview]
-verify_jwt = true
+verify_jwt = false
 
 [functions.vapi-webhook]
+verify_jwt = false
+[functions.create-order]
+verify_jwt = false
+
+[functions.verify-payment]
 verify_jwt = false

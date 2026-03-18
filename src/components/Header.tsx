@@ -19,7 +19,7 @@ const Header = () => {
         <nav className="hidden md:flex items-center space-x-8">
           <a href="#features" className="text-muted-foreground hover:text-foreground transition-smooth">Features</a>
           <a href="#how-it-works" className="text-muted-foreground hover:text-foreground transition-smooth">How it Works</a>
-          <a href="#pricing" className="text-muted-foreground hover:text-foreground transition-smooth">Pricing</a>
+          <button onClick={() => navigate('/pricing')} className="text-muted-foreground hover:text-foreground transition-smooth">Pricing</button>
         </nav>
         
         <div className="flex items-center space-x-4">

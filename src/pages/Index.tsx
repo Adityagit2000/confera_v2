@@ -5,213 +5,115 @@ import HowItWorks from "@/components/HowItWorks";
 import CTA from "@/components/CTA";
 import ResumeUpload from "@/components/ResumeUpload";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { InterviewSelectionModal } from "@/components/InterviewSelectionModal";
 
 const Index = () => {
-  const [showInterviewDialog, setShowInterviewDialog] = useState(false);
-  const [interviewType, setInterviewType] = useState<string>('');
-  const [currentStep, setCurrentStep] = useState<'auth' | 'resume' | 'interview'>('auth');
-  const [resumeAnalyzed, setResumeAnalyzed] = useState(false);
+  const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const startFreeInterview = () => {
+  const handleStartMockInterview = () => {
     if (!user) {
-      setCurrentStep('auth');
+      navigate('/auth');
     } else {
-      setCurrentStep('resume');
+      setShowInterviewModal(true);
     }
-    setShowInterviewDialog(true);
   };
 
-  const handleAuthComplete = () => {
-    setCurrentStep('resume');
+  const handleAnalyzeResume = () => {
+    if (!user) {
+      navigate('/auth');
+    } else {
+      setShowResumeModal(true);
+    }
   };
 
   const handleResumeAnalysisComplete = (data: any) => {
-    setResumeAnalyzed(true);
-    setCurrentStep('interview');
+    setShowResumeModal(false);
     toast({
       title: "Resume Analysis Complete",
       description: `ATS Score: ${data.ats_score}% - Ready for interview!`,
     });
-  };
-
-  const handleStartInterview = async () => {
-    if (!interviewType || !user) return;
-
-    try {
-      // Create session in database
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('interview_sessions')
-        .insert({
-          user_id: user.id,
-          type: interviewType,
-          status: 'scheduled',
-          scheduled_at: new Date().toISOString()
-        })
-        .select()
-        .single();
-
-      if (sessionError) throw sessionError;
-
-      // Start the interview via edge function
-      const { data: startData, error: startError } = await supabase.functions.invoke('start-interview', {
-        body: { sessionId: sessionData.id }
-      });
-
-      if (startError) throw startError;
-
-      toast({
-        title: "Interview Started",
-        description: "Your mock interview session is ready!",
-      });
-
-      setShowInterviewDialog(false);
-      navigate(`/interview/${sessionData.id}`);
-      
-    } catch (error: any) {
-      console.error('Error starting interview:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to start interview session",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const getDialogTitle = () => {
-    switch (currentStep) {
-      case 'auth': return 'Start Free Mock Interview';
-      case 'resume': return 'Upload Your Resume';
-      case 'interview': return 'Ready for Interview';
-      default: return 'Start Free Mock Interview';
-    }
+    // Open the interview selection modal automatically after resume analyze
+    setTimeout(() => {
+       setShowInterviewModal(true);
+    }, 500);
   };
 
   return (
     <div className="min-h-screen">
       <Header />
       <main>
-        <Hero onStartFreeInterview={startFreeInterview} />
+        <Hero 
+          onStartFreeInterview={handleStartMockInterview} 
+          onWatchDemo={handleAnalyzeResume} 
+        />
         <Features />
         <HowItWorks />
         <CTA onGetStarted={() => navigate('/auth')} />
       </main>
-      <footer className="bg-card border-t border-muted py-8">
-        <div className="container mx-auto px-6 text-center">
-          <div className="flex items-center justify-center space-x-2 mb-4">
-            <div className="w-6 h-6 gradient-primary rounded flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-sm">C</span>
+      <footer className="bg-background border-t border-border py-12">
+        <div className="container mx-auto px-6">
+          <div className="grid md:grid-cols-2 gap-8 items-center border-b border-border/50 pb-8 mb-8">
+            <div>
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">C</span>
+                </div>
+                <span className="text-xl font-bold text-foreground">Confera</span>
+              </div>
+              <p className="text-muted-foreground max-w-sm">
+                The world's most advanced AI interview preparation platform.
+              </p>
             </div>
-            <span className="text-lg font-semibold text-foreground">Confera</span>
+            <div className="md:justify-self-end w-full max-w-md">
+              <h4 className="font-semibold text-foreground mb-2">Subscribe to our newsletter</h4>
+              <div className="flex gap-2">
+                <input 
+                  type="email" 
+                  placeholder="Enter your email" 
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <Button className="bg-primary hover:bg-primary-glow text-primary-foreground">Subscribe</Button>
+              </div>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">
-            © 2024 Confera. Powered by Advanced AI Technology.
-          </p>
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">
+              © 2026 Confera. Powered by Advanced AI Technology.
+            </p>
+          </div>
         </div>
       </footer>
 
-      {/* Interview Modal */}
-      <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{getDialogTitle()}</DialogTitle>
-          </DialogHeader>
-          
-          {/* Auth Step */}
-          {currentStep === 'auth' && (
-            <div className="space-y-4">
-              <p className="text-muted-foreground">Sign in or create an account to start your personalized mock interview</p>
-              <div className="flex flex-col gap-2">
-                <Button 
-                  onClick={() => navigate('/auth')} 
-                  variant="hero"
-                  className="w-full"
-                >
-                  Sign In / Create Account
-                </Button>
-                <p className="text-xs text-muted-foreground text-center">
-                  Free account • No credit card required
-                </p>
-              </div>
-            </div>
-          )}
+      {/* Premium Interview Selection Modal */}
+      <InterviewSelectionModal 
+        open={showInterviewModal} 
+        onOpenChange={setShowInterviewModal} 
+      />
 
-          {/* Resume Step */}
-          {currentStep === 'resume' && user && (
-            <div className="space-y-4">
-              <p className="text-muted-foreground">
-                Upload your resume to get personalized feedback and tailored interview questions
-              </p>
-              <ResumeUpload onAnalysisComplete={handleResumeAnalysisComplete} />
-              {resumeAnalyzed && (
-                <Button 
-                  onClick={() => setCurrentStep('interview')}
-                  variant="hero"
-                  className="w-full"
-                >
-                  Continue to Interview Selection
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Interview Selection Step */}
-          {currentStep === 'interview' && user && (
-            <div className="space-y-4">
-              <p className="text-muted-foreground">
-                Great! Your resume has been analyzed. Now choose your interview type:
-              </p>
-              <RadioGroup value={interviewType} onValueChange={setInterviewType}>
-                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50">
-                  <RadioGroupItem value="dsa" id="dsa" />
-                  <Label htmlFor="dsa" className="flex-1 cursor-pointer">
-                    <div>
-                      <div className="font-medium">Data Structures & Algorithms</div>
-                      <div className="text-sm text-muted-foreground">Coding problems and algorithmic thinking</div>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50">
-                  <RadioGroupItem value="system_design" id="system_design" />
-                  <Label htmlFor="system_design" className="flex-1 cursor-pointer">
-                    <div>
-                      <div className="font-medium">System Design</div>
-                      <div className="text-sm text-muted-foreground">Architecture and scalability discussions</div>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-muted/50">
-                  <RadioGroupItem value="hr" id="hr" />
-                  <Label htmlFor="hr" className="flex-1 cursor-pointer">
-                    <div>
-                      <div className="font-medium">HR & Behavioral</div>
-                      <div className="text-sm text-muted-foreground">Behavioral questions and cultural fit</div>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
-              <Button 
-                onClick={handleStartInterview} 
-                disabled={!interviewType}
-                variant="hero"
-                className="w-full"
-              >
-                Start Interview
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Resume Upload Modal */}
+      <Dialog open={showResumeModal} onOpenChange={setShowResumeModal}>
+         <DialogContent className="max-w-2xl bg-card border-border/50 p-0 overflow-hidden">
+           <div className="bg-gradient-to-r from-primary/10 to-secondary/10 px-6 py-4 border-b border-border/50">
+             <DialogTitle className="text-xl inline-block">Upload Resume</DialogTitle>
+             <DialogDescription className="mt-1">
+               Upload for instant ATS compatibility scoring and intelligent skill extraction.
+             </DialogDescription>
+           </div>
+           <div className="p-6">
+             <ResumeUpload onAnalysisComplete={handleResumeAnalysisComplete} />
+           </div>
+         </DialogContent>
+       </Dialog>
     </div>
   );
 };
