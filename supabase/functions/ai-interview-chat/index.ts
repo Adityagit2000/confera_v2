@@ -174,7 +174,7 @@ You are a Senior ${interviewType?.toUpperCase() || 'General'} Interviewer. Your 
       session_id: sessionId,
       question: lastQuestion || "Initial Question",
       answer_text: message || "",
-      score: 8, // Placeholder, real scoring happens in generate-feedback
+      score: null // will be evaluated in generate-feedback
     });
 
     return new Response(JSON.stringify({ 

@@ -90,6 +90,21 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    // 1. Fetch all answers for this session
+    const { data: answers, error: answersError } = await supabase
+      .from('interview_answers')
+      .select('question, answer_text, score')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true });
+
+    if (answersError || !answers || answers.length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'No answers found for this session. Please complete the interview first.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 2. Fetch session details
     const { data: session, error: sessionError } = await supabase
       .from('interview_sessions')
       .select('*')
@@ -100,74 +115,68 @@ Deno.serve(async (req) => {
       throw new Error('Interview session not found')
     }
 
-    // Fetch user profile to check plan
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('plan, plan_expires_at')
-      .eq('id', session.user_id)
+    // 3. Fetch user's resume for context
+    const { data: resume } = await supabase
+      .from('resumes')
+      .select('parsed_data, ats_score')
+      .eq('user_id', session.user_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
-    const isPro = profile?.plan === 'pro' && 
-      (profile?.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false);
+    // 4. Build the evaluation prompt with actual answers
+    const qaTranscript = answers.map((a, i) => 
+      `Question ${i+1}: ${a.question}\nCandidate Answer: ${a.answer_text || 'No answer provided'}`
+    ).join('\n\n');
 
-    const transcript = typeof session.transcript === 'string' 
-        ? JSON.parse(session.transcript) 
-        : (session.transcript || [])
+    const answeredCount = answers.filter(a => a.answer_text && a.answer_text.trim().length > 0).length;
 
-    let systemPrompt = `You are an expert technical recruiter and hiring manager.`;
+    let scoringGuideline = "";
+    if (answeredCount <= 2) {
+      scoringGuideline = "The candidate answered 2 or fewer questions. This is an INCOMPLETE interview. Overall score MUST be in the 20-40 range. Summary MUST state it was incomplete.";
+    } else if (answeredCount <= 4) {
+      scoringGuideline = "The candidate answered 3-4 questions. This is a partial interview. Scores should reflect the limited data (likely 40-60 range unless answers were exceptional).";
+    }
+
+    const systemPrompt = `
+    You are an expert technical recruiter and hiring manager evaluating a candidate for a ${session.type.replace('_', ' ')} interview.
+    Evaluate ONLY based on the actual answers provided below. Be specific and reference the candidate's actual responses.
+    If answers are missing or empty, reflect that in the scores.
+    
+    ${scoringGuideline}
+    `;
 
     let userMessage = `
-    Review the following transcript for a ${session.type.replace('_', ' ')} interview.
-    
-    Transcript:
-    ${JSON.stringify(transcript)}
-    
-    Evaluate the candidate's performance and provide a comprehensive feedback report.
-    `;
-    
-    if (['daa', 'consulting', 'business_analyst'].includes(session.type)) {
-      userMessage += `
-      For this role, you MUST evaluate the following exact dimensions and map them to the JSON schema:
-      - 'technical_score' should represent Domain knowledge relevance & Quantitative reasoning.
-      - 'communication_score' should represent Communication clarity.
-      - 'behavior_score' should represent Structured thinking and problem framing.
-      `;
-      userMessage += `
-      For this specialized McKinsey Data Engineer role, evaluate these specific dimensions:
-      - 'technical_score': Proficiency in SQL, Python, PySpark, LLMs, and Vector DBs.
-      - 'communication_score': Ability to communicate technical findings to stakeholders and consulting mindset.
-      - 'behavior_score': End-to-end project ownership and optimization intuition.
-      `;
+    Evaluate this ${session.type.replace('_', ' ')} interview performance based on the actual Q&A transcript below.
+
+    INTERVIEW TRANSCRIPT:
+    ${qaTranscript}
+
+    CANDIDATE RESUME CONTEXT:
+    Skills: ${JSON.stringify(resume?.parsed_data?.skills || [])}
+    ATS Score: ${resume?.ats_score || 'N/A'}
+
+    Provide evaluation as JSON with:
+    {
+      "overall_score": <0-100 based on actual answers>,
+      "technical_score": <0-100>,
+      "communication_score": <0-100>,
+      "behavior_score": <0-100>,
+      "summary": "<2-3 sentences specifically about their actual answers>",
+      "strengths": ["<specific strength from their answers>"],
+      "improvements": ["<specific area to improve based on their answers>"],
+      "nextSteps": ["<actionable next step>"]
+      ${(session.type === 'mckinsey_de') ? `,
+      "mckinsey_readiness": {
+        "gaps": ["array of strings"],
+        "study_plan": "string",
+        "resources": ["array of strings"]
+      }` : ''}
     }
 
-    if (isPro || session.type === 'mckinsey_de') {
-      userMessage += `
-      You MUST also include a 'mckinsey_readiness' object (nested inside the main JSON) with:
-      - 'gaps': array of strings identifying missing skills for top-tier consulting roles.
-      - 'study_plan': string describing a roadmap to reach McKinsey-level performance.
-      - 'resources': array of strings with specific learning resources.
-      `;
-    }
-    
-    userMessage += `
-    You must return a STRICT JSON object in this exact format, with NO Markdown wrapping (do not use \`\`\`json):
-    {
-      "overall_score": 85,
-      "technical_score": 80,
-      "communication_score": 90,
-      "behavior_score": 85,
-      "summary": "The candidate demonstrated strong understanding of...",
-      "strengths": ["Clear communication", "Good problem solving"],
-      "improvements": ["Needs to talk about scale more", "Could optimize space complexity"],
-      "nextSteps": ["Read distributed systems book", "Practice more graph problems"],
-      "mckinsey_readiness": {
-        "gaps": ["SQL window functions", "PySpark optimization"],
-        "study_plan": "Focus on distributed data processing and AI agents.",
-        "resources": ["Practice window functions on LeetCode Top SQL 50", "Study Spark: The Definitive Guide"]
-      }
-    }
-    All scores should be between 0 and 100.
-    `
+    IMPORTANT: Base ALL scores and feedback on the actual answers above. 
+    Respond with ONLY the raw JSON. No markdown tags.
+    `;
 
     const responseText = await callAI(systemPrompt, userMessage);
     const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -199,7 +208,7 @@ Deno.serve(async (req) => {
       throw reportError
     }
 
-    // --- NEW: Generate Learning Path ---
+    // --- Generate Learning Path ---
     try {
       const improvements = reportData.improvements || []
       const nextSteps = reportData.nextSteps || []
@@ -208,10 +217,6 @@ Deno.serve(async (req) => {
       const allGaps = Array.from(new Set([...improvements, ...nextSteps, ...gaps]))
       
       if (allGaps.length > 0) {
-        console.log(`Fetching resources for ${allGaps.length} gaps`)
-        
-        // Call the new fetch-resources function internally or via fetch
-        // For simplicity in the same environment, we'll try to invoke it
         const { data: resourcesData, error: resourcesError } = await supabase.functions.invoke('fetch-resources', {
           body: { topics: allGaps }
         })
@@ -227,31 +232,12 @@ Deno.serve(async (req) => {
             is_completed: false
           }))
 
-          const { error: lpError } = await supabase
-            .from('learning_paths')
-            .insert(learningPathEntries)
-          
-          if (lpError) console.error('Error inserting learning paths:', lpError)
+          await supabase.from('learning_paths').insert(learningPathEntries)
         }
       }
     } catch (lpErr) {
       console.error('Failed to generate learning path:', lpErr)
-      // Don't fail the whole process if learning path fails
     }
-    // --- END NEW ---
-
-    // Log the event
-    await supabase
-      .from('event_logs')
-      .insert({
-        user_id: session.user_id,
-        name: 'feedback_generated',
-        payload: {
-          session_id: sessionId,
-          report_id: report.id,
-          overall_score: reportData.overall_score
-        }
-      })
 
     return new Response(JSON.stringify({
       success: true,

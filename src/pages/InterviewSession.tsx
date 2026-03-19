@@ -67,14 +67,14 @@ const InterviewSession = () => {
   const [liveTranscript, setLiveTranscript] = useState('');
   const [questionCount, setQuestionCount] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [answeredQuestionsCount, setAnsweredQuestionsCount] = useState(0);
   const textInputRef = useRef<HTMLInputElement>(null);
   
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const candidateVideoRef = useRef<HTMLVideoElement>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const shouldContinueListening = useRef(false);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -178,35 +178,40 @@ const InterviewSession = () => {
     };
   }, [autoSend, toast]);
 
-  // Camera preview
+  // Camera preview initialization logic
   useEffect(() => {
-    const startCamera = async () => {
+    let stream: MediaStream;
+    
+    const initCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: 'user' }, 
-          audio: false // audio handled separately
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'user', width: 640, height: 480 },
+          audio: false
         });
         
-        mediaStreamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-          setCameraAvailable(true);
-        }
+        // Small delay to ensure video element is mounted
+        setTimeout(() => {
+          if (candidateVideoRef.current) {
+            candidateVideoRef.current.srcObject = stream;
+            candidateVideoRef.current.play().catch(console.error);
+            setCameraAvailable(true);
+          }
+        }, 500);
+        
       } catch (err) {
-        console.warn('Camera failed:', err);
+        console.log('Camera error:', err);
         setCameraAvailable(false);
       }
     };
-
-    startCamera();
+    
+    initCamera();
     
     return () => {
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, []); // empty dependency array - runs once on mount
 
   // Auto-scroll chat history
   useEffect(() => {
@@ -336,6 +341,7 @@ const InterviewSession = () => {
       const aiMessage = data.response;
       setMessages(prev => [...prev, { role: 'assistant', content: aiMessage } as Message]);
       setQuestionCount(prev => prev + 1);
+      setAnsweredQuestionsCount(prev => prev + 1);
       speak(aiMessage);
       
       if (data.is_complete) {
@@ -380,6 +386,22 @@ const InterviewSession = () => {
   };
 
   const endInterview = async () => {
+    if (answeredQuestionsCount === 0) {
+      toast({
+        title: "No answers recorded",
+        description: "Please answer at least one question before ending the interview.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (answeredQuestionsCount < 3) {
+      const confirmed = window.confirm(
+        `You've only answered ${answeredQuestionsCount} question(s). The report will be based on limited data. Continue anyway?`
+      );
+      if (!confirmed) return;
+    }
+
     window.speechSynthesis.cancel();
     if (recognitionRef.current) recognitionRef.current.stop();
     setIsListening(false);
@@ -387,7 +409,9 @@ const InterviewSession = () => {
     
     try {
       await supabase.functions.invoke('generate-feedback', { body: { sessionId } });
-    } catch (error) {}
+    } catch (error) {
+      console.error('Error generating feedback:', error);
+    }
     
     setTimeout(() => { navigate(`/report/${sessionId}`); }, 3000);
   };
@@ -514,13 +538,12 @@ const InterviewSession = () => {
             </AnimatePresence>
 
             <div className="absolute top-8 right-8 w-44 h-56 bg-black rounded-[2rem] overflow-hidden border-2 border-white/10 shadow-2xl z-20 group/candidate">
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                muted 
-                playsInline 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                className={`scale-x-[-1] transition-opacity duration-500 ${cameraAvailable ? 'opacity-100' : 'opacity-0'}`} 
+              <video
+                ref={candidateVideoRef}
+                autoPlay
+                muted
+                playsInline
+                className="w-full h-full object-cover rounded-lg"
               />
               
               {!cameraAvailable && (

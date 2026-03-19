@@ -267,7 +267,7 @@ const Report = () => {
         </section>
         
         {/* McKinsey Readiness Assessment */}
-        {recommendations.mckinsey_readiness && (
+        {sessionData?.type === 'mckinsey_de' && recommendations.mckinsey_readiness && (
           <section className="animate-in fade-in slide-in-from-bottom-5 duration-700">
             <Card className="bg-gradient-to-br from-orange-500/10 via-card to-card border border-orange-500/20 rounded-[2.5rem] shadow-xl overflow-hidden relative">
               <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 rounded-full blur-3xl -mr-32 -mt-32" />
