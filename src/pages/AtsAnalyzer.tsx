@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BackButton from '@/components/BackButton';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -24,7 +24,9 @@ import {
   XCircle,
   KeyIcon,
   FileText,
-  ArrowLeft
+  ArrowLeft,
+  RefreshCcw,
+  FileSearch
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -32,6 +34,7 @@ import { UpgradeModal } from '@/components/UpgradeModal';
 import { LearningPath } from '@/components/LearningPath';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
+import { AtsSkeleton } from '@/components/AtsSkeleton';
 
 // Setup pdf.js worker from local node_modules via Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
@@ -57,6 +60,7 @@ interface AtsAnalysis {
 const AtsAnalyzer = () => {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [analysis, setAnalysis] = useState<AtsAnalysis | null>(null);
   const [analysisId, setAnalysisId] = useState<string | null>(null);
   const [jobRole, setJobRole] = useState(() => {
@@ -68,6 +72,48 @@ const AtsAnalyzer = () => {
   const navigate = useNavigate();
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const { isPro, canAnalyzeResume, refetch: refetchSubscription } = useSubscription();
+
+  // Load existing analysis on mount
+  useEffect(() => {
+    if (user) {
+      fetchExistingAnalysis();
+    } else {
+      setInitialLoading(false);
+    }
+  }, [user]);
+
+  const fetchExistingAnalysis = async () => {
+    try {
+      setInitialLoading(true);
+      const { data, error } = await supabase
+        .from('resume_analysis' as any)
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const row = data[0] as any;
+        const result = row.analysis;
+        setAnalysis({
+          ats_score: result.ats_score,
+          parsed_data: result.parsed_data,
+          keywords_missing: result.keywords_missing || [],
+          dos: result.dos || [],
+          donts: result.donts || [],
+          improvement_roadmap: result.improvement_roadmap || [],
+          created_at: row.created_at
+        });
+        setAnalysisId(row.id || null);
+      }
+    } catch (error) {
+      console.error('Error fetching analysis:', error);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -154,6 +200,21 @@ const AtsAnalyzer = () => {
     return <Badge className="bg-muted text-muted-foreground border-border">Medium</Badge>;
   };
 
+  // Safe Data Access Variables
+  const parsedData = analysis?.parsed_data;
+  const skills = parsedData?.skills || [];
+  const experience = parsedData?.experience || [];
+  const education = parsedData?.education || [];
+  const contact = parsedData?.contact || { name: '', email: '', phone: '' };
+  const strengths = parsedData?.strengths || [];
+  const weaknesses = parsedData?.weaknesses || [];
+  const suggestions = parsedData?.suggestions || [];
+  const missingKeywords = analysis?.keywords_missing || [];
+  const atsScore = analysis?.ats_score || 0;
+  const dos = analysis?.dos || [];
+  const donts = analysis?.donts || [];
+  const roadmap = analysis?.improvement_roadmap || [];
+
   return (
     <div className="container mx-auto py-12 px-4 max-w-6xl min-h-screen relative dark">
       <Button
@@ -165,7 +226,9 @@ const AtsAnalyzer = () => {
         <span>Back to Dashboard</span>
       </Button>
       
-      {!analysis ? (
+      {initialLoading ? (
+        <AtsSkeleton />
+      ) : !analysis ? (
         <div className="max-w-4xl mx-auto">
           <header className="mb-10 text-center md:text-left">
             <h1 className="text-4xl md:text-6xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-primary via-primary/80 to-secondary animate-in fade-in slide-in-from-left duration-700">
@@ -243,6 +306,18 @@ const AtsAnalyzer = () => {
         </div>
       ) : (
         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-10 duration-700 pb-20">
+          {/* Action Bar */}
+          <div className="flex justify-between items-center mb-4">
+             <Button variant="outline" size="sm" onClick={() => setAnalysis(null)} className="flex items-center gap-2">
+                <RefreshCcw className="w-4 h-4" /> Analyze New Resume
+             </Button>
+             {analysis.created_at && (
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Calendar size={14} /> Analyzed on {new Date(analysis.created_at).toLocaleDateString()}
+                </div>
+             )}
+          </div>
+
           {/* Section 1: Score Overview */}
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-4 flex flex-col items-center">
@@ -251,19 +326,19 @@ const AtsAnalyzer = () => {
                   <circle cx="128" cy="128" r="110" className="stroke-muted fill-none" strokeWidth="12" />
                   <motion.circle 
                     cx="128" cy="128" r="110" 
-                    className={`fill-none ${analysis.ats_score > 75 ? 'stroke-success' : analysis.ats_score > 50 ? 'stroke-yellow-500' : 'stroke-destructive'}`}
+                    className={`fill-none ${atsScore > 75 ? 'stroke-success' : atsScore > 50 ? 'stroke-yellow-500' : 'stroke-destructive'}`}
                     strokeWidth="12" 
                     strokeDasharray="691" 
                     initial={{ strokeDashoffset: 691 }}
-                    animate={{ strokeDashoffset: 691 - (691 * analysis.ats_score) / 100 }}
+                    animate={{ strokeDashoffset: 691 - (691 * atsScore) / 100 }}
                     transition={{ duration: 1.5, ease: "easeOut" }}
                     strokeLinecap="round"
                   />
                 </svg>
                 <div className="absolute flex flex-col items-center">
-                  <span className="text-7xl font-black text-foreground">{analysis.ats_score}</span>
-                  <span className={`text-xl font-bold uppercase tracking-widest ${getScoreLabel(analysis.ats_score).color}`}>
-                    {getScoreLabel(analysis.ats_score).text}
+                  <span className="text-7xl font-black text-foreground">{atsScore}</span>
+                  <span className={`text-xl font-bold uppercase tracking-widest ${getScoreLabel(atsScore).color}`}>
+                    {getScoreLabel(atsScore).text}
                   </span>
                 </div>
               </div>
@@ -272,22 +347,24 @@ const AtsAnalyzer = () => {
               <div>
                 <h2 className="text-3xl font-bold">Analyzed for <span className="text-primary">{jobRole}</span></h2>
                 <p className="text-muted-foreground flex items-center gap-2 mt-2">
-                  <Calendar size={16} /> Last analyzed: {new Date(analysis.created_at!).toLocaleString()}
+                  <Calendar size={16} /> Last analyzed: {analysis.created_at ? new Date(analysis.created_at).toLocaleString() : 'Just now'}
                 </p>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {[
-                  { label: 'Skills Found', val: analysis.parsed_data.skills.length, icon: <CheckCircle className="text-success" /> },
-                  { label: 'Missing Keywords', val: analysis.keywords_missing.length, icon: <AlertTriangle className="text-destructive" /> },
+                  { label: 'Skills Found', val: skills.length, icon: <CheckCircle className="text-success" /> },
+                  { label: 'Missing Keywords', val: missingKeywords.length, icon: <AlertTriangle className="text-destructive" /> },
                   { 
                     label: 'Exp. Years', 
-                    val: analysis.parsed_data.experience.reduce((acc, exp) => {
-                      const years = exp.duration.match(/(\d+)\s*(?:yrs|years?)/i)?.[1];
-                      return acc + (years ? parseInt(years) : 0);
-                    }, 0) || 'N/A', 
+                    val: experience.length > 0 
+                      ? experience.reduce((acc, exp) => {
+                          const years = exp.duration.match(/(\d+)\s*(?:yrs|years?)/i)?.[1];
+                          return acc + (years ? parseInt(years) : 0);
+                        }, 0) 
+                      : 0, 
                     icon: <BriefcaseIcon className="text-primary" /> 
                   },
-                  { label: 'Education', val: analysis.parsed_data.education.length, icon: <GraduationCap className="text-secondary" /> }
+                  { label: 'Education', val: education.length, icon: <GraduationCap className="text-secondary" /> }
                 ].map((stat, i) => (
                   <div key={i} className="bg-card border border-border/50 rounded-xl p-4 shadow-sm group hover:border-primary/30 transition-all">
                     <div className="flex items-center gap-2 mb-1">
@@ -315,11 +392,11 @@ const AtsAnalyzer = () => {
               <div className="space-y-4">
                 <div>
                   <label className="text-xs font-bold text-muted-foreground uppercase opacity-70">Full Name</label>
-                  <div className="text-lg font-bold">{analysis.parsed_data.contact.name || 'Not found'}</div>
+                  <div className="text-lg font-bold">{contact.name || 'Not found'}</div>
                 </div>
                 <div>
                   <label className="text-xs font-bold text-muted-foreground uppercase opacity-70">Email & Phone</label>
-                  <div className="text-sm font-medium">{analysis.parsed_data.contact.email || 'N/A'} • {analysis.parsed_data.contact.phone || 'N/A'}</div>
+                  <div className="text-sm font-medium">{contact.email || 'N/A'} • {contact.phone || 'N/A'}</div>
                 </div>
               </div>
               <div className="space-y-4">
@@ -340,21 +417,21 @@ const AtsAnalyzer = () => {
               <Card className="bg-success/5 border-success/20">
                 <CardHeader><CardTitle className="text-lg text-success flex items-center gap-2"><CheckCircle size={18} /> Strong Skills Found</CardTitle></CardHeader>
                 <CardContent className="flex flex-wrap gap-2">
-                  {analysis.parsed_data.skills.map((skill, idx) => (
+                  {skills.length > 0 ? skills.map((skill, idx) => (
                     <span key={idx} className="px-3 py-1.5 rounded-full bg-success/10 text-success text-xs font-bold border border-success/20">
                       {skill}
                     </span>
-                  ))}
+                  )) : <p className="text-muted-foreground italic text-sm">No strong skills detected</p>}
                 </CardContent>
               </Card>
               <Card className="bg-destructive/5 border-destructive/20">
                 <CardHeader><CardTitle className="text-lg text-destructive flex items-center gap-2"><XCircle size={18} /> Add these skills</CardTitle></CardHeader>
                 <CardContent className="flex flex-wrap gap-2">
-                  {analysis.keywords_missing.slice(0, 8).map((k, idx) => (
+                  {missingKeywords.length > 0 ? missingKeywords.slice(0, 8).map((k, idx) => (
                     <span key={idx} className="px-3 py-1.5 rounded-full bg-destructive/10 text-destructive text-xs font-bold border border-destructive/20">
                       {k.keyword}
                     </span>
-                  ))}
+                  )) : <p className="text-muted-foreground italic text-sm">No missing keywords found</p>}
                 </CardContent>
               </Card>
             </div>
@@ -365,9 +442,9 @@ const AtsAnalyzer = () => {
             <h3 className="text-2xl font-bold flex items-center gap-2">
               <BriefcaseIcon className="text-primary" /> Experience Timeline
             </h3>
-            {analysis.parsed_data.experience.length > 0 ? (
+            {experience.length > 0 ? (
               <div className="relative pl-8 space-y-8 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
-                {analysis.parsed_data.experience.map((exp, i) => (
+                {experience.map((exp, i) => (
                   <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} key={i} className="relative">
                     <div className="absolute -left-8 top-1.5 w-6 h-6 rounded-full bg-primary border-4 border-background" />
                     <Card className="bg-card/50 border-border/50 hover:border-primary/30 transition-all">
@@ -396,88 +473,92 @@ const AtsAnalyzer = () => {
               <GraduationCap className="text-primary" /> Education
             </h3>
             <div className="grid md:grid-cols-2 gap-4">
-              {analysis.parsed_data.education.map((edu, i) => (
+              {education.length > 0 ? education.map((edu, i) => (
                 <Card key={i} className="bg-muted/30 border-border/50">
                   <CardHeader className="py-4">
                     <CardTitle className="text-base font-bold">{edu.degree}</CardTitle>
                     <p className="text-sm text-muted-foreground">{edu.school} • {edu.year}</p>
                   </CardHeader>
                 </Card>
-              ))}
+              )) : <p className="text-muted-foreground italic px-4">No education history found.</p>}
             </div>
           </section>
 
           {/* Section 6: Missing Keywords */}
-          <section className="space-y-6">
-            <h3 className="text-2xl font-bold flex items-center gap-2">
-              <KeyIcon className="text-primary" /> Critical Missing Keywords
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {analysis.keywords_missing.sort((a,b) => b.importance - a.importance).map((k, i) => (
-                <motion.div whileHover={{ y: -5 }} key={i}>
-                   <Card className="h-full border-border/50 bg-card hover:shadow-xl transition-all">
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between items-center mb-2">
-                        {getImportanceBadge(k.importance)}
-                        <span className="text-xs font-bold text-muted-foreground">Score: {k.importance}/10</span>
-                      </div>
-                      <CardTitle className="text-xl font-black text-foreground">{k.keyword}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-xs text-muted-foreground">Add this keyword to your skills or experience descriptions to immediately improve relevance.</p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          </section>
+          {missingKeywords.length > 0 && (
+            <section className="space-y-6">
+              <h3 className="text-2xl font-bold flex items-center gap-2">
+                <KeyIcon className="text-primary" /> Critical Missing Keywords
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...missingKeywords].sort((a,b) => b.importance - a.importance).map((k, i) => (
+                  <motion.div whileHover={{ y: -5 }} key={i}>
+                    <Card className="h-full border-border/50 bg-card hover:shadow-xl transition-all">
+                      <CardHeader className="pb-2">
+                        <div className="flex justify-between items-center mb-2">
+                          {getImportanceBadge(k.importance)}
+                          <span className="text-xs font-bold text-muted-foreground">Score: {k.importance}/10</span>
+                        </div>
+                        <CardTitle className="text-xl font-black text-foreground">{k.keyword}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-xs text-muted-foreground">Add this keyword to your skills or experience descriptions to immediately improve relevance.</p>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Section 7: Actionable Dos and Don'ts */}
           <div className="grid md:grid-cols-2 gap-8 mt-4">
             <section className="space-y-4">
               <h3 className="text-2xl font-bold flex items-center gap-2 text-success"><CheckCircle className="h-6 w-6" /> Actionable Dos</h3>
               <ul className="space-y-3">
-                {analysis.dos.map((item, idx) => (
+                {dos.length > 0 ? dos.map((item, idx) => (
                   <li key={idx} className="flex gap-4 p-4 bg-success/5 rounded-2xl border border-success/10 hover:border-success/30 transition-all">
                     <CheckCircle className="h-5 w-5 text-success shrink-0 mt-0.5" />
                     <span className="font-semibold text-sm leading-tight">{item}</span>
                   </li>
-                ))}
+                )) : <p className="text-muted-foreground italic text-sm">No specific recommendations found</p>}
               </ul>
             </section>
             <section className="space-y-4">
               <h3 className="text-2xl font-bold flex items-center gap-2 text-destructive"><AlertTriangle className="h-6 w-6" /> Strict Don'ts</h3>
               <ul className="space-y-3">
-                {analysis.donts.map((item, idx) => (
+                {donts.length > 0 ? donts.map((item, idx) => (
                   <li key={idx} className="flex gap-4 p-4 bg-destructive/5 rounded-2xl border border-destructive/10 hover:border-destructive/30 transition-all">
                     <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
                     <span className="font-semibold text-sm leading-tight">{item}</span>
                   </li>
-                ))}
+                )) : <p className="text-muted-foreground italic text-sm">No critical warnings found</p>}
               </ul>
             </section>
           </div>
 
           {/* Section 8: Improvement Roadmap */}
-          <section className="space-y-6 pt-10">
-            <div className="text-center max-w-2xl mx-auto space-y-4">
-              <h3 className="text-3xl font-black uppercase tracking-tighter">Your Improvement Roadmap</h3>
-              <p className="text-muted-foreground">Follow these prioritized steps to maximize your ATS compatibility.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {analysis.improvement_roadmap.map((step, i) => (
-                <div key={i} className="relative p-6 rounded-3xl bg-primary/10 border border-primary/20 overflow-hidden group">
-                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-all" />
-                  <div className="text-4xl font-black text-primary/30 mb-4">0{i+1}</div>
-                  <h4 className="text-lg font-bold mb-2">{step.step}</h4>
-                  <div className="flex justify-between items-center mt-4">
-                    <span className="text-success font-bold">{step.impact}</span>
-                    <Badge variant="secondary" className="bg-primary/20 text-primary-foreground">{step.priority}</Badge>
+          {roadmap.length > 0 && (
+            <section className="space-y-6 pt-10">
+              <div className="text-center max-w-2xl mx-auto space-y-4">
+                <h3 className="text-3xl font-black uppercase tracking-tighter">Your Improvement Roadmap</h3>
+                <p className="text-muted-foreground">Follow these prioritized steps to maximize your ATS compatibility.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {roadmap.map((step, i) => (
+                  <div key={i} className="relative p-6 rounded-3xl bg-primary/10 border border-primary/20 overflow-hidden group">
+                    <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-all" />
+                    <div className="text-4xl font-black text-primary/30 mb-4">0{i+1}</div>
+                    <h4 className="text-lg font-bold mb-2">{step.step}</h4>
+                    <div className="flex justify-between items-center mt-4">
+                      <span className="text-success font-bold">{step.impact}</span>
+                      <Badge variant="secondary" className="bg-primary/20 text-primary-foreground">{step.priority}</Badge>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
+          )}
 
           {analysisId && (
             <div className="pt-10">
