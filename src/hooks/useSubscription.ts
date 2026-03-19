@@ -19,7 +19,7 @@ export function useSubscription() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('plan, plan_expires_at, interviews_used_this_month, resume_analyses_used_this_month')
+        .select('name, plan, plan_expires_at, interviews_used_this_month, resume_analyses_used_this_month')
         .eq('id', user!.id)
         .single();
       

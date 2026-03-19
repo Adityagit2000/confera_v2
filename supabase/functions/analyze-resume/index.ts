@@ -48,17 +48,42 @@ Deno.serve(async (req) => {
     console.log('Signed URL generated successfully');
 
     // 3. Call AI for analysis
-    const systemPrompt = `You are an ATS (Applicant Tracking System) expert. Analyze the resume provided via the URL and evaluate it against the role: "${jobRole || 'General Member'}".
-    Respond STRICTLY in JSON format:
-    {
-      "ats_score": 85,
-      "feedback": "Strong technical skills, but needs more quantifiable impact metrics.",
-      "skills_found": ["React", "TypeScript", "Node.js"],
-      "missing_keywords": ["AWS", "Docker"],
-      "improvements": ["Add metrics", "Highlight leadership"]
-    }`;
+    const systemPrompt = `
+    You are an expert AI recruiter and ATS (Applicant Tracking System) software.
+    Evaluate candidates strictly based on the requirements and expectations for a ${jobRole || 'Software Engineer'}.
+    Extract contact information, skills, experience, and education from the resume.
+    Calculate an ATS score (0-100) based on how well the candidate matches the role.
+    Identify missing keywords and assign an importance score (1-10) to each.
+    `;
 
-    const userPrompt = `Analysis needed for this resume: ${signedUrl}`;
+    const userPrompt = `
+    Analyze the resume provided via the URL specifically for the role of "${jobRole || 'Software Engineer'}".
+    URL: ${signedUrl}
+
+    Provide a JSON response with the following exact structure:
+    {
+      "ats_score": (integer),
+      "parsed_data": {
+        "contact": { "name": "...", "email": "...", "phone": "..." },
+        "skills": ["skill1", "skill2"],
+        "experience": [{ "title": "...", "company": "...", "duration": "...", "description": "..." }],
+        "education": [{ "degree": "...", "school": "...", "year": "..." }],
+        "strengths": ["list of 3-5 key strengths"],
+        "weaknesses": ["list of 2-4 areas of improvement"],
+        "suggestions": ["2-4 broadly actionable suggestions"]
+      },
+      "keywords_missing": [
+        { "keyword": "...", "importance": (1-10) }
+      ],
+      "dos": ["3-5 specific 'Dos'"],
+      "donts": ["3-5 specific 'Donts'"],
+      "improvement_roadmap": [
+        { "step": "...", "impact": "+X points", "priority": "High/Medium/Low" }
+      ]
+    }
+    
+    Only return valid JSON without any markdown formatting wrappers or explanation.
+    `;
     
     const aiResponse = await callAiWithFallback({
       systemPrompt,

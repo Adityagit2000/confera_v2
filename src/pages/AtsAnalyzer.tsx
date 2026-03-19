@@ -8,33 +8,50 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { 
-  Loader2, 
   UploadCloud, 
-  FileText, 
+  Search, 
+  Loader2, 
   CheckCircle, 
   AlertTriangle, 
   Mic, 
   Play, 
-  Search,
-  Zap
+  Zap,
+  Calendar,
+  BriefcaseIcon,
+  GraduationCap,
+  UserIcon,
+  Cpu,
+  XCircle,
+  KeyIcon,
+  FileText,
+  ArrowLeft
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { LearningPath } from '@/components/LearningPath';
+import { motion } from 'framer-motion';
+import { Badge } from '@/components/ui/badge';
 
 // Setup pdf.js worker from local node_modules via Vite
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 interface AtsAnalysis {
   ats_score: number;
-  strengths: string[];
-  weaknesses: string[];
-  skills_found: string[];
-  missing_skills: string[];
+  parsed_data: {
+    contact: { name: string; email: string; phone: string };
+    skills: string[];
+    experience: { title: string; company: string; duration: string; description: string }[];
+    education: { degree: string; school: string; year: string }[];
+    strengths: string[];
+    weaknesses: string[];
+    suggestions: string[];
+  };
+  keywords_missing: { keyword: string; importance: number }[];
   dos: string[];
   donts: string[];
-  suggestions: string[];
+  improvement_roadmap: { step: string; impact: string; priority: string }[];
+  created_at?: string;
 }
 
 const AtsAnalyzer = () => {
@@ -74,29 +91,25 @@ const AtsAnalyzer = () => {
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
       
       let fullText = '';
-      const numPages = Math.min(pdf.numPages, 5); // Limit to first 5 pages to save tokens
+      const numPages = Math.min(pdf.numPages, 5); 
       
       for (let i = 1; i <= numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
-        
-        // Ensure items have the expected structure before accessing str
         const pageText = textContent.items
           .map((item: any) => item.str || '')
           .join(' ');
-          
         fullText += pageText + '\n\n';
       }
       return fullText;
     } catch (error) {
       console.error('Error extracting text from PDF:', error);
-      throw new Error('Could not read the PDF file. Please ensure it is not corrupted or protected.');
+      throw new Error('Could not read the PDF file.');
     }
   };
 
   const handleAnalyze = async () => {
     if (!file || !user) return;
-
     if (!canAnalyzeResume) {
       setShowUpgradeModal(true);
       return;
@@ -104,340 +117,396 @@ const AtsAnalyzer = () => {
     
     setLoading(true);
     try {
-      toast({ title: "Extracting text...", description: "Reading your resume." });
+      toast({ title: "Analyzing...", description: "AI is evaluating your resume for ATS compatibility." });
       
       const text = await extractTextFromPDF(file);
-      
-      if (text.trim().length < 50) {
-        throw new Error('Could not extract enough text from this PDF. Please try a different format.');
-      }
-
-      toast({ title: "Analyzing...", description: "AI is evaluating your resume for ATS compatibility." });
-
       const { data, error } = await supabase.functions.invoke('ats-analyzer', {
         body: { resumeText: text, userId: user.id, jobRole }
       });
 
-      if (error) {
-        console.error('ATS Analyzer Error:', error);
-        throw new Error(error.message || 'Failed to analyze resume with AI.');
-      }
+      if (error) throw new Error(error.message || 'Failed to analyze resume.');
 
       const result = data as AtsAnalysis;
-      setAnalysis(result);
-
-      // Save to Supabase
-      const { data: dbData, error: dbError } = await (supabase as any)
-        .from('resume_analysis')
-        .insert({
-          user_id: user.id,
-          resume_url: file.name,
-          ats_score: result.ats_score,
-          analysis: result
-        })
-        .select('id')
-        .single();
-        
-      if (dbError) {
-        console.error('Failed to save analysis to DB:', dbError);
-      } else if (dbData) {
-        setAnalysisId(dbData.id);
-      }
+      setAnalysis({ ...result, created_at: new Date().toISOString() });
+      setAnalysisId(user.id); // Use userId as source_id for resume-based learning paths
       
       toast({
         title: "Analysis Complete",
         description: `Your resume scored ${result.ats_score}/100.`,
       });
-
       refetchSubscription();
-
     } catch (error: any) {
-      toast({
-        title: "Analysis failed",
-        description: error.message,
-        variant: "destructive"
-      });
+      toast({ title: "Analysis failed", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="container mx-auto py-12 px-4 max-w-4xl min-h-screen relative">
-      <BackButton />
-      <header className="mb-10 text-center md:text-left">
-        <h1 className="text-4xl md:text-6xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-primary via-primary/80 to-secondary animate-in fade-in slide-in-from-left duration-700">
-          ATS Resume Optimizer
-        </h1>
-        <p className="text-muted-foreground text-lg max-w-2xl mx-auto md:mx-0">
-          Upload your resume and get an instant AI-powered compatibility score, key improvements, and role-specific "Dos and Don'ts".
-        </p>
-      </header>
+  const getScoreLabel = (score: number) => {
+    if (score > 75) return { text: 'Excellent', color: 'text-success' };
+    if (score > 50) return { text: 'Good', color: 'text-yellow-500' };
+    return { text: 'Needs Work', color: 'text-destructive' };
+  };
 
+  const getImportanceBadge = (importance: number) => {
+    if (importance >= 8) return <Badge className="bg-destructive/20 text-destructive border-destructive/30">Critical</Badge>;
+    if (importance >= 5) return <Badge className="bg-yellow-500/20 text-yellow-500 border-yellow-500/30">High</Badge>;
+    return <Badge className="bg-muted text-muted-foreground border-border">Medium</Badge>;
+  };
+
+  return (
+    <div className="container mx-auto py-12 px-4 max-w-6xl min-h-screen relative dark">
+      <Button
+        variant="link"
+        onClick={() => navigate('/dashboard')}
+        className="flex items-center gap-2 text-[#64748b] hover:text-white group p-0 h-auto font-medium transition-all duration-200 mb-8"
+      >
+        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+        <span>Back to Dashboard</span>
+      </Button>
+      
       {!analysis ? (
-        <Card className="border-none shadow-2xl glass-card overflow-hidden">
-          <CardHeader className="bg-primary/5 border-b border-primary/10">
-            <CardTitle className="text-xl flex items-center gap-2">
-              <UploadCloud className="text-primary w-5 h-5" /> Resume Details
-            </CardTitle>
-            <CardDescription>Select your target role and upload your PDF resume.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-8 pt-8 px-8">
-            <div className="space-y-4">
-              <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Search size={16} /> Target Job Role
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {['Software Engineer', 'Product Manager', 'Data Scientist', 'Designer'].map((role) => (
-                  <Button
-                    key={role}
-                    variant={jobRole === role ? 'default' : 'outline'}
-                    size="sm"
-                    className={`h-10 transition-all ${jobRole === role ? 'shadow-glow' : ''}`}
-                    onClick={() => {
-                      setJobRole(role);
-                      localStorage.setItem('last_target_role', role);
-                    }}
-                  >
-                    {role}
-                  </Button>
-                ))}
-              </div>
-              <div className="pt-2">
+        <div className="max-w-4xl mx-auto">
+          <header className="mb-10 text-center md:text-left">
+            <h1 className="text-4xl md:text-6xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-primary via-primary/80 to-secondary animate-in fade-in slide-in-from-left duration-700">
+              ATS Resume Optimizer
+            </h1>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto md:mx-0">
+              Upload your resume and get a professional data-driven analysis.
+            </p>
+          </header>
+
+          <Card className="border-none shadow-2xl glass-card overflow-hidden">
+            <CardHeader className="bg-primary/5 border-b border-primary/10">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <UploadCloud className="text-primary w-5 h-5" /> Resume Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-8 pt-8 px-8">
+              <div className="space-y-4">
+                <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                  <Search size={16} /> Target Job Role
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {['Software Engineer', 'Product Manager', 'Data Scientist', 'Designer'].map((role) => (
+                    <Button
+                      key={role}
+                      variant={jobRole === role ? 'default' : 'outline'}
+                      size="sm"
+                      className={`h-10 transition-all ${jobRole === role ? 'shadow-glow' : ''}`}
+                      onClick={() => setJobRole(role)}
+                    >
+                      {role}
+                    </Button>
+                  ))}
+                </div>
                 <input
                   type="text"
-                  placeholder="Or type a specific role (e.g. Frontend Engineer)"
+                  placeholder="Or type a specific role..."
                   className="w-full bg-background/50 border border-input px-4 py-3 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                   value={jobRole}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setJobRole(val);
-                    localStorage.setItem('last_target_role', val);
-                  }}
+                  onChange={(e) => setJobRole(e.target.value)}
                 />
               </div>
-            </div>
 
-            <div 
-              className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer group ${
-                file ? 'border-primary bg-primary/5' : 'border-muted-foreground/30 hover:border-primary/50 hover:bg-muted/50'
-              }`}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange} 
-                className="hidden" 
-                accept="application/pdf" 
-              />
-              
-              <div className="flex flex-col items-center justify-center space-y-4">
-                <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${
-                  file ? 'bg-primary text-white shadow-glow' : 'bg-primary/10 text-primary group-hover:bg-primary/20'
-                }`}>
-                  <UploadCloud size={32} />
+              <div 
+                className={`border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 cursor-pointer group ${
+                  file ? 'border-primary bg-primary/5' : 'border-muted-foreground/30 hover:border-primary/50 hover:bg-muted/50'
+                }`}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="application/pdf" />
+                <div className="flex flex-col items-center justify-center space-y-4">
+                  <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${file ? 'bg-primary text-white shadow-glow' : 'bg-primary/10 text-primary group-hover:bg-primary/20'}`}>
+                    <UploadCloud size={32} />
+                  </div>
+                  {file ? (
+                    <div className="space-y-1">
+                      <div className="text-lg font-bold text-foreground">{file.name}</div>
+                      <div className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                    </div>
+                  ) : (
+                    <div>
+                      <span className="text-lg font-bold text-foreground block">Drop your resume here</span>
+                      <span className="text-sm text-muted-foreground">PDF only (Max 5MB)</span>
+                    </div>
+                  )}
                 </div>
-                {file ? (
-                  <div className="space-y-1">
-                    <div className="text-lg font-bold text-foreground">{file.name}</div>
-                    <div className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
-                  </div>
-                ) : (
-                  <div>
-                    <span className="text-lg font-bold text-foreground block">Drop your resume here</span>
-                    <span className="text-sm text-muted-foreground">PDF only (Max 5MB)</span>
-                  </div>
-                )}
+              </div>
+            </CardContent>
+            <CardFooter className="flex justify-end p-8 bg-muted/50 border-t border-border/50">
+              <Button onClick={handleAnalyze} disabled={!file || loading || !jobRole} variant="premium" size="lg" className="w-full sm:w-auto min-w-[200px] shadow-premium">
+                {loading ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Analyzing...</> : <><Zap className="mr-2 h-5 w-5" /> Analyze Resume</>}
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      ) : (
+        <div className="space-y-12 animate-in fade-in slide-in-from-bottom-10 duration-700 pb-20">
+          {/* Section 1: Score Overview */}
+          <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            <div className="lg:col-span-4 flex flex-col items-center">
+              <div className="relative w-64 h-64 flex items-center justify-center">
+                <svg className="w-full h-full transform -rotate-90">
+                  <circle cx="128" cy="128" r="110" className="stroke-muted fill-none" strokeWidth="12" />
+                  <motion.circle 
+                    cx="128" cy="128" r="110" 
+                    className={`fill-none ${analysis.ats_score > 75 ? 'stroke-success' : analysis.ats_score > 50 ? 'stroke-yellow-500' : 'stroke-destructive'}`}
+                    strokeWidth="12" 
+                    strokeDasharray="691" 
+                    initial={{ strokeDashoffset: 691 }}
+                    animate={{ strokeDashoffset: 691 - (691 * analysis.ats_score) / 100 }}
+                    transition={{ duration: 1.5, ease: "easeOut" }}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <div className="absolute flex flex-col items-center">
+                  <span className="text-7xl font-black text-foreground">{analysis.ats_score}</span>
+                  <span className={`text-xl font-bold uppercase tracking-widest ${getScoreLabel(analysis.ats_score).color}`}>
+                    {getScoreLabel(analysis.ats_score).text}
+                  </span>
+                </div>
               </div>
             </div>
-          </CardContent>
-          <CardFooter className="flex justify-end p-8 bg-muted/50 border-t border-border/50 gap-4">
-            {file && (
-              <Button variant="ghost" onClick={() => setFile(null)}>Cancel</Button>
-            )}
-            <Button 
-              onClick={handleAnalyze} 
-              disabled={!file || loading || !jobRole}
-              size="lg"
-              className="w-full sm:w-auto min-w-[200px] h-14 text-lg font-bold shadow-glow"
-            >
-              {loading ? (
-                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processing...</>
-              ) : (
-                <><Zap className="mr-2 h-5 w-5" /> Analyze Resume</>
-              )}
-            </Button>
-          </CardFooter>
-        </Card>
-      ) : (
-        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-10 duration-700">
-          <div className="grid md:grid-cols-3 gap-8">
-            <Card className="md:col-span-1 border-none shadow-2xl glass-card overflow-hidden relative group">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/20 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary/30 transition-all" />
-              <CardHeader className="text-center pb-4 pt-10">
-                <CardTitle className="text-sm font-black uppercase tracking-[0.2em] text-muted-foreground">System Score</CardTitle>
-              </CardHeader>
-              <CardContent className="flex justify-center flex-col items-center pb-12">
-                <div className="relative">
-                  <div className="text-8xl font-black bg-clip-text text-transparent bg-gradient-to-br from-primary via-primary/80 to-secondary [text-shadow:_0_10px_30px_rgba(var(--primary),0.3)]">
-                    {analysis.ats_score}
-                  </div>
-                  <div className="absolute -bottom-2 -right-4 bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">HIGH-RES</div>
-                </div>
-                <p className="text-muted-foreground mt-4 font-bold flex items-center gap-2">
-                  <CheckCircle size={16} className="text-success" /> Quality Verified
+            <div className="lg:col-span-8 space-y-6">
+              <div>
+                <h2 className="text-3xl font-bold">Analyzed for <span className="text-primary">{jobRole}</span></h2>
+                <p className="text-muted-foreground flex items-center gap-2 mt-2">
+                  <Calendar size={16} /> Last analyzed: {new Date(analysis.created_at!).toLocaleString()}
                 </p>
-                <div className="mt-8 w-full max-w-[200px] h-3 bg-muted rounded-full overflow-hidden shadow-inner">
-                  <div 
-                    className="h-full bg-gradient-to-r from-primary to-secondary transition-all duration-1500 ease-out" 
-                    style={{ width: `${analysis.ats_score}%` }}
-                  />
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[
+                  { label: 'Skills Found', val: analysis.parsed_data.skills.length, icon: <CheckCircle className="text-success" /> },
+                  { label: 'Missing Keywords', val: analysis.keywords_missing.length, icon: <AlertTriangle className="text-destructive" /> },
+                  { 
+                    label: 'Exp. Years', 
+                    val: analysis.parsed_data.experience.reduce((acc, exp) => {
+                      const years = exp.duration.match(/(\d+)\s*(?:yrs|years?)/i)?.[1];
+                      return acc + (years ? parseInt(years) : 0);
+                    }, 0) || 'N/A', 
+                    icon: <BriefcaseIcon className="text-primary" /> 
+                  },
+                  { label: 'Education', val: analysis.parsed_data.education.length, icon: <GraduationCap className="text-secondary" /> }
+                ].map((stat, i) => (
+                  <div key={i} className="bg-card border border-border/50 rounded-xl p-4 shadow-sm group hover:border-primary/30 transition-all">
+                    <div className="flex items-center gap-2 mb-1">
+                      {stat.icon}
+                      <span className="text-xl font-bold">{stat.val}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* Section 2: Resume Summary */}
+          <section className="glass-card rounded-3xl p-8 border border-border/50 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32" />
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-8 relative z-10">
+              <div>
+                <h3 className="text-2xl font-bold flex items-center gap-2">
+                  <UserIcon className="text-primary" /> Candidate Summary
+                </h3>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 relative z-10">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground uppercase opacity-70">Full Name</label>
+                  <div className="text-lg font-bold">{analysis.parsed_data.contact.name || 'Not found'}</div>
                 </div>
-              </CardContent>
-            </Card>
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground uppercase opacity-70">Email & Phone</label>
+                  <div className="text-sm font-medium">{analysis.parsed_data.contact.email || 'N/A'} • {analysis.parsed_data.contact.phone || 'N/A'}</div>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-muted-foreground uppercase opacity-70">Current Target Role</label>
+                  <div className="text-lg font-bold">{jobRole}</div>
+                </div>
+              </div>
+            </div>
+          </section>
 
-            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-6">
-               <Card className="border-l-8 border-l-success shadow-lg hover:translate-y-[-4px] transition-transform">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-bold flex items-center gap-2 text-success">
-                    <CheckCircle className="h-5 w-5" /> Strengths Found
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {analysis.strengths?.map((item, idx) => (
-                      <li key={idx} className="text-sm font-medium text-foreground/90 border-b border-muted/30 pb-1">{item}</li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card className="border-l-8 border-l-warning shadow-lg hover:translate-y-[-4px] transition-transform">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-base font-bold flex items-center gap-2 text-warning">
-                    <AlertTriangle className="h-5 w-5" /> Gaps Identified
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {analysis.weaknesses?.map((item, idx) => (
-                      <li key={idx} className="text-sm font-medium text-foreground/90 border-b border-muted/30 pb-1">{item}</li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card className="sm:col-span-2 bg-muted/20 border-border/50">
-                <CardHeader className="py-4">
-                  <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                    <FileText size={16} /> Technical Stack & Skills
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-2 pb-6">
-                  {analysis.skills_found?.map((skill, idx) => (
-                    <span key={idx} className="px-3 py-1.5 rounded-xl bg-background border border-border/50 text-xs font-bold text-foreground hover:border-primary/50 cursor-default transition-colors">
+          {/* Section 3: Skills Analysis */}
+          <section className="space-y-6">
+            <h3 className="text-2xl font-bold flex items-center gap-2">
+              <Cpu className="text-primary" /> Skills Analysis
+            </h3>
+            <div className="grid md:grid-cols-2 gap-8">
+              <Card className="bg-success/5 border-success/20">
+                <CardHeader><CardTitle className="text-lg text-success flex items-center gap-2"><CheckCircle size={18} /> Strong Skills Found</CardTitle></CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {analysis.parsed_data.skills.map((skill, idx) => (
+                    <span key={idx} className="px-3 py-1.5 rounded-full bg-success/10 text-success text-xs font-bold border border-success/20">
                       {skill}
                     </span>
                   ))}
                 </CardContent>
               </Card>
+              <Card className="bg-destructive/5 border-destructive/20">
+                <CardHeader><CardTitle className="text-lg text-destructive flex items-center gap-2"><XCircle size={18} /> Add these skills</CardTitle></CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {analysis.keywords_missing.slice(0, 8).map((k, idx) => (
+                    <span key={idx} className="px-3 py-1.5 rounded-full bg-destructive/10 text-destructive text-xs font-bold border border-destructive/20">
+                      {k.keyword}
+                    </span>
+                  ))}
+                </CardContent>
+              </Card>
             </div>
-          </div>
+          </section>
 
+          {/* Section 4: Experience Timeline */}
+          <section className="space-y-6">
+            <h3 className="text-2xl font-bold flex items-center gap-2">
+              <BriefcaseIcon className="text-primary" /> Experience Timeline
+            </h3>
+            {analysis.parsed_data.experience.length > 0 ? (
+              <div className="relative pl-8 space-y-8 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-0.5 before:bg-border">
+                {analysis.parsed_data.experience.map((exp, i) => (
+                  <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} key={i} className="relative">
+                    <div className="absolute -left-8 top-1.5 w-6 h-6 rounded-full bg-primary border-4 border-background" />
+                    <Card className="bg-card/50 border-border/50 hover:border-primary/30 transition-all">
+                      <CardHeader className="py-4">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-lg font-bold">{exp.title}</CardTitle>
+                            <p className="text-primary font-semibold">{exp.company}</p>
+                          </div>
+                          <Badge variant="outline" className="bg-muted">{exp.duration}</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent><p className="text-sm text-muted-foreground leading-relaxed">{exp.description}</p></CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted-foreground italic px-4">No work experience found. Consider adding some to boost your score.</p>
+            )}
+          </section>
+
+          {/* Section 5: Education */}
+          <section className="space-y-6">
+            <h3 className="text-2xl font-bold flex items-center gap-2">
+              <GraduationCap className="text-primary" /> Education
+            </h3>
+            <div className="grid md:grid-cols-2 gap-4">
+              {analysis.parsed_data.education.map((edu, i) => (
+                <Card key={i} className="bg-muted/30 border-border/50">
+                  <CardHeader className="py-4">
+                    <CardTitle className="text-base font-bold">{edu.degree}</CardTitle>
+                    <p className="text-sm text-muted-foreground">{edu.school} • {edu.year}</p>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          </section>
+
+          {/* Section 6: Missing Keywords */}
+          <section className="space-y-6">
+            <h3 className="text-2xl font-bold flex items-center gap-2">
+              <KeyIcon className="text-primary" /> Critical Missing Keywords
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {analysis.keywords_missing.sort((a,b) => b.importance - a.importance).map((k, i) => (
+                <motion.div whileHover={{ y: -5 }} key={i}>
+                   <Card className="h-full border-border/50 bg-card hover:shadow-xl transition-all">
+                    <CardHeader className="pb-2">
+                      <div className="flex justify-between items-center mb-2">
+                        {getImportanceBadge(k.importance)}
+                        <span className="text-xs font-bold text-muted-foreground">Score: {k.importance}/10</span>
+                      </div>
+                      <CardTitle className="text-xl font-black text-foreground">{k.keyword}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-xs text-muted-foreground">Add this keyword to your skills or experience descriptions to immediately improve relevance.</p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+
+          {/* Section 7: Actionable Dos and Don'ts */}
           <div className="grid md:grid-cols-2 gap-8 mt-4">
-            <Card className="border-none shadow-2xl bg-gradient-to-br from-card to-success/5 border-l-[12px] border-l-success">
-              <CardHeader className="p-8">
-                <CardTitle className="text-2xl font-black flex items-center gap-3 text-success">
-                  <CheckCircle className="h-8 w-8" /> Actionable Dos
-                </CardTitle>
-                <CardDescription className="text-base mt-2">Personalized recommendations for {jobRole}</CardDescription>
-              </CardHeader>
-              <CardContent className="px-8 pb-8">
-                <ul className="space-y-4">
-                  {analysis.dos?.map((item, idx) => (
-                    <li key={idx} className="flex gap-4 p-4 bg-background/80 rounded-2xl border border-success/10 hover:border-success/30 transition-all shadow-sm">
-                      <div className="flex-shrink-0 h-8 w-8 rounded-full bg-success text-white flex items-center justify-center font-black text-sm shadow-lg">
-                        {idx + 1}
-                      </div>
-                      <span className="font-bold text-foreground/90 leading-tight">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card className="border-none shadow-2xl bg-gradient-to-br from-card to-destructive/5 border-l-[12px] border-l-destructive">
-              <CardHeader className="p-8">
-                <CardTitle className="text-2xl font-black flex items-center gap-3 text-destructive">
-                  <AlertTriangle className="h-8 w-8" /> Strict Don'ts
-                </CardTitle>
-                <CardDescription className="text-base mt-2">Critical issues and common pitfalls to avoid</CardDescription>
-              </CardHeader>
-              <CardContent className="px-8 pb-8">
-                <ul className="space-y-4">
-                  {analysis.donts?.map((item, idx) => (
-                    <li key={idx} className="flex gap-4 p-4 bg-background/80 rounded-2xl border border-destructive/10 hover:border-destructive/30 transition-all shadow-sm">
-                      <div className="flex-shrink-0 h-8 w-8 rounded-full bg-destructive text-white flex items-center justify-center font-black text-sm shadow-lg">
-                        !
-                      </div>
-                      <span className="font-bold text-foreground/90 leading-tight">{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+            <section className="space-y-4">
+              <h3 className="text-2xl font-bold flex items-center gap-2 text-success"><CheckCircle className="h-6 w-6" /> Actionable Dos</h3>
+              <ul className="space-y-3">
+                {analysis.dos.map((item, idx) => (
+                  <li key={idx} className="flex gap-4 p-4 bg-success/5 rounded-2xl border border-success/10 hover:border-success/30 transition-all">
+                    <CheckCircle className="h-5 w-5 text-success shrink-0 mt-0.5" />
+                    <span className="font-semibold text-sm leading-tight">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+            <section className="space-y-4">
+              <h3 className="text-2xl font-bold flex items-center gap-2 text-destructive"><AlertTriangle className="h-6 w-6" /> Strict Don'ts</h3>
+              <ul className="space-y-3">
+                {analysis.donts.map((item, idx) => (
+                  <li key={idx} className="flex gap-4 p-4 bg-destructive/5 rounded-2xl border border-destructive/10 hover:border-destructive/30 transition-all">
+                    <XCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                    <span className="font-semibold text-sm leading-tight">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
           </div>
+
+          {/* Section 8: Improvement Roadmap */}
+          <section className="space-y-6 pt-10">
+            <div className="text-center max-w-2xl mx-auto space-y-4">
+              <h3 className="text-3xl font-black uppercase tracking-tighter">Your Improvement Roadmap</h3>
+              <p className="text-muted-foreground">Follow these prioritized steps to maximize your ATS compatibility.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {analysis.improvement_roadmap.map((step, i) => (
+                <div key={i} className="relative p-6 rounded-3xl bg-primary/10 border border-primary/20 overflow-hidden group">
+                  <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-all" />
+                  <div className="text-4xl font-black text-primary/30 mb-4">0{i+1}</div>
+                  <h4 className="text-lg font-bold mb-2">{step.step}</h4>
+                  <div className="flex justify-between items-center mt-4">
+                    <span className="text-success font-bold">{step.impact}</span>
+                    <Badge variant="secondary" className="bg-primary/20 text-primary-foreground">{step.priority}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {analysisId && (
-            <div className="pt-4">
+            <div className="pt-10">
               <LearningPath sourceId={analysisId} sourceType="resume_analysis" />
             </div>
           )}
 
-          <Card className="bg-primary shadow-[0_20px_60px_-15px_rgba(var(--primary),0.5)] border-none text-white overflow-hidden relative group">
-            <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-[100px] -mr-40 -mt-40 group-hover:bg-white/20 transition-all duration-700" />
-            <div className="absolute bottom-0 left-0 w-60 h-60 bg-black/10 rounded-full blur-[80px] -ml-30 -mb-30" />
-            
-            <CardHeader className="p-10 relative z-10">
-              <div className="flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
-                <div className="w-24 h-24 bg-white/20 rounded-3xl flex items-center justify-center shadow-2xl backdrop-blur-xl border border-white/30 animate-pulse-slow">
-                  <Mic className="w-12 h-12 text-white" />
-                </div>
-                <div>
-                  <CardTitle className="text-3xl md:text-4xl font-black uppercase tracking-tighter">Ready for the real world?</CardTitle>
-                  <CardDescription className="text-white/80 text-lg mt-3 font-medium max-w-xl">
-                    Your resume has high potential for the <span className="bg-white/20 px-2 py-0.5 rounded text-white font-black underline decoration-2">{jobRole}</span> role. Let's see how you handle the live interview!
-                  </CardDescription>
-                </div>
+          <Card className="bg-primary shadow-glow border-none text-white overflow-hidden relative group p-10 mt-10">
+            <div className="flex flex-col md:flex-row items-center gap-8 relative z-10 text-center md:text-left">
+              <div className="w-24 h-24 bg-white/20 rounded-3xl flex items-center justify-center backdrop-blur-xl border border-white/30">
+                <Mic className="w-12 h-12" />
               </div>
-            </CardHeader>
-            <CardFooter className="flex flex-col sm:flex-row justify-between p-10 mt-2 bg-black/10 relative z-10 gap-6">
-               <Button 
-                variant="ghost" 
-                className="text-white hover:bg-white/10 h-14 px-8 text-lg font-bold order-2 sm:order-1" 
-                onClick={() => { setAnalysis(null); setFile(null) }}
-               >
-                 Re-upload Resume
-               </Button>
-               <Button 
-                variant="secondary"
-                size="lg"
-                className="h-16 px-12 text-xl font-black shadow-2xl hover:scale-[1.03] active:scale-[0.98] transition-all order-1 sm:order-2 bg-white text-primary group"
+              <div className="flex-1">
+                <CardTitle className="text-3xl font-black uppercase">Ready for the real world?</CardTitle>
+                <p className="text-white/80 mt-2 font-medium">Your resume is optimized. Let's practice the interview session now!</p>
+              </div>
+              <Button 
+                variant="secondary" size="lg" 
+                className="h-16 px-12 text-xl font-black shadow-2xl hover:scale-105 transition-all bg-white text-primary rounded-full"
                 onClick={() => navigate('/mock-interview', { state: { jobRole } })}
-               >
-                 Start Live Session <Play className="w-5 h-5 ml-4 fill-primary group-hover:translate-x-1 transition-transform" />
-               </Button>
-            </CardFooter>
+              >
+                Start Interview <Play className="w-5 h-5 ml-4" />
+              </Button>
+            </div>
           </Card>
         </div>
       )}
-      
-      <UpgradeModal 
-        open={showUpgradeModal} 
-        onOpenChange={setShowUpgradeModal}
-        description="You've used your free resume analysis this month. Upgrade to Pro for unlimited analysis."
-      />
+
+      <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
     </div>
   );
 };

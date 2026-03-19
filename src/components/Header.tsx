@@ -22,22 +22,22 @@ const Header = () => {
           <button onClick={() => navigate('/pricing')} className="text-muted-foreground hover:text-foreground transition-smooth">Pricing</button>
         </nav>
         
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-6">
           {user ? (
             <>
-              <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => navigate('/dashboard')}>
+              <Button variant="link" onClick={() => navigate('/dashboard')}>
                 Dashboard
               </Button>
-              <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={signOut}>
+              <Button variant="destructive-link" onClick={signOut}>
                 Sign Out
               </Button>
             </>
           ) : (
             <>
-              <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={() => navigate('/auth')}>
+              <Button variant="link" className="text-[#94a3b8] hover:text-white" onClick={() => navigate('/auth')}>
                 Sign In
               </Button>
-              <Button variant="hero" className="gradient-accent text-accent-foreground font-semibold hover:shadow-glow transition-all duration-300" onClick={() => navigate('/auth')}>
+              <Button variant="premium" size="pill" onClick={() => navigate('/auth')}>
                 Get Started
               </Button>
             </>

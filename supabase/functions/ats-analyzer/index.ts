@@ -20,6 +20,9 @@ Deno.serve(async (req) => {
     const systemPrompt = `
     You are an expert AI recruiter and ATS (Applicant Tracking System) software.
     Evaluate candidates strictly based on the requirements and expectations for a ${jobRole}.
+    Extract contact information, skills, experience, and education from the resume.
+    Calculate an ATS score (0-100) based on how well the candidate matches the ${jobRole} role.
+    Identify missing keywords and assign an importance score (1-10) to each.
     `
 
     const userMessage = `
@@ -30,14 +33,24 @@ Deno.serve(async (req) => {
     
     Provide a JSON response with the following exact structure:
     {
-      "ats_score": (integer out of 100),
-      "strengths": ["list of 3-5 key strengths matched to the ${jobRole} role"],
-      "weaknesses": ["list of 2-4 areas of improvement"],
-      "skills_found": ["list of key technical skills found"],
-      "missing_skills": ["list of 2-4 critical skills expected for a ${jobRole} but missing"],
-      "dos": ["3-5 specific 'Dos' (e.g., 'Do highlight your experience with X', 'Do quantify Y metrics') tailored to this resume and role"],
-      "donts": ["3-5 specific 'Donts' (e.g., 'Don't use generic descriptions for Z', 'Don't forget to mention A') tailored to this resume and role"],
-      "suggestions": ["2-4 broader actionable suggestions for career growth in ${jobRole} role"]
+      "ats_score": (integer),
+      "parsed_data": {
+        "contact": { "name": "...", "email": "...", "phone": "..." },
+        "skills": ["skill1", "skill2"],
+        "experience": [{ "title": "...", "company": "...", "duration": "...", "description": "..." }],
+        "education": [{ "degree": "...", "school": "...", "year": "..." }],
+        "strengths": ["list of 3-5 key strengths"],
+        "weaknesses": ["list of 2-4 areas of improvement"],
+        "suggestions": ["2-4 broadly actionable suggestions"]
+      },
+      "keywords_missing": [
+        { "keyword": "...", "importance": (1-10) }
+      ],
+      "dos": ["3-5 specific 'Dos'"],
+      "donts": ["3-5 specific 'Donts'"],
+      "improvement_roadmap": [
+        { "step": "...", "impact": "+X points", "priority": "High/Medium/Low" }
+      ]
     }
     
     Only return valid JSON without any markdown formatting wrappers or explanation.
@@ -46,7 +59,7 @@ Deno.serve(async (req) => {
     const aiResponse = await callAiWithFallback({
       systemPrompt,
       userMessage,
-      temperature: 0.3,
+      temperature: 0.2,
       responseMimeType: 'application/json'
     });
 
@@ -56,9 +69,11 @@ Deno.serve(async (req) => {
       throw new Error('AI analysis failed to produce a result.')
     }
 
-    // Increment usage counter if userId is provided
+    // Increment usage counter & update resume record if userId is provided
     if (userId) {
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      
+      // Update profile usage
       const { data: profile } = await supabase
         .from('profiles')
         .select('resume_analyses_used_this_month')
@@ -70,52 +85,86 @@ Deno.serve(async (req) => {
         .update({ resume_analyses_used_this_month: (profile?.resume_analyses_used_this_month || 0) + 1 })
         .eq('id', userId);
 
+      // IMPORTANT: Update OR Insert the resumes record
+      // We look for the latest resume for this user or a specific one if provided
+      const { data: latestResume } = await supabase
+        .from('resumes')
+        .select('id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      const resumeData = {
+        user_id: userId,
+        ats_score: analysisResult.ats_score,
+        parsed_data: analysisResult.parsed_data,
+        keywords_missing: analysisResult.keywords_missing,
+        // We also store the full result in resume_analysis for history if needed
+      };
+
+      let resumeIdToUse = '';
+
+      if (latestResume) {
+        resumeIdToUse = latestResume.id;
+        await supabase
+          .from('resumes')
+          .update(resumeData)
+          .eq('id', latestResume.id);
+      } else {
+        const { data: newResume } = await supabase
+          .from('resumes')
+          .insert(resumeData)
+          .select('id')
+          .single();
+        if (newResume) resumeIdToUse = newResume.id;
+      }
+
+      // Also save to resume_analysis for backward compatibility or history
+      const { data: analysisRecord } = await supabase
+        .from('resume_analysis')
+        .insert({
+          user_id: userId,
+          ats_score: analysisResult.ats_score,
+          analysis: analysisResult
+        })
+        .select('id')
+        .single();
+
       // --- NEW: Generate Learning Path for Resume ---
       try {
-        const weaknesses = analysisResult.weaknesses || []
-        const missing_skills = analysisResult.missing_skills || []
-        const suggestions = analysisResult.suggestions || []
+        const weaknesses = analysisResult.parsed_data.weaknesses || []
+        const suggestions = analysisResult.parsed_data.suggestions || []
+        const missing_keywords = (analysisResult.keywords_missing || []).map((k: any) => k.keyword)
         
-        const allGaps = Array.from(new Set([...weaknesses, ...missing_skills, ...suggestions]))
+        const allGaps = Array.from(new Set([...weaknesses, ...suggestions, ...missing_keywords]))
         
-        if (allGaps.length > 0) {
+        if (allGaps.length > 0 && analysisRecord) {
           const { data: resourcesData, error: resourcesError } = await supabase.functions.invoke('fetch-resources', {
             body: { topics: allGaps }
           })
 
           if (!resourcesError && resourcesData) {
-            // Get the last resume analysis ID to link
-            const { data: latestAnalysis } = await supabase
-              .from('resume_analysis')
-              .select('id')
-              .eq('user_id', userId)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .single()
+            const learningPathEntries = allGaps.map(gap => ({
+              user_id: userId,
+              title: gap,
+              description: `Improvement identified from resume analysis: ${gap}`,
+              resources: resourcesData[gap] || [],
+              source_type: 'resume_analysis',
+              source_id: analysisRecord.id,
+              is_completed: false
+            }))
 
-            if (latestAnalysis) {
-              const learningPathEntries = allGaps.map(gap => ({
-                user_id: userId,
-                title: gap,
-                description: `Improvement identified from resume analysis: ${gap}`,
-                resources: resourcesData[gap] || [],
-                source_type: 'resume_analysis',
-                source_id: latestAnalysis.id,
-                is_completed: false
-              }))
-
-              const { error: lpError } = await supabase
-                .from('learning_paths')
-                .insert(learningPathEntries)
-              
-              if (lpError) console.error('Error inserting learning paths:', lpError)
-            }
+            const { error: lpError } = await supabase
+              .from('learning_paths')
+              .insert(learningPathEntries)
+            
+            if (lpError) console.error('Error inserting learning paths:', lpError)
           }
         }
       } catch (lpErr) {
         console.error('Failed to generate learning path for resume:', lpErr)
       }
-      // --- END NEW ---
     }
 
     return new Response(JSON.stringify(analysisResult), {

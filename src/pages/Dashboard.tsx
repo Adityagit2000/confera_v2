@@ -23,7 +23,8 @@ import {
   Cpu,
   Network,
   Users,
-  Play
+  Play,
+  Zap
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ResumeUpload from '@/components/ResumeUpload';
@@ -64,9 +65,23 @@ const Dashboard = () => {
     }
   }, [user]);
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   const fetchDashboardData = async () => {
     if (!user) return;
     try {
+      // Fetch profile for name if useSubscription didn't catch it yet
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', user.id)
+        .single();
+
       const { data: sessions, error: sessionsError } = await supabase
         .from('interview_sessions')
         .select(`*, feedback_reports(overall_score)`)
@@ -77,7 +92,7 @@ const Dashboard = () => {
 
       const { data: resumes, error: resumesError } = await supabase
         .from('resumes')
-        .select('ats_score')
+        .select('ats_score, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1);
@@ -90,11 +105,20 @@ const Dashboard = () => {
         ? Math.round(scoresWithData.reduce((sum, s) => sum + (s.feedback_reports[0]?.overall_score || 0), 0) / scoresWithData.length)
         : 0;
 
+      // Handle session aging (active > 24h = incomplete)
+      const processedSessions = sessions?.map(session => {
+        const isOld = new Date().getTime() - new Date(session.created_at).getTime() > 24 * 60 * 60 * 1000;
+        if (session.status === 'active' && isOld) {
+          return { ...session, status: 'incomplete' };
+        }
+        return session;
+      }) || [];
+
       setStats({
         totalSessions,
         avgScore,
         resumeScore: resumes?.[0]?.ats_score || null,
-        recentSessions: sessions?.slice(0, 5) || []
+        recentSessions: processedSessions.slice(0, 5) || []
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -102,6 +126,13 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const calculateTrend = (current: number, previous: number) => {
+    if (!previous) return null;
+    if (current > previous) return 'up';
+    if (current < previous) return 'down';
+    return 'neutral';
   };
 
   const startInterview = async () => {
@@ -148,6 +179,7 @@ const Dashboard = () => {
       case 'completed': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
       case 'active': return 'bg-success/20 text-success border-success/30';
       case 'scheduled': return 'bg-primary/20 text-primary border-primary/30';
+      case 'incomplete': return 'bg-muted/50 text-muted-foreground border-border';
       default: return 'bg-muted/50 text-muted-foreground border-border';
     }
   };
@@ -238,9 +270,14 @@ const Dashboard = () => {
         </nav>
 
         <div className="p-4 border-t border-border/50">
-          <button onClick={signOut} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
-            <LogOut className="w-5 h-5" /> Sign Out
-          </button>
+          <Button 
+            variant="destructive-link" 
+            onClick={signOut} 
+            className="w-full justify-start gap-3 px-3 py-2.5 rounded-lg hover:bg-[#fee2e2] transition-colors group"
+          >
+            <LogOut className="w-5 h-5 group-hover:text-[#ef4444]" />
+            <span className="group-hover:text-[#ef4444]">Sign Out</span>
+          </Button>
         </div>
       </aside>
 
@@ -254,8 +291,8 @@ const Dashboard = () => {
             </div>
             <span className="text-lg font-bold">Confera</span>
           </div>
-          <Button variant="ghost" size="icon" onClick={signOut}>
-            <LogOut className="w-5 h-5 text-muted-foreground" />
+          <Button variant="destructive-link" size="icon" onClick={signOut} className="hover:bg-[#fee2e2] group">
+            <LogOut className="w-5 h-5 group-hover:text-[#ef4444]" />
           </Button>
         </header>
 
@@ -263,7 +300,7 @@ const Dashboard = () => {
         <div className="px-6 py-10 max-w-6xl mx-auto">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
             <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-3">
-              Welcome back, <span className="text-gradient capitalize">{user?.email?.split('@')[0]}</span>
+              {getGreeting()}, <span className="text-gradient capitalize">{profile?.name || user?.email?.split('@')[0]}</span>
             </h1>
             <p className="text-muted-foreground text-lg">Here's a breakdown of your interview progress.</p>
           </motion.div>
@@ -292,6 +329,11 @@ const Dashboard = () => {
                   <div className="p-3 rounded-xl bg-secondary/10 text-secondary">
                     <TrendingUp className="w-6 h-6" />
                   </div>
+                  {stats.avgScore > 0 && (
+                    <div className="text-xs font-bold text-success flex items-center">
+                      <TrendingUp className="w-3 h-3 mr-1" /> improving
+                    </div>
+                  )}
                 </div>
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold text-foreground mb-1">{stats.avgScore}%</div>
@@ -304,22 +346,37 @@ const Dashboard = () => {
             </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <div className="glass-card rounded-2xl p-6 border border-border/50 bg-gradient-to-b from-card to-background relative overflow-hidden group">
+              <div className="glass-card rounded-2xl p-6 border border-border/50 bg-gradient-to-b from-card to-background relative overflow-hidden group h-full">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-accent/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-accent/20 transition-all"></div>
                 <div className="flex items-start justify-between mb-4 relative z-10">
                   <div className="p-3 rounded-xl bg-accent/10 text-accent">
-                    <FileText className="w-6 h-6" />
+                    <Zap className="w-6 h-6" />
                   </div>
                 </div>
                 <div className="relative z-10">
                   {stats.resumeScore !== null ? (
-                    <>
-                      <div className="text-4xl font-extrabold text-foreground mb-1">{stats.resumeScore}%</div>
-                      <p className="text-muted-foreground text-sm font-medium mb-3">ATS Compatibility</p>
-                      <div className="w-full bg-muted rounded-full h-1.5">
-                        <div className="bg-accent h-1.5 rounded-full" style={{ width: `${stats.resumeScore}%` }}></div>
+                    <div className="flex items-center gap-4">
+                      <div className="relative w-16 h-16 shrink-0">
+                        <svg className="w-full h-full transform -rotate-90">
+                          <circle cx="32" cy="32" r="28" className="stroke-muted fill-none" strokeWidth="4" />
+                          <circle 
+                            cx="32" cy="32" r="28" 
+                            className={`fill-none ${stats.resumeScore >= 75 ? 'stroke-success' : stats.resumeScore >= 50 ? 'stroke-yellow-500' : 'stroke-destructive'}`}
+                            strokeWidth="4" 
+                            strokeDasharray={175.9}
+                            strokeDashoffset={175.9 - (175.9 * stats.resumeScore) / 100}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">
+                          {stats.resumeScore}%
+                        </div>
                       </div>
-                    </>
+                      <div>
+                        <div className="text-lg font-bold text-foreground">Resume Health</div>
+                        <Button variant="link" size="sm" onClick={() => navigate('/ats')} className="p-0 h-auto text-primary text-xs">Update Resume</Button>
+                      </div>
+                    </div>
                   ) : (
                     <div className="text-center pt-2">
                       <p className="text-muted-foreground text-sm mb-3">No resume uploaded</p>
@@ -335,7 +392,7 @@ const Dashboard = () => {
 
           {/* Quick Actions Array */}
           <div className="flex flex-wrap gap-4 mb-12">
-            <Button size="lg" className="bg-primary hover:bg-primary-glow text-primary-foreground font-semibold px-6 shadow-glow" onClick={() => {
+            <Button variant="premium" size="lg" className="px-8" onClick={() => {
               if (canStartInterview) setShowInterviewDialog(true);
               else {
                 setUpgradeMessage("You've used all your free interviews this month. Upgrade to Pro for unlimited access.");
@@ -344,7 +401,7 @@ const Dashboard = () => {
             }}>
               <Mic className="w-5 h-5 mr-2" /> Start New Interview
             </Button>
-            <Button size="lg" variant="outline" className="glass-card border-border hover:bg-card hover:text-foreground" onClick={() => {
+            <Button variant="outline" size="lg" className="px-8 glass-card border-border hover:bg-card hover:text-foreground" onClick={() => {
               if (canAnalyzeResume) navigate('/ats');
               else {
                 setUpgradeMessage("You've used your free resume analysis this month. Upgrade to Pro for unlimited analysis.");
@@ -399,12 +456,27 @@ const Dashboard = () => {
                           </span>
                         </div>
                         <div className="col-span-6 sm:col-span-2 text-right">
-                          {session.status === 'completed' && session.feedback_reports?.[0]?.overall_score ? (
-                            <div className="font-bold text-lg text-foreground bg-primary/10 inline-block px-3 py-1 rounded-lg">
-                              {session.feedback_reports[0].overall_score}%
-                            </div>
-                          ) : session.status === 'scheduled' ? (
-                            <Button size="sm" variant="ghost" className="text-primary hover:bg-primary/10 hover:text-primary-glow px-3 border border-primary/20">
+                          {session.status === 'completed' ? (
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="text-primary hover:bg-primary/10 px-3 border border-primary/20"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.location.href = `/report/${session.id}`;
+                              }}
+                            >
+                              View Report
+                            </Button>
+                          ) : session.status === 'scheduled' || session.status === 'active' ? (
+                            <Button 
+                              size="sm" 
+                              className="bg-primary hover:bg-primary-glow text-white px-3 shadow-glow"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.location.href = `/interview/${session.id}`;
+                              }}
+                            >
                               Continue <Play className="w-3 h-3 ml-1 fill-current" />
                             </Button>
                           ) : (

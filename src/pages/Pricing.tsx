@@ -246,8 +246,9 @@ const Pricing = () => {
                 </CardContent>
                 <CardFooter>
                   <Button 
-                    className={`w-full font-bold h-12 ${plan.highlight ? 'bg-primary hover:bg-primary-glow shadow-glow' : ''}`} 
-                    variant={plan.buttonVariant}
+                    className="w-full" 
+                    variant={plan.name === 'Free' ? 'link' : 'premium'}
+                    size={plan.name === 'Free' ? 'default' : 'lg'}
                     disabled={plan.disabled || (loading !== null)}
                     onClick={() => plan.billingCycle && handlePayment(plan.billingCycle)}
                   >

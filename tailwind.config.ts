@@ -111,6 +111,11 @@ export default {
 				'float': 'float 6s ease-in-out infinite',
 				'pulse-glow': 'pulse-glow 3s ease-in-out infinite',
 				'mesh': 'mesh 10s ease-in-out infinite alternate',
+			},
+			boxShadow: {
+				'premium': '0 10px 15px -3px rgba(99, 102, 241, 0.2), 0 4px 6px -2px rgba(139, 92, 246, 0.1)',
+				'premium-hover': '0 20px 25px -5px rgba(99, 102, 241, 0.3), 0 10px 10px -5px rgba(139, 92, 246, 0.2)',
+				'glow': '0 0 20px rgba(99, 102, 241, 0.4)',
 			}
 		}
 	},

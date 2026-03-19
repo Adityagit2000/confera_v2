@@ -7,12 +7,12 @@ export const BackButton = () => {
 
   return (
     <Button
-      variant="ghost"
-      size="icon"
+      variant="link"
       onClick={() => navigate(-1)}
-      className="text-white/50 hover:text-blue-400 transition-colors"
+      className="flex items-center gap-2 text-[#64748b] hover:text-white group p-0 h-auto font-medium transition-all duration-200"
     >
-      <ArrowLeft className="w-5 h-5" />
+      <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+      <span>Back</span>
     </Button>
   );
 };
