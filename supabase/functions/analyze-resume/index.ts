@@ -47,42 +47,58 @@ Deno.serve(async (req) => {
     const signedUrl = signedUrlData.signedUrl;
     console.log('Signed URL generated successfully');
 
+    // Safe JSON parsing helper
+    function safeParseJSON(text: string): any {
+      try {
+        const cleaned = text
+          .replace(/```json\n?/g, '')
+          .replace(/```\n?/g, '')
+          .trim();
+        return JSON.parse(cleaned);
+      } catch (e) {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            return JSON.parse(jsonMatch[0]);
+          } catch (e2) {
+            throw new Error(`Failed to parse AI response as JSON: ${text.substring(0, 200)}`);
+          }
+        }
+        throw new Error(`No valid JSON found in response: ${text.substring(0, 200)}`);
+      }
+    }
+
     // 3. Call AI for analysis
     const systemPrompt = `
-    You are an expert AI recruiter and ATS (Applicant Tracking System) software.
+    You are an expert ATS resume analyzer. You must respond with ONLY a valid JSON object, no markdown, no explanation, no extra text. Just the raw JSON.
     Evaluate candidates strictly based on the requirements and expectations for a ${jobRole || 'Software Engineer'}.
-    Extract contact information, skills, experience, and education from the resume.
-    Calculate an ATS score (0-100) based on how well the candidate matches the role.
-    Identify missing keywords and assign an importance score (1-10) to each.
     `;
 
     const userPrompt = `
-    Analyze the resume provided via the URL specifically for the role of "${jobRole || 'Software Engineer'}".
+    Analyze this resume text for a ${jobRole || 'Software Engineer'} position.
     URL: ${signedUrl}
 
-    Provide a JSON response with the following exact structure:
+    Return ONLY this exact JSON structure with no deviations:
     {
-      "ats_score": (integer),
-      "parsed_data": {
-        "contact": { "name": "...", "email": "...", "phone": "..." },
-        "skills": ["skill1", "skill2"],
-        "experience": [{ "title": "...", "company": "...", "duration": "...", "description": "..." }],
-        "education": [{ "degree": "...", "school": "...", "year": "..." }],
-        "strengths": ["list of 3-5 key strengths"],
-        "weaknesses": ["list of 2-4 areas of improvement"],
-        "suggestions": ["2-4 broadly actionable suggestions"]
+      "ats_score": <integer 0-100>,
+      "contact": {
+        "name": "<full name>",
+        "email": "<email>",
+        "phone": "<phone number>"
       },
-      "keywords_missing": [
-        { "keyword": "...", "importance": (1-10) }
-      ],
-      "dos": ["3-5 specific 'Dos'"],
-      "donts": ["3-5 specific 'Donts'"],
-      "improvement_roadmap": [
-        { "step": "...", "impact": "+X points", "priority": "High/Medium/Low" }
-      ]
+      "skills": ["skill1", "skill2"],
+      "experience": [{"title": "", "company": "", "duration": "", "description": ""}],
+      "education": [{"degree": "", "school": "", "year": ""}],
+      "missing_keywords": [{"keyword": "", "importance": <1-10>}],
+      "strengths": ["strength1"],
+      "weaknesses": ["weakness1"],
+      "suggestions": ["suggestion1"],
+      "dos": ["do1", "do2"],
+      "donts": ["dont1", "dont2"],
+      "improvement_roadmap": [{"step": "", "impact": "", "priority": ""}]
     }
-    
-    Only return valid JSON without any markdown formatting wrappers or explanation.
+
+    Resume text should be fetched from the signed URL provided above.
     `;
     
     const aiResponse = await callAiWithFallback({
@@ -94,16 +110,30 @@ Deno.serve(async (req) => {
     
     console.log('AI Response received');
 
-    const cleaned = aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const parsed = JSON.parse(cleaned);
+    const parsed = safeParseJSON(aiResponse);
 
-    // 4. Update the resume record
+    // 4. Update the resume record with standardized structure
     const { error: updateError } = await supabaseAdmin
       .from('resumes')
       .update({
         ats_score: parsed.ats_score,
-        parsed_data: parsed,
-        keywords_missing: parsed.missing_keywords
+        keywords_missing: parsed.missing_keywords || [],
+        parsed_data: {
+          contact: {
+            name: parsed.contact?.name || null,
+            email: parsed.contact?.email || null,
+            phone: parsed.contact?.phone || null
+          },
+          skills: parsed.skills || [],
+          experience: parsed.experience || [],
+          education: parsed.education || [],
+          strengths: parsed.strengths || [],
+          weaknesses: parsed.weaknesses || [],
+          suggestions: parsed.suggestions || [],
+          dos: parsed.dos || [],
+          donts: parsed.donts || [],
+          improvement_roadmap: parsed.improvement_roadmap || []
+        }
       })
       .eq('id', resumeId);
 

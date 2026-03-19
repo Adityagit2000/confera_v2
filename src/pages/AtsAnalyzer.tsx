@@ -201,19 +201,35 @@ const AtsAnalyzer = () => {
   };
 
   // Safe Data Access Variables
-  const parsedData = analysis?.parsed_data;
-  const skills = parsedData?.skills || [];
-  const experience = parsedData?.experience || [];
-  const education = parsedData?.education || [];
-  const contact = parsedData?.contact || { name: '', email: '', phone: '' };
-  const strengths = parsedData?.strengths || [];
-  const weaknesses = parsedData?.weaknesses || [];
-  const suggestions = parsedData?.suggestions || [];
-  const missingKeywords = analysis?.keywords_missing || [];
-  const atsScore = analysis?.ats_score || 0;
-  const dos = analysis?.dos || [];
-  const donts = analysis?.donts || [];
-  const roadmap = analysis?.improvement_roadmap || [];
+  const resumeData = analysis;
+  const rawParsed = resumeData?.parsed_data as any;
+
+  // Debug logging as requested
+  if (resumeData) {
+    console.log('Raw resume data from DB:', resumeData);
+    console.log('parsed_data field:', rawParsed);
+    console.log('Type of parsed_data:', typeof rawParsed);
+  }
+
+  const atsScore = resumeData?.ats_score || rawParsed?.ats_score || 0;
+  
+  const contact = rawParsed?.contact || {
+    name: rawParsed?.name || rawParsed?.full_name || null,
+    email: rawParsed?.email || null,
+    phone: rawParsed?.phone || null
+  };
+
+  const skills = rawParsed?.skills || rawParsed?.technical_skills || [];
+  const experience = rawParsed?.experience || rawParsed?.work_experience || [];
+  const education = rawParsed?.education || [];
+  const strengths = rawParsed?.strengths || [];
+  const weaknesses = rawParsed?.weaknesses || [];
+  const suggestions = rawParsed?.suggestions || [];
+  const missingKeywords = resumeData?.keywords_missing || rawParsed?.keywords_missing || rawParsed?.missing_keywords || [];
+  
+  const dos = resumeData?.dos || rawParsed?.dos || [];
+  const donts = resumeData?.donts || rawParsed?.donts || [];
+  const roadmap = resumeData?.improvement_roadmap || rawParsed?.improvement_roadmap || [];
 
   return (
     <div className="container mx-auto py-12 px-4 max-w-6xl min-h-screen relative dark">

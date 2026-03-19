@@ -17,44 +17,59 @@ Deno.serve(async (req) => {
       throw new Error('resumeText is required')
     }
 
+    // Safe JSON parsing helper
+    function safeParseJSON(text: string): any {
+      try {
+        const cleaned = text
+          .replace(/```json\n?/g, '')
+          .replace(/```\n?/g, '')
+          .trim();
+        return JSON.parse(cleaned);
+      } catch (e) {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            return JSON.parse(jsonMatch[0]);
+          } catch (e2) {
+            throw new Error(`Failed to parse AI response as JSON: ${text.substring(0, 200)}`);
+          }
+        }
+        throw new Error(`No valid JSON found in response: ${text.substring(0, 200)}`);
+      }
+    }
+
+    // 3. Call AI for analysis
     const systemPrompt = `
-    You are an expert AI recruiter and ATS (Applicant Tracking System) software.
+    You are an expert ATS resume analyzer. You must respond with ONLY a valid JSON object, no markdown, no explanation, no extra text. Just the raw JSON.
     Evaluate candidates strictly based on the requirements and expectations for a ${jobRole}.
-    Extract contact information, skills, experience, and education from the resume.
-    Calculate an ATS score (0-100) based on how well the candidate matches the ${jobRole} role.
-    Identify missing keywords and assign an importance score (1-10) to each.
-    `
+    `;
 
     const userMessage = `
-    Analyze the following resume text specifically for the role of "${jobRole}".
+    Analyze this resume text specifically for the role of "${jobRole}".
     
     Resume Text:
     ${resumeText.substring(0, 15000)}
     
-    Provide a JSON response with the following exact structure:
+    Return ONLY this exact JSON structure with no deviations:
     {
-      "ats_score": (integer),
-      "parsed_data": {
-        "contact": { "name": "...", "email": "...", "phone": "..." },
-        "skills": ["skill1", "skill2"],
-        "experience": [{ "title": "...", "company": "...", "duration": "...", "description": "..." }],
-        "education": [{ "degree": "...", "school": "...", "year": "..." }],
-        "strengths": ["list of 3-5 key strengths"],
-        "weaknesses": ["list of 2-4 areas of improvement"],
-        "suggestions": ["2-4 broadly actionable suggestions"]
+      "ats_score": <integer 0-100>,
+      "contact": {
+        "name": "<full name>",
+        "email": "<email>",
+        "phone": "<phone number>"
       },
-      "keywords_missing": [
-        { "keyword": "...", "importance": (1-10) }
-      ],
-      "dos": ["3-5 specific 'Dos'"],
-      "donts": ["3-5 specific 'Donts'"],
-      "improvement_roadmap": [
-        { "step": "...", "impact": "+X points", "priority": "High/Medium/Low" }
-      ]
+      "skills": ["skill1", "skill2"],
+      "experience": [{"title": "", "company": "", "duration": "", "description": ""}],
+      "education": [{"degree": "", "school": "", "year": ""}],
+      "missing_keywords": [{"keyword": "", "importance": <1-10>}],
+      "strengths": ["strength1"],
+      "weaknesses": ["weakness1"],
+      "suggestions": ["suggestion1"],
+      "dos": ["do1", "do2"],
+      "donts": ["dont1", "dont2"],
+      "improvement_roadmap": [{"step": "", "impact": "", "priority": ""}]
     }
-    
-    Only return valid JSON without any markdown formatting wrappers or explanation.
-    `
+    `;
 
     const aiResponse = await callAiWithFallback({
       systemPrompt,
@@ -63,7 +78,7 @@ Deno.serve(async (req) => {
       responseMimeType: 'application/json'
     });
 
-    const analysisResult = JSON.parse(aiResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+    const analysisResult = safeParseJSON(aiResponse);
 
     if (!analysisResult) {
       throw new Error('AI analysis failed to produce a result.')
@@ -85,8 +100,32 @@ Deno.serve(async (req) => {
         .update({ resume_analyses_used_this_month: (profile?.resume_analyses_used_this_month || 0) + 1 })
         .eq('id', userId);
 
-      // IMPORTANT: Update OR Insert the resumes record
-      // We look for the latest resume for this user or a specific one if provided
+      // Standardized data structure for saving
+      const standardizedData = {
+        contact: {
+          name: analysisResult.contact?.name || null,
+          email: analysisResult.contact?.email || null,
+          phone: analysisResult.contact?.phone || null
+        },
+        skills: analysisResult.skills || [],
+        experience: analysisResult.experience || [],
+        education: analysisResult.education || [],
+        strengths: analysisResult.strengths || [],
+        weaknesses: analysisResult.weaknesses || [],
+        suggestions: analysisResult.suggestions || [],
+        dos: analysisResult.dos || [],
+        donts: analysisResult.donts || [],
+        improvement_roadmap: analysisResult.improvement_roadmap || []
+      };
+
+      const resumeData = {
+        user_id: userId,
+        ats_score: analysisResult.ats_score,
+        parsed_data: standardizedData,
+        keywords_missing: analysisResult.missing_keywords || [],
+      };
+
+      // Update OR Insert the resumes record
       const { data: latestResume } = await supabase
         .from('resumes')
         .select('id')
@@ -95,38 +134,28 @@ Deno.serve(async (req) => {
         .limit(1)
         .single();
 
-      const resumeData = {
-        user_id: userId,
-        ats_score: analysisResult.ats_score,
-        parsed_data: analysisResult.parsed_data,
-        keywords_missing: analysisResult.keywords_missing,
-        // We also store the full result in resume_analysis for history if needed
-      };
-
-      let resumeIdToUse = '';
-
       if (latestResume) {
-        resumeIdToUse = latestResume.id;
         await supabase
           .from('resumes')
           .update(resumeData)
           .eq('id', latestResume.id);
       } else {
-        const { data: newResume } = await supabase
+        await supabase
           .from('resumes')
-          .insert(resumeData)
-          .select('id')
-          .single();
-        if (newResume) resumeIdToUse = newResume.id;
+          .insert(resumeData);
       }
 
-      // Also save to resume_analysis for backward compatibility or history
+      // Also save to resume_analysis for history
       const { data: analysisRecord } = await supabase
-        .from('resume_analysis')
+        .from('resume_analysis' as any)
         .insert({
           user_id: userId,
           ats_score: analysisResult.ats_score,
-          analysis: analysisResult
+          analysis: {
+            ...analysisResult,
+            parsed_data: standardizedData,
+            keywords_missing: analysisResult.missing_keywords || []
+          }
         })
         .select('id')
         .single();
