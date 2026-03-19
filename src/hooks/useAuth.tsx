@@ -31,6 +31,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         
+        // Clean URL hash if it contains OAuth tokens
+        if ((event === 'SIGNED_IN' || session) && window.location.hash.includes('access_token')) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+        
         if (session?.user) {
           // Check user role
           setTimeout(async () => {

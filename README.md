@@ -5,7 +5,7 @@
 
 **Transform your interview preparation with AI-driven mock interviews, ATS resume analysis, and personalized feedback reports.**
 
-[Live Demo](#) • [Features](#features) • [Tech Stack](#tech-stack) • [Getting Started](#getting-started)
+[Live Demo](https://conferav2.vercel.app/) • [Features](#features) • [Tech Stack](#tech-stack) • [Getting Started](#getting-started)
 
 </div>
 
