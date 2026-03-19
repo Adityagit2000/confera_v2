@@ -100,13 +100,23 @@ const AtsAnalyzer = () => {
         console.log('Fetched resume data from DB:', result);
         console.log('parsed_data field from DB:', result.parsed_data);
 
+        let parsed_data = result.parsed_data as any;
+        if (typeof parsed_data === 'string') {
+          try {
+            parsed_data = JSON.parse(parsed_data);
+          } catch (e) {
+            console.error('Error parsing parsed_data:', e);
+            parsed_data = {};
+          }
+        }
+
         setAnalysis({
           ats_score: result.ats_score,
-          parsed_data: result.parsed_data as any,
+          parsed_data: parsed_data,
           keywords_missing: result.keywords_missing as any || [],
-          dos: (result.parsed_data as any)?.dos || [],
-          donts: (result.parsed_data as any)?.donts || [],
-          improvement_roadmap: (result.parsed_data as any)?.improvement_roadmap || [],
+          dos: parsed_data?.dos || [],
+          donts: parsed_data?.donts || [],
+          improvement_roadmap: parsed_data?.improvement_roadmap || [],
           created_at: result.created_at
         });
         setAnalysisId(result.id);

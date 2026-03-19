@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import BackButton from '@/components/BackButton';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -71,12 +73,52 @@ const InterviewSession = () => {
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string>(localStorage.getItem('confera_voice') || '');
+  const [recognitionRetryCount, setRecognitionRetryCount] = useState(0);
+
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const candidateVideoRef = useRef<HTMLVideoElement>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const shouldContinueListening = useRef(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
+
+  // Voice engine initialization
+  useEffect(() => {
+    const updateVoices = () => {
+      const voices = window.speechSynthesis.getVoices();
+      // Filter for high-quality voices
+      const filtered = voices.filter(v => 
+        (v.name.includes('Google') || 
+         v.name.includes('Natural') || 
+         v.name.includes('Premium') ||
+         v.name.includes('Microsoft') ||
+         v.name.includes('Samantha') ||
+         v.name.includes('Alex')) && v.lang.startsWith('en')
+      );
+      
+      setAvailableVoices(filtered);
+      
+      if (!selectedVoiceName && filtered.length > 0) {
+        // Prefer Google US English Male/Female as defaults
+        const defaultVoice = filtered.find(v => v.name.includes('Google US English Male')) || 
+                             filtered.find(v => v.name.includes('Google US English Female')) || 
+                             filtered[0];
+        setSelectedVoiceName(defaultVoice.name);
+      }
+    };
+
+    if (window.speechSynthesis.onvoiceschanged !== undefined) {
+      window.speechSynthesis.onvoiceschanged = updateVoices;
+    }
+    updateVoices();
+  }, [selectedVoiceName]);
+
+  const handleVoiceChange = (voiceName: string) => {
+    setSelectedVoiceName(voiceName);
+    localStorage.setItem('confera_voice', voiceName);
+  };
 
   // Check for first-time user onboarding
   useEffect(() => {
@@ -110,7 +152,7 @@ const InterviewSession = () => {
 
       recognition.onstart = () => {
         setIsListening(true);
-        console.log('Speech recognition started');
+        if (import.meta.env.DEV) console.log('Speech recognition started');
       };
 
       recognition.onresult = (event: any) => {
@@ -143,16 +185,24 @@ const InterviewSession = () => {
         setIsListening(false);
         if (shouldContinueListening.current) {
           try {
-            recognition.start();
+            // Safety check: ensure we're not already listening or speaking
+            if (!recognitionRef.current.listening && !window.speechSynthesis.speaking) {
+              recognition.start();
+            }
           } catch (e) {
-            console.error('Failed to restart recognition:', e);
+            if (import.meta.env.DEV) console.error('Failed to restart recognition:', e);
             shouldContinueListening.current = false;
           }
         }
       };
 
+      recognition.onnomatch = () => {
+        if (import.meta.env.DEV) console.log('No speech match found');
+        speak("I didn't catch that, could you repeat?");
+      };
+
       recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
+        if (import.meta.env.DEV) console.error('Speech recognition error:', event.error);
         
         // Stop the loop on specific errors
         if (event.error === 'network' || event.error === 'not-allowed') {
@@ -160,6 +210,15 @@ const InterviewSession = () => {
           setIsListening(false);
           
           if (event.error === 'network') {
+             if (recognitionRetryCount < 2) {
+               setRecognitionRetryCount(prev => prev + 1);
+               setTimeout(() => {
+                 if (shouldContinueListening.current) {
+                   try { recognition.start(); } catch(e) {}
+                 }
+               }, 1000);
+               return;
+             }
              setVoiceAvailable(false);
              toast({ 
                title: "Voice Unavailable", 
@@ -220,7 +279,7 @@ const InterviewSession = () => {
         }, 500);
         
       } catch (err) {
-        console.log('Camera error:', err);
+        if (import.meta.env.DEV) console.log('Camera error:', err);
         setCameraAvailable(false);
       }
     };
@@ -247,10 +306,10 @@ const InterviewSession = () => {
 
   // Load Session & Auto-Start
   useEffect(() => {
-    if (sessionId && user) {
+    if (sessionId && user?.id) {
       fetchInterviewData();
     }
-  }, [sessionId, user]);
+  }, [sessionId]); // Follow user instruction for single dependency as much as possible, using user?.id for stability
 
   const fetchInterviewData = useCallback(async () => {
     setLoading(true);
@@ -262,12 +321,21 @@ const InterviewSession = () => {
         .eq('id', sessionId)
         .single();
 
-      if (error) throw error;
-      setSession(data);
+      if (data && data.user_id !== user.id) {
+        toast({ title: "Unauthorized", description: "You don't have access to this session.", variant: "destructive" });
+        navigate('/dashboard');
+        return;
+      }
 
-      const parsedTranscript = typeof data.transcript === 'string' 
-        ? JSON.parse(data.transcript) 
-        : (data.transcript || []);
+      let parsedTranscript = [];
+      try {
+        parsedTranscript = typeof data.transcript === 'string' 
+          ? JSON.parse(data.transcript) 
+          : (data.transcript || []);
+      } catch (e) {
+        if (import.meta.env.DEV) console.error("Error parsing transcript:", e);
+        parsedTranscript = [];
+      }
 
       if (parsedTranscript.length > 0) {
         setMessages(parsedTranscript as Message[]);
@@ -279,7 +347,7 @@ const InterviewSession = () => {
       }
       
     } catch (error: any) {
-      console.error('Error fetching interview:', error);
+      if (import.meta.env.DEV) console.error('Error fetching interview:', error);
       setErrorStatus("Failed to load interview session.");
       setLoading(false);
     }
@@ -289,18 +357,28 @@ const InterviewSession = () => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Premium Voice Selection
+    const voice = availableVoices.find(v => v.name === selectedVoiceName);
+    if (voice) {
+      utterance.voice = voice;
+    }
+    
+    utterance.rate = 0.95; // Human-like speed
+    utterance.pitch = 1.0;
+
     utterance.onstart = () => { 
         setIsSpeaking(true); 
         if (recognitionRef.current) recognitionRef.current.stop(); 
     };
     utterance.onend = () => { 
         setIsSpeaking(false); 
-        if (isListening && recognitionRef.current) {
+        if (shouldContinueListening.current && recognitionRef.current) {
             try { recognitionRef.current.start(); } catch(e) {}
         }
     };
     window.speechSynthesis.speak(utterance);
-  }, [isListening]);
+  }, [availableVoices, selectedVoiceName]);
 
   const startInterviewFlow = useCallback(async (sessionData: any) => {
     if (!canStartInterview) {
@@ -440,7 +518,7 @@ const InterviewSession = () => {
     try {
       await supabase.functions.invoke('generate-feedback', { body: { sessionId } });
     } catch (error) {
-      console.error('Error generating feedback:', error);
+      if (import.meta.env.DEV) console.error('Error generating feedback:', error);
     }
     
     setTimeout(() => { navigate(`/report/${sessionId}`); }, 3000);
@@ -491,6 +569,26 @@ const InterviewSession = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4">
+           {/* Voice Selection */}
+           <div className="hidden lg:flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 backdrop-blur-md">
+              <Volume2 className="w-4 h-4 text-primary/70" />
+              <Select value={selectedVoiceName} onValueChange={handleVoiceChange}>
+                <SelectTrigger className="h-8 border-none bg-transparent hover:bg-white/5 text-[10px] font-bold uppercase tracking-wider min-w-[140px] focus:ring-0">
+                  <SelectValue placeholder="Select Voice" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#0a0a0f] border-white/10 text-white">
+                  {availableVoices.map((voice) => (
+                    <SelectItem key={voice.name} value={voice.name} className="text-[10px] font-bold uppercase tracking-wider hover:bg-primary/10 transition-colors">
+                      {voice.name.replace('Google ', '').replace('US English ', '').replace('Microsoft ', '')}
+                    </SelectItem>
+                  ))}
+                  {availableVoices.length === 0 && (
+                    <div className="p-2 text-[10px] text-white/40">No premium voices found</div>
+                  )}
+                </SelectContent>
+              </Select>
+           </div>
+
            <div className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 bg-white/5 rounded-xl border transition-all ${onboardingStep === 2 ? 'border-primary ring-4 ring-primary/20 bg-primary/10 scale-105 z-50' : 'border-white/10'}`}>
               <span className="text-[10px] sm:text-xs font-semibold text-white/60">Auto-send</span>
               <Switch checked={autoSend} onCheckedChange={(val) => {
