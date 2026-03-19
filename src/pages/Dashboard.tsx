@@ -180,6 +180,9 @@ const Dashboard = () => {
 
   const getInterviewTypeLabel = (type: string) => {
     switch (type) {
+      case 'technical': return 'Technical & Core Skills';
+      case 'behavioral': return 'Behavioral & HR Fit';
+      case 'scenario': return 'Scenario / Case Study';
       case 'dsa': return 'Data Structures & Algorithms';
       case 'system_design': return 'System Design';
       case 'hr': return 'HR & Behavioral';
@@ -452,8 +455,8 @@ const Dashboard = () => {
                         }}
                       >
                         <div className="col-span-12 sm:col-span-5 flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${session.type === 'dsa' ? 'bg-primary/10 text-primary' : session.type === 'system_design' ? 'bg-secondary/10 text-secondary' : 'bg-accent/10 text-accent'}`}>
-                            {session.type === 'dsa' ? <Cpu className="w-5 h-5" /> : session.type === 'system_design' ? <Network className="w-5 h-5" /> : <Users className="w-5 h-5" />}
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${session.type === 'technical' || session.type === 'dsa' ? 'bg-primary/10 text-primary' : session.type === 'scenario' || session.type === 'system_design' ? 'bg-secondary/10 text-secondary' : 'bg-accent/10 text-accent'}`}>
+                            {session.type === 'technical' || session.type === 'dsa' ? <Cpu className="w-5 h-5" /> : session.type === 'scenario' || session.type === 'system_design' ? <Network className="w-5 h-5" /> : <Users className="w-5 h-5" />}
                           </div>
                           <div>
                             <div className="font-medium text-foreground">{getInterviewTypeLabel(session.type)}</div>

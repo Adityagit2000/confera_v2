@@ -28,9 +28,9 @@ const MockInterview = () => {
 
   const getInterviewTypeForRole = (role: string) => {
     const r = role.toLowerCase();
-    if (r.includes('product') || r.includes('manager') || r.includes('hr') || r.includes('behavioral')) return 'hr';
-    if (r.includes('architect') || r.includes('system') || r.includes('lead')) return 'system_design';
-    return 'dsa';
+    if (r.includes('product') || r.includes('manager') || r.includes('hr') || r.includes('behavioral')) return 'behavioral';
+    if (r.includes('architect') || r.includes('system') || r.includes('lead') || r.includes('case') || r.includes('consulting')) return 'scenario';
+    return 'technical';
   };
 
   useEffect(() => {
@@ -80,8 +80,8 @@ const MockInterview = () => {
         .from('interview_sessions')
         .insert({
           user_id: user.id,
-          type: interviewType,
-          job_role: finalRole || (interviewType === 'dsa' ? 'Software Engineer' : interviewType === 'system_design' ? 'System Architect' : 'HR Professional'),
+          type: interviewType as any,
+          job_role: finalRole || (interviewType === 'technical' ? 'Software Engineer' : interviewType === 'scenario' ? 'System Architect' : 'HR Professional'),
           status: 'scheduled'
         })
         .select()
@@ -91,7 +91,7 @@ const MockInterview = () => {
       
       // Call start-interview edge function
       await supabase.functions.invoke('start-interview', {
-        body: { sessionId: data.id }
+        body: { sessionId: data.id, job_role: finalRole }
       });
       
       navigate(`/interview/${data.id}`);
@@ -151,7 +151,7 @@ const MockInterview = () => {
                   {filteredRoles.map((role) => (
                     <div
                       key={role}
-                      className="px-4 py-2 hover:bg-gray-800 cursor-pointer text-sm text-gray-200 transition-colors"
+                      className="px-4 py-3 hover:bg-gray-800 cursor-pointer text-sm text-gray-200 transition-colors"
                       onClick={() => handleSelectRole(role)}
                     >
                       {role}
@@ -168,9 +168,9 @@ const MockInterview = () => {
                   <SelectValue placeholder="Select interview type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="dsa">Data Structures & Algorithms</SelectItem>
-                  <SelectItem value="system_design">System Design</SelectItem>
-                  <SelectItem value="hr">Behavioral / HR</SelectItem>
+                  <SelectItem value="technical">Technical & Core Skills</SelectItem>
+                  <SelectItem value="behavioral">Behavioral & HR Fit</SelectItem>
+                  <SelectItem value="scenario">Scenario / Case Study</SelectItem>
                 </SelectContent>
               </Select>
             </div>

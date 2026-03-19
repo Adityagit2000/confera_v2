@@ -104,9 +104,9 @@ Deno.serve(async (req) => {
 
     // Multi-Track Persona Injection
     const trackLenses: Record<string, string> = {
-      'dsa': "Focus on the technical stack in their resume. Ask how they would implement their features using more efficient data structures (e.g., 'How would you optimize the search latency in your project using a Trie?').",
-      'consulting': "Focus on the business impact. Ask about the 'Why' behind their internship tasks (e.g., 'At EY, what was the ROI of the AI-led SDLC solution you worked on? How would you pitch that to a C-suite executive?').",
-      'system_design': "Focus on the architecture. Ask about scalability (e.g., 'You used Node.js for your project; how would the architecture change if you had 10 million concurrent users?')."
+      'technical': "Focus on core technical proficiency. Ask about specific technologies mentioned in their resume, implementation details, and theoretical depth (e.g., 'In your project [X], how did you handle [Y] complexity, and what were the trade-offs?').",
+      'behavioral': "Focus on leadership, conflict resolution, and cultural fit. Use the STAR method to probe into their past experiences (e.g., 'Tell me about a time you had a disagreement with a teammate at [Company]. How did you resolve it?').",
+      'scenario': "Focus on problem-solving in hypothetical or complex situations. Ask about scalability, system architecture, or business logic (e.g., 'If your current system at [Company] had to handle 100x the traffic tomorrow, where would it break first and how would you redesign it?')."
     };
 
     const currentLens = trackLenses[interviewType?.toLowerCase()] || "Focus on their overall fit and technical depth based on their resume.";

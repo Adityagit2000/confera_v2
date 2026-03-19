@@ -1,98 +1,21 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { 
-  Code, 
-  Network, 
-  Users, 
-  BarChart, 
   Briefcase, 
-  ClipboardList,
-  Database,
-  CircuitBoard
+  Search, 
+  ChevronRight,
+  GraduationCap,
+  Sparkles,
+  Target
 } from 'lucide-react';
-import { motion } from 'framer-motion';
-
-interface InterviewType {
-  id: string;
-  title: string;
-  subtitle: string;
-  description: string;
-  icon: any;
-  colorClass: string;
-  bgClass: string;
-  isSpecial?: boolean;
-}
-
-const interviewTypes: InterviewType[] = [
-  {
-    id: 'dsa',
-    title: 'Data Structures & Algos',
-    subtitle: 'Technical Foundation',
-    description: 'Arrays, Linked Lists, Trees, Graphs, and Dynamic Programming.',
-    icon: Code,
-    colorClass: 'text-primary',
-    bgClass: 'bg-primary/10 border-primary/20 hover:border-primary/50 group-hover:bg-primary/20',
-  },
-  {
-    id: 'system_design',
-    title: 'System Design',
-    subtitle: 'Architecture & Scaling',
-    description: 'High-level architecture, scalability, and distributed systems.',
-    icon: Network,
-    colorClass: 'text-secondary',
-    bgClass: 'bg-secondary/10 border-secondary/20 hover:border-secondary/50 group-hover:bg-secondary/20',
-  },
-  {
-    id: 'hr',
-    title: 'HR & Behavioral',
-    subtitle: 'Culture & Fit',
-    description: 'Leadership, teamwork, past experiences, and scenario handling.',
-    icon: Users,
-    colorClass: 'text-accent',
-    bgClass: 'bg-accent/10 border-accent/20 hover:border-accent/50 group-hover:bg-accent/20',
-  },
-  {
-    id: 'daa',
-    title: 'Decision Analytics',
-    subtitle: 'ZS Associates',
-    description: 'Analytics, case studies, pharma data interpretation and problem solving.',
-    icon: BarChart,
-    colorClass: 'text-blue-500',
-    bgClass: 'bg-blue-500/10 border-blue-500/20 hover:border-blue-500/50 group-hover:bg-blue-500/20',
-  },
-  {
-    id: 'consulting',
-    title: 'Consulting',
-    subtitle: 'McKinsey / BCG / Bain',
-    description: 'Case studies, market sizing, MECE frameworks and structured problem solving.',
-    icon: Briefcase,
-    colorClass: 'text-purple-500',
-    bgClass: 'bg-purple-500/10 border-purple-500/20 hover:border-purple-500/50 group-hover:bg-purple-500/20',
-  },
-  {
-    id: 'business_analyst',
-    title: 'Business Analyst',
-    subtitle: 'Product & Tech',
-    description: 'Requirements gathering, stakeholder management, process mapping and business cases.',
-    icon: ClipboardList,
-    colorClass: 'text-green-500',
-    bgClass: 'bg-green-500/10 border-green-500/20 hover:border-green-500/50 group-hover:bg-green-500/20',
-  },
-  {
-    id: 'mckinsey_de',
-    title: 'McKinsey Data Engineer',
-    subtitle: 'QuantumBlack AI',
-    description: 'SQL, Python, PySpark, LLMs, Vector DB, Agentic AI and consulting mindset.',
-    icon: Database,
-    colorClass: 'text-orange-500',
-    bgClass: 'bg-orange-500/10 border-orange-500/20 hover:border-orange-500/50 group-hover:bg-orange-500/20',
-    isSpecial: true
-  }
-];
+import { motion, AnimatePresence } from 'framer-motion';
+import { JOB_ROLES } from '@/constants/jobRoles';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Props {
   open: boolean;
@@ -102,17 +25,58 @@ interface Props {
 export function InterviewSelectionModal({ open, onOpenChange }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [loadingType, setLoadingType] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [interviewType, setInterviewType] = useState('technical');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [jobRole, setJobRole] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const startInterview = async (typeId: string) => {
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredRoles = JOB_ROLES.filter(role =>
+    role.toLowerCase().includes(searchTerm.toLowerCase())
+  ).slice(0, 10); // Limit to top 10 for better UI
+
+  const handleSelectRole = (role: string) => {
+    setJobRole(role);
+    setSearchTerm(role);
+    setIsDropdownOpen(false);
+  };
+
+  const startInterview = async () => {
     if (!user) return;
+    
+    // Validate role
+    const exactMatch = JOB_ROLES.find(r => r.toLowerCase() === searchTerm.trim().toLowerCase());
+    const finalRole = exactMatch || jobRole || searchTerm.trim();
+    
+    if (!finalRole) {
+      toast({
+        title: "Role Required",
+        description: "Please select or enter a job role to proceed.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
-      setLoadingType(typeId);
+      setLoading(true);
+      
       const { data: sessionData, error: sessionError } = await supabase
         .from('interview_sessions')
         .insert({
           user_id: user.id,
-          type: typeId as any,
+          type: interviewType as any,
+          job_role: finalRole,
           status: 'scheduled'
         })
         .select()
@@ -120,8 +84,8 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
 
       if (sessionError) throw sessionError;
 
-      const { data: startData, error: startError } = await supabase.functions.invoke('start-interview', {
-        body: { sessionId: sessionData.id }
+      const { error: startError } = await supabase.functions.invoke('start-interview', {
+        body: { sessionId: sessionData.id, job_role: finalRole }
       });
 
       if (startError) throw startError;
@@ -133,77 +97,131 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
       console.error('Error starting interview:', error);
       toast({ title: "Error", description: error.message || "Failed to start interview", variant: "destructive" });
     } finally {
-      if (loadingType) setLoadingType(null);
+      setLoading(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl bg-card border-border/50 p-0 overflow-hidden shadow-2xl">
-        <div className="absolute inset-0 bg-mesh-gradient opacity-10 pointer-events-none" />
+      <DialogContent className="max-w-2xl bg-card border-border/50 p-0 overflow-hidden shadow-2xl">
+        <div className="absolute inset-0 bg-mesh-gradient opacity-5 pointer-events-none" />
         
         <div className="bg-gradient-to-r from-background to-card px-8 py-6 border-b border-border/50 relative z-10">
-          <DialogTitle className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary inline-block">
-            Select Mock Interview
-          </DialogTitle>
-          <DialogDescription className="text-base mt-2">
-            Choose a role-specific interview simulation. Our AI will dynamically adapt to the persona and ask highly relevant questions.
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-primary" />
+            </div>
+            <DialogTitle className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary inline-block">
+              Custom Interview Setup
+            </DialogTitle>
+          </div>
+          <DialogDescription className="text-sm">
+            Configure your session details below. Our AI handles the rest.
           </DialogDescription>
         </div>
 
-        <div className="p-8 relative z-10 max-h-[70vh] overflow-y-auto custom-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {interviewTypes.map((type, idx) => {
-              const Icon = type.icon;
-              const isLoading = loadingType === type.id;
-              
-              return (
-                <motion.div
-                  key={type.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  className={`group relative flex flex-col rounded-2xl border transition-all duration-300 p-6 bg-card/50 backdrop-blur-sm shadow-md hover:shadow-xl cursor-pointer ${type.bgClass} ${loadingType && !isLoading ? 'opacity-50 pointer-events-none' : ''} ${type.isSpecial ? 'ring-2 ring-orange-500/50 shadow-[0_0_20px_rgba(249,115,22,0.15)]' : ''}`}
-                  onClick={() => !loadingType && startInterview(type.id)}
-                >
-                  {type.isSpecial && (
-                    <div className="absolute -top-3 left-6 px-3 py-1 rounded-full bg-orange-500 text-white text-[10px] font-bold uppercase tracking-wider shadow-lg z-20">
-                      Featured
-                    </div>
+        <div className="p-8 relative z-10">
+          <div className="space-y-8">
+            {/* Job Role Section */}
+            <div className="space-y-3 relative" ref={dropdownRef}>
+              <Label className="text-sm font-semibold text-muted-foreground flex items-center gap-2 uppercase tracking-wider">
+                <Target className="w-4 h-4" /> Target Job Role
+              </Label>
+              <div className="relative">
+                <div className={`flex items-center bg-background/50 border ${isDropdownOpen ? 'border-primary ring-2 ring-primary/10' : 'border-border/50'} rounded-xl px-4 h-14 transition-all duration-200 shadow-sm`}>
+                  <Briefcase className="w-5 h-5 text-muted-foreground mr-3" />
+                  <input
+                    type="text"
+                    placeholder="e.g. Senior Frontend Engineer"
+                    className="flex-1 bg-transparent border-none outline-none text-base placeholder:text-muted-foreground/50 h-full"
+                    value={searchTerm}
+                    onFocus={() => setIsDropdownOpen(true)}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setIsDropdownOpen(true);
+                    }}
+                  />
+                  <Search className="w-5 h-5 text-muted-foreground/50 ml-2" />
+                </div>
+
+                <AnimatePresence>
+                  {isDropdownOpen && filteredRoles.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute z-50 w-full mt-2 bg-card border border-border/50 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar backdrop-blur-xl"
+                    >
+                      {filteredRoles.map((role) => (
+                        <div
+                          key={role}
+                          className="px-4 py-3 hover:bg-primary/10 cursor-pointer text-sm text-foreground transition-colors flex items-center gap-3 border-b border-border/10 last:border-0"
+                          onClick={() => handleSelectRole(role)}
+                        >
+                          <Target className="w-3 h-3 text-primary/50" />
+                          {role}
+                        </div>
+                      ))}
+                    </motion.div>
                   )}
-                  {/* Subtle hover glow behind card */}
-                  <div className={`absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl -mr-10 -mt-10 opacity-0 group-hover:opacity-40 transition-opacity duration-300 pointer-events-none ${type.colorClass === 'text-primary' ? 'bg-primary' : type.colorClass === 'text-secondary' ? 'bg-secondary' : type.colorClass === 'text-accent' ? 'bg-accent' : type.colorClass.replace('text-', 'bg-')}`} />
-                  
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-sm border ${type.bgClass} border-transparent bg-background/50 backdrop-blur-md transition-colors duration-300`}>
-                      <Icon className={`w-6 h-6 ${type.colorClass}`} />
+                </AnimatePresence>
+              </div>
+              <p className="text-xs text-muted-foreground ml-1">Choose from 200+ standardized roles for precise AI persona matching.</p>
+            </div>
+
+            {/* Interview Type Section */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold text-muted-foreground flex items-center gap-2 uppercase tracking-wider">
+                <GraduationCap className="w-4 h-4" /> Interview Focus Type
+              </Label>
+              <Select value={interviewType} onValueChange={setInterviewType}>
+                <SelectTrigger className="h-14 border-border/50 bg-background/50 rounded-xl hover:border-primary/50 transition-all text-base">
+                  <SelectValue placeholder="Select interview type" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border/50 rounded-xl shadow-2xl">
+                  <SelectItem value="technical" className="py-3 focus:bg-primary/10 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-bold">Technical & Core Skills</span>
+                      <span className="text-[10px] text-muted-foreground">Hard skills, language depth, and problem-solving</span>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-foreground leading-tight tracking-wide">{type.title}</h3>
-                      <p className={`text-xs font-semibold uppercase tracking-wider mt-1 ${type.colorClass}`}>{type.subtitle}</p>
+                  </SelectItem>
+                  <SelectItem value="behavioral" className="py-3 focus:bg-primary/10 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-bold">Behavioral & HR Fit</span>
+                      <span className="text-[10px] text-muted-foreground">Leadership, teamwork, and cultural alignment</span>
                     </div>
+                  </SelectItem>
+                  <SelectItem value="scenario" className="py-3 focus:bg-primary/10 cursor-pointer">
+                    <div className="flex flex-col">
+                      <span className="font-bold">Scenario / Case Study</span>
+                      <span className="text-[10px] text-muted-foreground">Strategic thinking, case analysis, and architecture</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="pt-4 pb-2">
+              <Button 
+                onClick={startInterview} 
+                disabled={loading} 
+                variant="premium" 
+                size="lg" 
+                className="w-full h-16 text-lg font-bold shadow-glow hover:scale-[1.01] transition-all rounded-xl relative overflow-hidden group"
+              >
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                    Preparing Session...
                   </div>
-                  
-                  <p className="text-muted-foreground text-sm leading-relaxed mb-6 flex-1">
-                    {type.description}
-                  </p>
-                  
-                  <Button 
-                    className={`w-full font-semibold border-none transition-all shadow-sm ${type.bgClass} text-foreground group-hover:bg-background/50 hover:brightness-110 relative overflow-hidden`}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <div className="flex items-center gap-2">
-                         <div className="w-4 h-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                         Starting...
-                      </div>
-                    ) : (
-                      'Begin Interview'
-                    )}
-                  </Button>
-                </motion.div>
-              );
-            })}
+                ) : (
+                  <div className="flex items-center justify-center gap-2">
+                    Begin Mock Interview
+                    <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
