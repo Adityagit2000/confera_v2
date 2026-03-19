@@ -57,6 +57,8 @@ const InterviewSession = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [autoSend, setAutoSend] = useState(true);
+  const [voiceAvailable, setVoiceAvailable] = useState(true);
+  const [cameraAvailable, setCameraAvailable] = useState(true);
   
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -65,6 +67,7 @@ const InterviewSession = () => {
   const [liveTranscript, setLiveTranscript] = useState('');
   const [questionCount, setQuestionCount] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const textInputRef = useRef<HTMLInputElement>(null);
   
   const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -122,22 +125,45 @@ const InterviewSession = () => {
             recognition.start();
           } catch (e) {
             console.error('Failed to restart recognition:', e);
+            shouldContinueListening.current = false;
           }
         }
       };
 
       recognition.onerror = (event: any) => {
         console.error('Speech recognition error:', event.error);
+        
+        // Stop the loop on specific errors
+        if (event.error === 'network' || event.error === 'not-allowed') {
+          shouldContinueListening.current = false;
+          setIsListening(false);
+          
+          if (event.error === 'network') {
+             setVoiceAvailable(false);
+             toast({ 
+               title: "Voice Unavailable", 
+               description: "Network issues detected. Please type your answers.",
+               variant: "destructive"
+             });
+          } else {
+             toast({ 
+               title: "Microphone Blocked", 
+               description: "Please allow microphone access or type your answers.",
+               variant: "destructive"
+             });
+          }
+          
+          // Auto focus text input
+          setTimeout(() => textInputRef.current?.focus(), 100);
+          return;
+        }
+
         if (event.error === 'no-speech') return;
         
         setIsListening(false);
-        let message = "Speech recognition error. Please try typing.";
-        if (event.error === 'not-allowed') message = "Microphone blocked. Allow access in settings.";
-        if (event.error === 'network') message = "Network error. Check connection.";
-
         toast({
           title: "Microphone issue",
-          description: message,
+          description: "Speech recognition error. Please try typing.",
           variant: "destructive"
         });
       };
@@ -157,23 +183,19 @@ const InterviewSession = () => {
     const startCamera = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            width: { ideal: 1280 }, 
-            height: { ideal: 720 },
-            facingMode: 'user'
-          }, 
-          audio: true 
+          video: { facingMode: 'user' }, 
+          audio: false // audio handled separately
         });
         
         mediaStreamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => {
-             videoRef.current?.play().catch(e => console.warn("Auto-play failed:", e));
-          };
+          await videoRef.current.play();
+          setCameraAvailable(true);
         }
       } catch (err) {
         console.warn('Camera failed:', err);
+        setCameraAvailable(false);
       }
     };
 
@@ -475,23 +497,48 @@ const InterviewSession = () => {
 
             <AnimatePresence>
               {liveTranscript && (
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-12 left-6 right-6 flex justify-center z-20">
-                  <p className="bg-white/5 text-white/90 px-8 py-5 rounded-[2rem] text-xl backdrop-blur-3xl border border-white/10 shadow-2xl max-w-2xl text-center leading-relaxed font-medium">{liveTranscript}</p>
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-24 left-6 right-6 flex justify-center z-20">
+                  <p className="bg-white/10 text-white/90 px-8 py-4 rounded-2xl text-lg backdrop-blur-3xl border border-white/10 shadow-2xl max-w-2xl text-center leading-relaxed font-medium">{liveTranscript}</p>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            <div className="absolute top-8 right-8 w-44 h-56 bg-black rounded-[2rem] overflow-hidden border-2 border-white/10 shadow-2xl z-20 group/video">
-              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
-              <div className="absolute inset-0 bg-white/5 flex items-center justify-center pointer-events-none opacity-0 group-has-[video:not([srcObject])]:opacity-100 transition-opacity">
-                <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center border border-white/20">
-                  <User className="w-10 h-10 text-white/40" />
+            <AnimatePresence>
+              {!voiceAvailable && (
+                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="absolute top-8 left-1/2 -translate-x-1/2 z-30 bg-destructive/20 border border-destructive/30 px-6 py-2 rounded-full backdrop-blur-xl">
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-white shadow-sm flex items-center gap-2">
+                    <AlertCircle className="w-3 h-3" /> Voice Unavailable on this network • Please type your answer
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className="absolute top-8 right-8 w-44 h-56 bg-black rounded-[2rem] overflow-hidden border-2 border-white/10 shadow-2xl z-20 group/candidate">
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                muted 
+                playsInline 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                className={`scale-x-[-1] transition-opacity duration-500 ${cameraAvailable ? 'opacity-100' : 'opacity-0'}`} 
+              />
+              
+              {!cameraAvailable && (
+                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center">
+                  <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary/30 shadow-[0_0_30px_rgba(var(--primary-rgb),0.2)]">
+                    <span className="text-3xl font-black text-primary uppercase tracking-tighter">
+                      {profile?.name?.substring(0, 2) || user?.email?.substring(0, 2) || 'C'}
+                    </span>
+                  </div>
                 </div>
-              </div>
+              )}
+              
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4">
                 <div className="flex flex-col">
                   <p className="text-[10px] font-black tracking-[0.2em] uppercase text-white/90">Candidate</p>
-                  <p className="text-[8px] font-bold text-primary/80 uppercase">Live Feed</p>
+                  <p className="text-[8px] font-bold text-primary/80 uppercase">
+                    {cameraAvailable ? 'Live Feed' : 'Camera Off'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -509,14 +556,21 @@ const InterviewSession = () => {
                <div className="flex items-center gap-6">
                  <div className="relative group">
                    <motion.button 
-                    whileHover={{ scale: 1.1 }} 
-                    whileTap={{ scale: 0.9 }} 
-                    onClick={toggleMic} 
-                    className={`w-20 h-20 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl ${isListening ? 'bg-destructive shadow-destructive/20 border-4 border-destructive/20' : 'bg-white/10 hover:bg-white/20 border-2 border-white/5'}`}
+                    whileHover={voiceAvailable ? { scale: 1.1 } : {}} 
+                    whileTap={voiceAvailable ? { scale: 0.9 } : {}} 
+                    onClick={voiceAvailable ? toggleMic : undefined} 
+                    className={`w-20 h-20 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl ${
+                      isListening 
+                        ? 'bg-destructive shadow-destructive/20 border-4 border-destructive/20' 
+                        : voiceAvailable 
+                          ? 'bg-white/10 hover:bg-white/20 border-2 border-white/5'
+                          : 'bg-white/5 opacity-30 cursor-not-allowed border-none'
+                    }`}
+                    title={!voiceAvailable ? "Voice recognition unavailable" : ""}
                    >
                      {isListening ? <Mic className="w-8 h-8 text-white" /> : <MicOff className="w-8 h-8 text-white/40" />}
                      <span className={`text-[8px] font-black mt-1 uppercase tracking-tighter ${isListening ? 'text-white' : 'text-white/20'}`}>
-                        {isListening ? 'Listening' : 'Idle'}
+                        {isListening ? 'Listening' : voiceAvailable ? 'Voice' : 'Off'}
                      </span>
                      {isListening && (
                         <motion.div className="absolute inset-0 rounded-full border-4 border-destructive" animate={{ scale: [1, 1.4], opacity: [0.6, 0] }} transition={{ duration: 1.2, repeat: Infinity }} />
@@ -536,19 +590,20 @@ const InterviewSession = () => {
                </div>
             </div>
 
-            {/* Always visible text input fallback */}
-            <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-4 flex gap-4 items-center">
+            {/* Primary text input */}
+            <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-5 flex gap-4 items-center shadow-lg group focus-within:border-primary/40 transition-all">
               <div className="flex-1 relative">
                 <input 
-                  className="w-full bg-black/20 border border-white/5 rounded-2xl px-6 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
-                  placeholder="Type your answer if voice recognition fails or you prefer text..." 
+                  ref={textInputRef}
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-base text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" 
+                  placeholder={voiceAvailable ? "Speak to the AI or type your comprehensive response here..." : "Voice unavailable — please type your response here..."}
                   value={inputMsg} 
                   onChange={(e) => setInputMsg(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleManualSend(e as any)}
                 />
               </div>
-              <Button onClick={(e) => handleManualSend(e as any)} size="icon" className="w-14 h-14 rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all">
-                <Send className="w-6 h-6" />
+              <Button onClick={(e) => handleManualSend(e as any)} size="lg" className="h-16 px-8 rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all font-black uppercase tracking-tighter">
+                <Send className="w-6 h-6 mr-3" /> Send
               </Button>
             </div>
           </div>
