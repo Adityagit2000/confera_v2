@@ -177,8 +177,7 @@ const Auth = () => {
             {step !== 'verify-otp' && (
               <div className="space-y-3 mb-6">
                 <Button 
-                  variant="outline" 
-                  className="w-full bg-white hover:bg-[#f1f1f1] border-transparent text-black transition-all duration-300 h-12 text-sm font-semibold flex items-center justify-center relative overflow-hidden group shadow-sm hover:shadow-md"
+                  className="w-full bg-white hover:bg-[#f5f5f5] border border-[#e0e0e0] hover:border-[#d0d0d0] text-[#1f1f1f] hover:text-[#1f1f1f] transition-all duration-300 h-12 text-sm font-semibold flex items-center justify-center relative overflow-hidden group shadow-sm hover:shadow-md"
                   onClick={() => {
                     supabase.auth.signInWithOAuth({
                       provider: 'google',
