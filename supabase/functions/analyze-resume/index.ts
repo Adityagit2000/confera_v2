@@ -112,28 +112,35 @@ Deno.serve(async (req) => {
 
     const parsed = safeParseJSON(aiResponse);
 
+    const standardizedData = {
+      contact: {
+        name: parsed.contact?.name || null,
+        email: parsed.contact?.email || null,
+        phone: parsed.contact?.phone || null
+      },
+      skills: parsed.skills || [],
+      experience: parsed.experience || [],
+      education: parsed.education || [],
+      strengths: parsed.strengths || [],
+      weaknesses: parsed.weaknesses || [],
+      suggestions: parsed.suggestions || [],
+      dos: parsed.dos || [],
+      donts: parsed.donts || [],
+      improvement_roadmap: parsed.improvement_roadmap || []
+    };
+
+    // Fix 3: Log exactly what is being saved
+    console.log('Saving to DB - ats_score:', parsed.ats_score);
+    console.log('Saving to DB - parsed_data:', JSON.stringify(standardizedData).substring(0, 500));
+    console.log('Saving to DB - keywords_missing:', JSON.stringify(parsed.missing_keywords));
+
     // 4. Update the resume record with standardized structure
     const { error: updateError } = await supabaseAdmin
       .from('resumes')
       .update({
         ats_score: parsed.ats_score,
         keywords_missing: parsed.missing_keywords || [],
-        parsed_data: {
-          contact: {
-            name: parsed.contact?.name || null,
-            email: parsed.contact?.email || null,
-            phone: parsed.contact?.phone || null
-          },
-          skills: parsed.skills || [],
-          experience: parsed.experience || [],
-          education: parsed.education || [],
-          strengths: parsed.strengths || [],
-          weaknesses: parsed.weaknesses || [],
-          suggestions: parsed.suggestions || [],
-          dos: parsed.dos || [],
-          donts: parsed.donts || [],
-          improvement_roadmap: parsed.improvement_roadmap || []
-        }
+        parsed_data: standardizedData
       })
       .eq('id', resumeId);
 
@@ -141,9 +148,13 @@ Deno.serve(async (req) => {
 
     console.log('Analysis completed and saved.');
 
+    // Fix 4: Return full analysis results directly
     return new Response(JSON.stringify({ 
       success: true, 
-      results: parsed 
+      ats_score: parsed.ats_score,
+      parsed_data: standardizedData,
+      keywords_missing: parsed.missing_keywords || [],
+      message: `Analysis complete. ATS Score: ${parsed.ats_score}%`
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,

@@ -85,9 +85,10 @@ const AtsAnalyzer = () => {
   const fetchExistingAnalysis = async () => {
     try {
       setInitialLoading(true);
+      // Fix 1: Explicit column selection in resumes table
       const { data, error } = await supabase
-        .from('resume_analysis' as any)
-        .select('*')
+        .from('resumes')
+        .select('id, user_id, ats_score, parsed_data, keywords_missing, original_filename, created_at, file_url')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
         .limit(1);
@@ -95,18 +96,20 @@ const AtsAnalyzer = () => {
       if (error) throw error;
 
       if (data && data.length > 0) {
-        const row = data[0] as any;
-        const result = row.analysis;
+        const result = data[0];
+        console.log('Fetched resume data from DB:', result);
+        console.log('parsed_data field from DB:', result.parsed_data);
+
         setAnalysis({
           ats_score: result.ats_score,
-          parsed_data: result.parsed_data,
-          keywords_missing: result.keywords_missing || [],
-          dos: result.dos || [],
-          donts: result.donts || [],
-          improvement_roadmap: result.improvement_roadmap || [],
-          created_at: row.created_at
+          parsed_data: result.parsed_data as any,
+          keywords_missing: result.keywords_missing as any || [],
+          dos: (result.parsed_data as any)?.dos || [],
+          donts: (result.parsed_data as any)?.donts || [],
+          improvement_roadmap: (result.parsed_data as any)?.improvement_roadmap || [],
+          created_at: result.created_at
         });
-        setAnalysisId(row.id || null);
+        setAnalysisId(result.id);
       }
     } catch (error) {
       console.error('Error fetching analysis:', error);
@@ -172,13 +175,28 @@ const AtsAnalyzer = () => {
 
       if (error) throw new Error(error.message || 'Failed to analyze resume.');
 
-      const result = data as AtsAnalysis;
-      setAnalysis({ ...result, created_at: new Date().toISOString() });
-      setAnalysisId(user.id); // Use userId as source_id for resume-based learning paths
+      // Fix 4: Use returned data directly instead of refetching
+      if (data && data.parsed_data) {
+        console.log('Direct response from edge function:', data);
+        setAnalysis({
+          ats_score: data.ats_score,
+          parsed_data: data.parsed_data,
+          keywords_missing: data.keywords_missing || [],
+          dos: data.parsed_data.dos || [],
+          donts: data.parsed_data.donts || [],
+          improvement_roadmap: data.parsed_data.improvement_roadmap || [],
+          created_at: new Date().toISOString()
+        });
+        setAnalysisId(user.id);
+      } else {
+        // Fallback: refetch after delay
+        console.log('Parsed data missing from response, refetching...');
+        setTimeout(() => fetchExistingAnalysis(), 1500);
+      }
       
       toast({
         title: "Analysis Complete",
-        description: `Your resume scored ${result.ats_score}/100.`,
+        description: `Your resume scored ${data.ats_score}/100.`,
       });
       refetchSubscription();
     } catch (error: any) {

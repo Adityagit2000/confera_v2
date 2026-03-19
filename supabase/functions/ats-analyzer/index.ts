@@ -84,6 +84,24 @@ Deno.serve(async (req) => {
       throw new Error('AI analysis failed to produce a result.')
     }
 
+    // Standardized data structure for saving/returning
+    const standardizedData = {
+      contact: {
+        name: analysisResult.contact?.name || null,
+        email: analysisResult.contact?.email || null,
+        phone: analysisResult.contact?.phone || null
+      },
+      skills: analysisResult.skills || [],
+      experience: analysisResult.experience || [],
+      education: analysisResult.education || [],
+      strengths: analysisResult.strengths || [],
+      weaknesses: analysisResult.weaknesses || [],
+      suggestions: analysisResult.suggestions || [],
+      dos: analysisResult.dos || [],
+      donts: analysisResult.donts || [],
+      improvement_roadmap: analysisResult.improvement_roadmap || []
+    };
+
     // Increment usage counter & update resume record if userId is provided
     if (userId) {
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -100,30 +118,17 @@ Deno.serve(async (req) => {
         .update({ resume_analyses_used_this_month: (profile?.resume_analyses_used_this_month || 0) + 1 })
         .eq('id', userId);
 
-      // Standardized data structure for saving
-      const standardizedData = {
-        contact: {
-          name: analysisResult.contact?.name || null,
-          email: analysisResult.contact?.email || null,
-          phone: analysisResult.contact?.phone || null
-        },
-        skills: analysisResult.skills || [],
-        experience: analysisResult.experience || [],
-        education: analysisResult.education || [],
-        strengths: analysisResult.strengths || [],
-        weaknesses: analysisResult.weaknesses || [],
-        suggestions: analysisResult.suggestions || [],
-        dos: analysisResult.dos || [],
-        donts: analysisResult.donts || [],
-        improvement_roadmap: analysisResult.improvement_roadmap || []
-      };
-
       const resumeData = {
         user_id: userId,
         ats_score: analysisResult.ats_score,
         parsed_data: standardizedData,
         keywords_missing: analysisResult.missing_keywords || [],
       };
+
+      // Fix 3: Log exactly what is being saved
+      console.log('Saving to DB - ats_score:', analysisResult.ats_score);
+      console.log('Saving to DB - parsed_data:', JSON.stringify(standardizedData).substring(0, 500));
+      console.log('Saving to DB - keywords_missing:', JSON.stringify(analysisResult.missing_keywords));
 
       // Update OR Insert the resumes record
       const { data: latestResume } = await supabase
@@ -162,9 +167,9 @@ Deno.serve(async (req) => {
 
       // --- NEW: Generate Learning Path for Resume ---
       try {
-        const weaknesses = analysisResult.parsed_data.weaknesses || []
-        const suggestions = analysisResult.parsed_data.suggestions || []
-        const missing_keywords = (analysisResult.keywords_missing || []).map((k: any) => k.keyword)
+        const weaknesses = standardizedData.weaknesses || []
+        const suggestions = standardizedData.suggestions || []
+        const missing_keywords = (analysisResult.missing_keywords || []).map((k: any) => k.keyword)
         
         const allGaps = Array.from(new Set([...weaknesses, ...suggestions, ...missing_keywords]))
         
@@ -196,7 +201,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify(analysisResult), {
+    // Fix 4: Return full analysis results directly
+    return new Response(JSON.stringify({ 
+      success: true, 
+      ats_score: analysisResult.ats_score,
+      parsed_data: standardizedData,
+      keywords_missing: analysisResult.missing_keywords || [],
+      message: `Analysis complete. ATS Score: ${analysisResult.ats_score}%`
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
