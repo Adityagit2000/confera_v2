@@ -19,7 +19,9 @@ import {
   Clock,
   Layout,
   RefreshCcw,
-  AlertCircle
+  AlertCircle,
+  User,
+  Volume2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -68,55 +70,70 @@ const InterviewSession = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const shouldContinueListening = useRef(false);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   // Initialize Speech Recognition
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (SpeechRecognition) {
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true;
-      recognitionRef.current.interimResults = true;
-      recognitionRef.current.lang = 'en-US';
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
 
-      recognitionRef.current.onresult = (event: any) => {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        setLiveTranscript(transcript);
-        setInputMsg(transcript);
-
-        if (autoSend && event.results[event.results.length - 1].isFinal) {
-           if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-           silenceTimerRef.current = setTimeout(() => {
-             handleSendVoiceMessage(transcript);
-           }, 2000); 
-        }
+      recognition.onstart = () => {
+        setIsListening(true);
+        console.log('Speech recognition started');
       };
 
-      recognitionRef.current.onend = () => {
-        if (isListening) {
-          try {
-            recognitionRef.current.start();
-          } catch (e) {
-            setIsListening(false);
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        setLiveTranscript(interimTranscript || finalTranscript);
+        if (finalTranscript) {
+          setInputMsg(prev => prev + finalTranscript);
+          
+          if (autoSend) {
+            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = setTimeout(() => {
+              handleSendVoiceMessage(inputMsg + finalTranscript);
+            }, 2000);
           }
         }
       };
 
-      recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
+      recognition.onend = () => {
         setIsListening(false);
-        
-        let message = "Speech recognition error. Please try again or type your answer.";
-        if (event.error === 'not-allowed') {
-          message = "Microphone access denied by browser. Please enable permissions.";
-        } else if (event.error === 'network') {
-          message = "Network error occurred. Please check your connection.";
-        } else if (event.error === 'no-speech') {
-          return; // Ignore no-speech errors to avoid annoying toasts
+        if (shouldContinueListening.current) {
+          try {
+            recognition.start();
+          } catch (e) {
+            console.error('Failed to restart recognition:', e);
+          }
         }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        if (event.error === 'no-speech') return;
+        
+        setIsListening(false);
+        let message = "Speech recognition error. Please try typing.";
+        if (event.error === 'not-allowed') message = "Microphone blocked. Allow access in settings.";
+        if (event.error === 'network') message = "Network error. Check connection.";
 
         toast({
           title: "Microphone issue",
@@ -124,27 +141,49 @@ const InterviewSession = () => {
           variant: "destructive"
         });
       };
+
+      recognitionRef.current = recognition;
     }
 
     return () => {
+      shouldContinueListening.current = false;
       if (recognitionRef.current) recognitionRef.current.stop();
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
-  }, [autoSend, isListening, toast]);
+  }, [autoSend, toast]);
 
   // Camera preview
   useEffect(() => {
-    let stream: MediaStream | null = null;
     const startCamera = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        if (videoRef.current) videoRef.current.srcObject = stream;
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 },
+            facingMode: 'user'
+          }, 
+          audio: true 
+        });
+        
+        mediaStreamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+             videoRef.current?.play().catch(e => console.warn("Auto-play failed:", e));
+          };
+        }
       } catch (err) {
         console.warn('Camera failed:', err);
       }
     };
+
     startCamera();
-    return () => stream?.getTracks().forEach(t => t.stop());
+    
+    return () => {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
   }, []);
 
   // Auto-scroll chat history
@@ -296,13 +335,15 @@ const InterviewSession = () => {
 
   const toggleMic = async () => {
     if (isListening) {
-      setIsListening(false);
+      shouldContinueListening.current = false;
       recognitionRef.current?.stop();
+      setIsListening(false);
     } else {
       try {
         // Explicitly request microphone access first
-        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         setIsListening(true);
+        shouldContinueListening.current = true;
         recognitionRef.current?.start();
       } catch (e: any) {
         console.error('Microphone access denied:', e);
@@ -401,15 +442,33 @@ const InterviewSession = () => {
                 )}
               </AnimatePresence>
               
-              <motion.div className={`w-48 h-48 rounded-full flex items-center justify-center text-7xl z-10 border-2 ${isSpeaking ? 'bg-primary/10 border-primary shadow-[0_0_50px_rgba(0,212,255,0.3)]' : isThinking ? 'bg-white/5 border-secondary animate-pulse' : 'bg-white/5 border-white/10'}`}>
-                 {isThinking ? <Loader2 className="w-16 h-16 animate-spin text-secondary" /> : "🤖"}
+              <motion.div 
+                className={`w-48 h-48 rounded-full flex flex-col items-center justify-center z-10 border-4 transition-all duration-500 ${
+                  isSpeaking 
+                    ? 'bg-primary/20 border-primary shadow-[0_0_80px_rgba(0,212,255,0.4)]' 
+                    : isThinking 
+                      ? 'bg-white/10 border-secondary animate-pulse' 
+                      : 'bg-white/5 border-white/10'
+                }`}
+              >
+                  {isThinking ? (
+                    <div className="relative">
+                      <Loader2 className="w-16 h-16 animate-spin text-secondary" />
+                      <div className="absolute inset-0 w-16 h-16 border-4 border-secondary/20 rounded-full animate-ping" />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <div className={`text-4xl font-black mb-2 px-6 py-2 rounded-2xl ${isSpeaking ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>AI</div>
+                      {isSpeaking && <Volume2 className="w-6 h-6 text-primary animate-bounce mt-2" />}
+                    </div>
+                  )}
               </motion.div>
               
-              <div className="mt-8 text-center space-y-1">
-                <h2 className="text-2xl font-bold tracking-tight">AI Interviewer</h2>
-                <div className="flex items-center gap-2 justify-center">
-                   <div className={`w-1.5 h-1.5 rounded-full ${isSpeaking ? 'bg-primary animate-pulse' : isThinking ? 'bg-secondary animate-pulse' : 'bg-success'}`} />
-                   <p className="text-sm font-medium text-white/40 tracking-wider uppercase">{isSpeaking ? 'Speaking' : isThinking ? 'Analyzing' : 'Listening'}</p>
+              <div className="mt-8 text-center space-y-2">
+                <h2 className="text-2xl font-black tracking-tighter uppercase italic opacity-80 italic">AI Interviewer</h2>
+                <div className="flex items-center gap-3 justify-center">
+                   <div className={`w-2.5 h-2.5 rounded-full ${isSpeaking ? 'bg-primary animate-pulse' : isThinking ? 'bg-secondary animate-pulse' : 'bg-success shadow-[0_0_10px_rgba(34,197,94,0.5)]'}`} />
+                   <p className="text-xs font-bold text-white/40 tracking-[0.3em] uppercase">{isSpeaking ? 'Speaking' : isThinking ? 'Thinking' : 'Ready'}</p>
                 </div>
               </div>
             </div>
@@ -422,37 +481,76 @@ const InterviewSession = () => {
               )}
             </AnimatePresence>
 
-            <div className="absolute top-8 right-8 w-40 h-52 bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl z-20">
+            <div className="absolute top-8 right-8 w-44 h-56 bg-black rounded-[2rem] overflow-hidden border-2 border-white/10 shadow-2xl z-20 group/video">
               <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-3">
-                <p className="text-[10px] font-bold tracking-widest uppercase text-white/80">Candidate</p>
+              <div className="absolute inset-0 bg-white/5 flex items-center justify-center pointer-events-none opacity-0 group-has-[video:not([srcObject])]:opacity-100 transition-opacity">
+                <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center border border-white/20">
+                  <User className="w-10 h-10 text-white/40" />
+                </div>
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4">
+                <div className="flex flex-col">
+                  <p className="text-[10px] font-black tracking-[0.2em] uppercase text-white/90">Candidate</p>
+                  <p className="text-[8px] font-bold text-primary/80 uppercase">Live Feed</p>
+                </div>
               </div>
             </div>
           </div>
           
-          <div className="h-24 flex items-center justify-between px-8 bg-white/[0.03] border border-white/10 rounded-[2rem] backdrop-blur-md">
-             <div className="flex-1 hidden md:block">
-                <p className="text-xs font-bold text-white/30 uppercase tracking-[0.2em]">Voice & Text Fallback Active</p>
-             </div>
+          <div className="flex flex-col gap-4">
+            <div className="h-24 flex items-center justify-between px-8 bg-white/[0.03] border border-white/10 rounded-[2.5rem] backdrop-blur-md">
+               <div className="flex-1 hidden lg:block">
+                  <div className="flex flex-col">
+                    <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Audio Engine</p>
+                    <p className="text-[10px] font-bold text-primary/50 uppercase">Neural Voice Fallback Active</p>
+                  </div>
+               </div>
 
-             <div className="flex items-center gap-8">
-               <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={toggleMic} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-destructive' : 'bg-white/10'}`}>
-                 {isListening ? <Mic className="w-7 h-7" /> : <MicOff className="w-7 h-7 text-white/50" />}
-                 {isListening && (
-                    <motion.div className="absolute inset-0 rounded-full border-2 border-destructive" animate={{ scale: [1, 1.5], opacity: [0.5, 0] }} transition={{ duration: 1.5, repeat: Infinity }} />
-                 )}
-               </motion.button>
+               <div className="flex items-center gap-6">
+                 <div className="relative group">
+                   <motion.button 
+                    whileHover={{ scale: 1.1 }} 
+                    whileTap={{ scale: 0.9 }} 
+                    onClick={toggleMic} 
+                    className={`w-20 h-20 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl ${isListening ? 'bg-destructive shadow-destructive/20 border-4 border-destructive/20' : 'bg-white/10 hover:bg-white/20 border-2 border-white/5'}`}
+                   >
+                     {isListening ? <Mic className="w-8 h-8 text-white" /> : <MicOff className="w-8 h-8 text-white/40" />}
+                     <span className={`text-[8px] font-black mt-1 uppercase tracking-tighter ${isListening ? 'text-white' : 'text-white/20'}`}>
+                        {isListening ? 'Listening' : 'Idle'}
+                     </span>
+                     {isListening && (
+                        <motion.div className="absolute inset-0 rounded-full border-4 border-destructive" animate={{ scale: [1, 1.4], opacity: [0.6, 0] }} transition={{ duration: 1.2, repeat: Infinity }} />
+                     )}
+                   </motion.button>
+                 </div>
 
-               <Button onClick={endInterview} className="h-16 px-8 rounded-2xl bg-white text-black font-bold">
-                  <Phone className="w-5 h-5 mr-3 rotate-[135deg]" /> End Interview
-               </Button>
-             </div>
+                 <Button onClick={endInterview} className="h-16 px-10 rounded-[2rem] bg-white text-black hover:bg-white/90 font-black uppercase tracking-tighter shadow-xl">
+                    <Phone className="w-5 h-5 mr-3 rotate-[135deg] fill-current" /> End Session
+                 </Button>
+               </div>
 
-             <div className="flex-1 flex justify-end">
-                <Button variant="ghost" size="icon" className="w-12 h-12 rounded-full text-white/30 hover:text-white">
-                   <Settings2 className="w-5 h-5" />
-                </Button>
-             </div>
+               <div className="flex-1 flex justify-end">
+                  <Button variant="ghost" size="icon" className="w-14 h-14 rounded-full text-white/20 hover:text-white hover:bg-white/5 transition-all">
+                     <Settings2 className="w-6 h-6" />
+                  </Button>
+               </div>
+            </div>
+
+            {/* Always visible text input fallback */}
+            <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-4 flex gap-4 items-center">
+              <div className="flex-1 relative">
+                <input 
+                  className="w-full bg-black/20 border border-white/5 rounded-2xl px-6 py-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                  placeholder="Type your answer if voice recognition fails or you prefer text..." 
+                  value={inputMsg} 
+                  onChange={(e) => setInputMsg(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleManualSend(e as any)}
+                />
+              </div>
+              <Button onClick={(e) => handleManualSend(e as any)} size="icon" className="w-14 h-14 rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all">
+                <Send className="w-6 h-6" />
+              </Button>
+            </div>
           </div>
         </div>
 

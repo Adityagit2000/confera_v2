@@ -21,7 +21,7 @@ import {
   PlayCircle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { LearningPath } from '@/components/LearningPath';
+
 
 const Report = () => {
   const { sessionId } = useParams();
@@ -342,10 +342,7 @@ const Report = () => {
           </div>
         </section>
 
-        {/* Learning Path Checklist */}
-        <div className="pt-8">
-          <LearningPath sourceId={sessionId!} sourceType="mock_interview" />
-        </div>
+
 
         {/* Detailed Feedback */}
         <section className="grid md:grid-cols-2 gap-6">

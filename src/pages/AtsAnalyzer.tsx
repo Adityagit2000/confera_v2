@@ -31,7 +31,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
-import { LearningPath } from '@/components/LearningPath';
+
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { AtsSkeleton } from '@/components/AtsSkeleton';
@@ -594,11 +594,7 @@ const AtsAnalyzer = () => {
             </section>
           )}
 
-          {analysisId && (
-            <div className="pt-10">
-              <LearningPath sourceId={analysisId} sourceType="resume_analysis" />
-            </div>
-          )}
+
 
           <Card className="bg-primary shadow-glow border-none text-white overflow-hidden relative group p-10 mt-10">
             <div className="flex flex-col md:flex-row items-center gap-8 relative z-10 text-center md:text-left">
