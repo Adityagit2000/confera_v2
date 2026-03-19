@@ -8,12 +8,11 @@ export const BackButton = () => {
   return (
     <Button
       variant="ghost"
-      size="sm"
+      size="icon"
       onClick={() => navigate(-1)}
-      className="absolute top-6 left-6 z-50 text-muted-foreground hover:text-foreground flex items-center gap-2 transition-all hover:translate-x-[-4px]"
+      className="text-white/50 hover:text-blue-400 transition-colors"
     >
-      <ArrowLeft className="w-4 h-4" />
-      <span>Back</span>
+      <ArrowLeft className="w-5 h-5" />
     </Button>
   );
 };

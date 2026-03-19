@@ -71,7 +71,8 @@ const InterviewSession = () => {
 
   // Initialize Speech Recognition
   useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
     if (SpeechRecognition) {
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = true;
@@ -105,23 +106,23 @@ const InterviewSession = () => {
       };
 
       recognitionRef.current.onerror = (event: any) => {
-        console.error('Speech error:', event.error);
-        if (event.error === 'network') {
-          setIsListening(false);
-          toast({
-            title: "Microphone issue",
-            description: "Speech recognition failed. Please type your answer or click mic to retry.",
-          });
-        } else if (event.error === 'not-allowed') {
-          setIsListening(false);
-          toast({
-            title: "Microphone blocked",
-            description: "Please allow microphone access in your browser settings.",
-            variant: "destructive"
-          });
-        } else {
-          setIsListening(false);
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        
+        let message = "Speech recognition error. Please try again or type your answer.";
+        if (event.error === 'not-allowed') {
+          message = "Microphone access denied by browser. Please enable permissions.";
+        } else if (event.error === 'network') {
+          message = "Network error occurred. Please check your connection.";
+        } else if (event.error === 'no-speech') {
+          return; // Ignore no-speech errors to avoid annoying toasts
         }
+
+        toast({
+          title: "Microphone issue",
+          description: message,
+          variant: "destructive"
+        });
       };
     }
 
@@ -129,7 +130,7 @@ const InterviewSession = () => {
       if (recognitionRef.current) recognitionRef.current.stop();
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     };
-  }, [autoSend, isListening]);
+  }, [autoSend, isListening, toast]);
 
   // Camera preview
   useEffect(() => {
@@ -145,6 +146,11 @@ const InterviewSession = () => {
     startCamera();
     return () => stream?.getTracks().forEach(t => t.stop());
   }, []);
+
+  // Auto-scroll chat history
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   // Timer
   useEffect(() => {
@@ -288,16 +294,24 @@ const InterviewSession = () => {
     }
   };
 
-  const toggleMic = () => {
+  const toggleMic = async () => {
     if (isListening) {
       setIsListening(false);
       recognitionRef.current?.stop();
     } else {
-      setIsListening(true);
       try {
+        // Explicitly request microphone access first
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        setIsListening(true);
         recognitionRef.current?.start();
-      } catch (e) {
-        console.warn('Recognition start failed:', e);
+      } catch (e: any) {
+        console.error('Microphone access denied:', e);
+        toast({
+          title: "Microphone access denied",
+          description: "Microphone access denied by browser.",
+          variant: "destructive"
+        });
+        setIsListening(false);
       }
     }
   };
@@ -347,9 +361,9 @@ const InterviewSession = () => {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
       
       <header className="p-6 flex items-center justify-between z-10 w-full relative">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <BackButton />
-          <div className="flex flex-col ml-12">
+          <div className="flex flex-col">
             <h1 className="text-lg font-bold tracking-tight capitalize">{session?.type?.replace('_', ' ')} Interview</h1>
             <div className="flex items-center gap-2 text-xs text-white/50 font-medium">
                <Clock className="w-3 h-3" /> {formatTime(elapsedTime)}
@@ -449,7 +463,7 @@ const InterviewSession = () => {
                 <h3 className="font-bold tracking-tight">Conversation History</h3>
               </div>
               
-              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="flex-1 overflow-y-auto max-h-[calc(100vh-250px)] p-6 space-y-6">
                 {messages.map((msg, idx) => (
                   <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                     <span className="text-[10px] font-bold tracking-[0.2em] text-white/30 uppercase mb-2">
