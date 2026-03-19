@@ -32,6 +32,8 @@ CREATE POLICY "Users can delete their own resume analysis"
 ON public.resume_analysis FOR DELETE 
 USING (auth.uid() = user_id);
 
+CREATE INDEX IF NOT EXISTS idx_resume_analysis_user_id ON public.resume_analysis(user_id);
+
 
 -- 2. Create interview_sessions table
 CREATE TABLE IF NOT EXISTS public.interview_sessions (
@@ -62,6 +64,8 @@ USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete their own interview sessions" 
 ON public.interview_sessions FOR DELETE 
 USING (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_interview_sessions_user_id ON public.interview_sessions(user_id);
 
 -- Add subscription fields to profiles table
 ALTER TABLE public.profiles 
@@ -95,6 +99,8 @@ CREATE POLICY "Users can view own subscriptions" ON public.subscriptions
 
 CREATE POLICY "Users can insert own subscriptions" ON public.subscriptions
   FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON public.subscriptions(user_id);
 
 
 -- 3. Create learning_paths table

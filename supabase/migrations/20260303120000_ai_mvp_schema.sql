@@ -98,8 +98,14 @@ CREATE POLICY "Users can view questions for their sessions" ON public.interview_
         )
     );
 
-CREATE POLICY "System can insert questions" ON public.interview_questions
-    FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can insert questions for their sessions" ON public.interview_questions
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.interview_sessions s
+            WHERE s.id = interview_questions.session_id
+              AND s.user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Admins can view all questions" ON public.interview_questions
     FOR SELECT USING (public.get_current_user_role() = 'admin');
@@ -137,8 +143,14 @@ CREATE POLICY "Users can view responses for their sessions" ON public.interview_
         )
     );
 
-CREATE POLICY "System can insert responses" ON public.interview_responses
-    FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can insert responses for their sessions" ON public.interview_responses
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.interview_sessions s
+            WHERE s.id = interview_responses.session_id
+              AND s.user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Admins can view all responses" ON public.interview_responses
     FOR SELECT USING (public.get_current_user_role() = 'admin');
@@ -181,8 +193,14 @@ CREATE POLICY "Users can view evaluations for their sessions" ON public.response
         )
     );
 
-CREATE POLICY "System can insert evaluations" ON public.response_evaluations
-    FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can insert evaluations for their sessions" ON public.response_evaluations
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.interview_sessions s
+            WHERE s.id = response_evaluations.session_id
+              AND s.user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Admins can view all evaluations" ON public.response_evaluations
     FOR SELECT USING (public.get_current_user_role() = 'admin');
@@ -223,8 +241,14 @@ CREATE POLICY "Users can view final reports for their sessions" ON public.final_
         )
     );
 
-CREATE POLICY "System can insert final reports" ON public.final_reports
-    FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can insert final reports for their sessions" ON public.final_reports
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.interview_sessions s
+            WHERE s.id = final_reports.session_id
+              AND s.user_id = auth.uid()
+        )
+    );
 
 CREATE POLICY "Admins can view all final reports" ON public.final_reports
     FOR SELECT USING (public.get_current_user_role() = 'admin');

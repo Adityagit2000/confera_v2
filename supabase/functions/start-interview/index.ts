@@ -32,6 +32,32 @@ Deno.serve(async (req) => {
       throw new Error('Interview session not found')
     }
 
+    // --- PAYWALL ENFORCEMENT ---
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('plan, plan_expires_at, interviews_used_this_month')
+      .eq('id', session.user_id)
+      .single()
+
+    if (profileError) {
+      console.error('Error fetching profile for paywall check:', profileError)
+      throw new Error('Failed to verify subscription status')
+    }
+
+    const isPro = profile.plan === 'pro' && 
+      (profile.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false)
+    
+    if (!isPro && (profile.interviews_used_this_month || 0) >= 2) {
+      return new Response(JSON.stringify({ 
+        error: 'Interview limit reached', 
+        details: 'You have used your 2 free interviews for this month. Upgrade to Pro for unlimited access.' 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 403,
+      })
+    }
+    // ---------------------------
+
     // Update session status to active and set job_role if provided
     const updateData: any = {
       status: 'active'
@@ -49,6 +75,18 @@ Deno.serve(async (req) => {
     if (updateError) {
       console.error('Error updating session:', updateError)
       throw updateError
+    }
+
+    // Increment usage counter for non-pro users
+    if (!isPro) {
+      const { error: incrementError } = await supabase
+        .from('profiles')
+        .update({ interviews_used_this_month: (profile.interviews_used_this_month || 0) + 1 })
+        .eq('id', session.user_id)
+      
+      if (incrementError) {
+        console.error('Error incrementing interview usage counter:', incrementError)
+      }
     }
 
     // Log the event

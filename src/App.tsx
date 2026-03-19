@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { AnimatePresence } from "framer-motion";
 import { lazy, Suspense } from "react";
 import PageTransition from "./components/PageTransition";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Lazy load pages for performance
 const Index = lazy(() => import("./pages/Index"));
@@ -81,22 +82,30 @@ const AppRoutes = () => {
         <Route path="/auth" element={<PageTransition>{user ? <Navigate to="/" replace /> : <Auth />}</PageTransition>} />
         <Route path="/dashboard" element={
           <ProtectedRoute>
-            <PageTransition><Dashboard /></PageTransition>
+            <ErrorBoundary>
+              <PageTransition><Dashboard /></PageTransition>
+            </ErrorBoundary>
           </ProtectedRoute>
         } />
         <Route path="/interview/:sessionId" element={
           <ProtectedRoute>
-            <PageTransition><InterviewSession /></PageTransition>
+            <ErrorBoundary>
+              <PageTransition><InterviewSession /></PageTransition>
+            </ErrorBoundary>
           </ProtectedRoute>
         } />
         <Route path="/report/:sessionId" element={
           <ProtectedRoute>
-            <PageTransition><Report /></PageTransition>
+            <ErrorBoundary>
+              <PageTransition><Report /></PageTransition>
+            </ErrorBoundary>
           </ProtectedRoute>
         } />
         <Route path="/ats" element={
           <ProtectedRoute>
-            <PageTransition><AtsAnalyzer /></PageTransition>
+            <ErrorBoundary>
+              <PageTransition><AtsAnalyzer /></PageTransition>
+            </ErrorBoundary>
           </ProtectedRoute>
         } />
         <Route path="/mock-interview" element={

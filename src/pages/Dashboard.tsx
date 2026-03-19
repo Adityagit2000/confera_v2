@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -62,8 +62,21 @@ const Dashboard = () => {
   useEffect(() => {
     if (user) {
       fetchDashboardData();
+      
+      // Show welcome toast once per session
+      const hasWelcomed = sessionStorage.getItem('confera_welcomed');
+      if (!hasWelcomed) {
+        setTimeout(() => {
+          toast({
+            title: `Welcome back, ${profile?.name || user?.email?.split('@')[0]}!`,
+            description: "Ready to crush your next interview session?",
+            className: "bg-background/80 backdrop-blur-xl border-primary/20",
+          });
+          sessionStorage.setItem('confera_welcomed', 'true');
+        }, 1000);
+      }
     }
-  }, [user]);
+  }, [user, profile]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -72,7 +85,7 @@ const Dashboard = () => {
     return 'Good evening';
   };
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     if (!user) return;
     try {
       // Fetch profile for name if useSubscription didn't catch it yet
@@ -126,7 +139,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, supabase, toast]);
 
   const calculateTrend = (current: number, previous: number) => {
     if (!previous) return null;
@@ -135,7 +148,7 @@ const Dashboard = () => {
     return 'neutral';
   };
 
-  const startInterview = async () => {
+  const startInterview = useCallback(async () => {
     if (!interviewType || !user) return;
     try {
       const { data: sessionData, error: sessionError } = await supabase
@@ -163,7 +176,7 @@ const Dashboard = () => {
       console.error('Error starting interview:', error);
       toast({ title: "Error", description: error.message || "Failed to start interview", variant: "destructive" });
     }
-  };
+  }, [interviewType, user, supabase, toast]);
 
   const getInterviewTypeLabel = (type: string) => {
     switch (type) {
@@ -184,14 +197,14 @@ const Dashboard = () => {
     }
   };
 
-  const handleNavClick = (section: string) => {
+  const handleNavClick = useCallback((section: string) => {
     if (section === 'resume') navigate('/ats');
     if (section === 'interview') setShowInterviewDialog(true);
     if (section === 'top') window.scrollTo({ top: 0, behavior: 'smooth' });
     if (section === 'sessions') document.getElementById('recent-sessions')?.scrollIntoView({ behavior: 'smooth' });
     if (section === 'analytics') document.getElementById('stats-overview')?.scrollIntoView({ behavior: 'smooth' });
     if (section === 'settings') toast({ title: "Settings", description: "Settings panel coming soon." });
-  };
+  }, [navigate, toast]);
 
   if (loading) {
     return (
@@ -392,7 +405,7 @@ const Dashboard = () => {
 
           {/* Quick Actions Array */}
           <div className="flex flex-wrap gap-4 mb-12">
-            <Button variant="premium" size="lg" className="px-8" onClick={() => {
+            <Button variant="premium" size="lg" className="px-8 h-14 text-base shadow-glow hover:scale-[1.02] transition-transform" onClick={() => {
               if (canStartInterview) setShowInterviewDialog(true);
               else {
                 setUpgradeMessage("You've used all your free interviews this month. Upgrade to Pro for unlimited access.");
@@ -401,14 +414,14 @@ const Dashboard = () => {
             }}>
               <Mic className="w-5 h-5 mr-2" /> Start New Interview
             </Button>
-            <Button variant="outline" size="lg" className="px-8 glass-card border-border hover:bg-card hover:text-foreground" onClick={() => {
+            <Button variant="outline" size="lg" className="px-8 h-14 text-base glass-card border-border hover:bg-card/80 hover:text-white hover:scale-[1.02] transition-all" onClick={() => {
               if (canAnalyzeResume) navigate('/ats');
               else {
                 setUpgradeMessage("You've used your free resume analysis this month. Upgrade to Pro for unlimited analysis.");
                 setShowUpgradeModal(true);
               }
             }}>
-              <Upload className="w-5 h-5 mr-2 text-muted-foreground" /> Update Resume
+              <Upload className="w-5 h-5 mr-2 text-primary" /> Update Resume
             </Button>
           </div>
 
@@ -488,15 +501,24 @@ const Dashboard = () => {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-16 px-6">
-                  <div className="w-20 h-20 bg-muted/30 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <FolderClock className="w-10 h-10 text-muted-foreground/50" />
+                <div className="text-center py-20 px-6 relative overflow-hidden group/empty">
+                  <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent opacity-0 group-hover/empty:opacity-100 transition-opacity duration-500" />
+                  <div className="relative z-10">
+                    <div className="w-24 h-24 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-8 rotate-12 group-hover/empty:rotate-0 transition-transform duration-500 border border-primary/20">
+                      <FolderClock className="w-12 h-12 text-primary" />
+                    </div>
+                    <h3 className="font-bold text-2xl text-foreground mb-3">Your Journey Starts Here</h3>
+                    <p className="text-muted-foreground mb-10 max-w-sm mx-auto text-lg leading-relaxed">
+                      You haven't completed any mock interviews yet. Start your first session to unlock personalized insights and stats.
+                    </p>
+                    <Button 
+                      onClick={() => setShowInterviewDialog(true)} 
+                      size="lg"
+                      className="bg-primary hover:bg-primary-glow text-primary-foreground shadow-glow h-14 px-10 rounded-2xl font-bold text-lg hover:scale-105 transition-all"
+                    >
+                      <PlusCircle className="w-5 h-5 mr-2" /> Start Your First Interview
+                    </Button>
                   </div>
-                  <h3 className="font-medium text-xl text-foreground mb-2">No past sessions</h3>
-                  <p className="text-muted-foreground mb-6 max-w-sm mx-auto">You haven't completed any mock interviews yet. Start your journey below.</p>
-                  <Button onClick={() => setShowInterviewDialog(true)} className="bg-primary hover:bg-primary-glow text-primary-foreground shadow-glow">
-                    <PlusCircle className="w-4 h-4 mr-2" /> Start First Interview
-                  </Button>
                 </div>
               )}
             </div>

@@ -31,6 +31,44 @@ Deno.serve(async (req) => {
 
     if (fetchError || !resume) throw new Error(`Resume record not found for ID: ${resumeId}`);
 
+    // --- SANITIZATION ---
+    const sanitizeJobRole = (role: string): string => {
+      if (!role) return 'Software Engineer';
+      return role
+        .replace(/[;()"'<>]/g, '') // Strip symbols
+        .substring(0, 50)           // Limit length
+        .trim() || 'Software Engineer';
+    };
+    const safeJobRole = sanitizeJobRole(jobRole);
+    // -------------------
+
+    // --- PAYWALL ENFORCEMENT ---
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('profiles')
+      .select('plan, plan_expires_at, resume_analyses_used_this_month')
+      .eq('id', resume.user_id)
+      .single()
+
+    if (profileError) {
+      console.error('Error fetching profile for paywall check:', profileError)
+      throw new Error('Failed to verify subscription status')
+    }
+
+    const isPro = profile.plan === 'pro' && 
+      (profile.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false)
+    
+    if (!isPro && (profile.resume_analyses_used_this_month || 0) >= 1) {
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: 'Resume analysis limit reached', 
+        details: 'You have used your 1 free resume analysis for this month. Upgrade to Pro for unlimited access.' 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 403,
+      })
+    }
+    // ---------------------------
+
     const finalPath = resumePath || resume.file_url;
     console.log(`Using path for analysis: ${finalPath}`);
 
@@ -71,11 +109,11 @@ Deno.serve(async (req) => {
     // 3. Call AI for analysis
     const systemPrompt = `
     You are an expert ATS resume analyzer. You must respond with ONLY a valid JSON object, no markdown, no explanation, no extra text. Just the raw JSON.
-    Evaluate candidates strictly based on the requirements and expectations for a ${jobRole || 'Software Engineer'}.
+    Evaluate candidates strictly based on the requirements and expectations for a ${safeJobRole}.
     `;
 
     const userPrompt = `
-    Analyze this resume text for a ${jobRole || 'Software Engineer'} position.
+    Analyze this resume text for a ${safeJobRole} position.
     URL: ${signedUrl}
 
     Return ONLY this exact JSON structure with no deviations:
@@ -145,6 +183,18 @@ Deno.serve(async (req) => {
       .eq('id', resumeId);
 
     if (updateError) throw new Error(`Failed to update resume record: ${updateError.message}`);
+
+    // Increment usage counter for non-pro users
+    if (!isPro) {
+      const { error: incrementError } = await supabaseAdmin
+        .from('profiles')
+        .update({ resume_analyses_used_this_month: (profile.resume_analyses_used_this_month || 0) + 1 })
+        .eq('id', resume.user_id);
+      
+      if (incrementError) {
+        console.error('Error incrementing resume usage counter:', incrementError);
+      }
+    }
 
     console.log('Analysis completed and saved.');
 

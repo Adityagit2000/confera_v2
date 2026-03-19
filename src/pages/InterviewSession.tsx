@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import BackButton from '@/components/BackButton';
 import { Button } from '@/components/ui/button';
@@ -68,6 +68,7 @@ const InterviewSession = () => {
   const [questionCount, setQuestionCount] = useState(0);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [answeredQuestionsCount, setAnsweredQuestionsCount] = useState(0);
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   
   const recognitionRef = useRef<any>(null);
@@ -75,6 +76,26 @@ const InterviewSession = () => {
   const candidateVideoRef = useRef<HTMLVideoElement>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const shouldContinueListening = useRef(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+
+  // Check for first-time user onboarding
+  useEffect(() => {
+    const isFirstTime = !localStorage.getItem('confera_onboarded');
+    if (isFirstTime && !loading && messages.length > 0) {
+      setOnboardingStep(1);
+    }
+  }, [loading, messages.length]);
+
+  const completeStep = (step: number) => {
+    if (onboardingStep === step) {
+      if (step === 3) {
+        localStorage.setItem('confera_onboarded', 'true');
+        setOnboardingStep(0);
+      } else {
+        setOnboardingStep(step + 1);
+      }
+    }
+  };
 
   // Initialize Speech Recognition
   useEffect(() => {
@@ -231,7 +252,7 @@ const InterviewSession = () => {
     }
   }, [sessionId, user]);
 
-  const fetchInterviewData = async () => {
+  const fetchInterviewData = useCallback(async () => {
     setLoading(true);
     setErrorStatus(null);
     try {
@@ -262,9 +283,9 @@ const InterviewSession = () => {
       setErrorStatus("Failed to load interview session.");
       setLoading(false);
     }
-  };
+  }, [sessionId, supabase]);
 
-  const speak = (text: string) => {
+  const speak = useCallback((text: string) => {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
@@ -279,9 +300,9 @@ const InterviewSession = () => {
         }
     };
     window.speechSynthesis.speak(utterance);
-  };
+  }, [isListening]);
 
-  const startInterviewFlow = async (sessionData: any) => {
+  const startInterviewFlow = useCallback(async (sessionData: any) => {
     if (!canStartInterview) {
       setShowUpgradeModal(true);
       setLoading(false);
@@ -314,9 +335,9 @@ const InterviewSession = () => {
       setIsThinking(false);
       setLoading(false);
     }
-  };
+  }, [canStartInterview, sessionId, speak]);
 
-  const handleSendVoiceMessage = async (transcript: string) => {
+  const handleSendVoiceMessage = useCallback(async (transcript: string) => {
     if (!transcript.trim() || isThinking || isSpeaking) return;
     
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
@@ -328,6 +349,7 @@ const InterviewSession = () => {
     setIsThinking(true);
     
     try {
+      setLastFailedMessage(null);
       const { data, error } = await supabase.functions.invoke('ai-interview-chat', {
         body: { 
           sessionId, 
@@ -348,20 +370,25 @@ const InterviewSession = () => {
         setTimeout(endInterview, 5000);
       }
     } catch (err) {
-       toast({ title: "AI Error", description: "Failed to get response. Feel free to try again.", variant: "destructive" });
+       setLastFailedMessage(userMsg);
+       toast({ 
+         title: "AI Error", 
+         description: "Failed to get response. Feel free to try again.", 
+         variant: "destructive" 
+       });
     } finally {
       setIsThinking(false);
     }
-  };
+  }, [isThinking, isSpeaking, sessionId, session?.type, speak, toast]);
 
-  const handleManualSend = (e: React.FormEvent) => {
+  const handleManualSend = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (inputMsg.trim()) {
       handleSendVoiceMessage(inputMsg);
     }
-  };
+  }, [inputMsg, handleSendVoiceMessage]);
 
-  const toggleMic = async () => {
+  const toggleMic = useCallback(async () => {
     if (isListening) {
       shouldContinueListening.current = false;
       recognitionRef.current?.stop();
@@ -370,6 +397,9 @@ const InterviewSession = () => {
       try {
         // Explicitly request microphone access first
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Stop the tracks immediately after permission check (recognition will use its own)
+        stream.getTracks().forEach(track => track.stop());
+        
         setIsListening(true);
         shouldContinueListening.current = true;
         recognitionRef.current?.start();
@@ -383,9 +413,9 @@ const InterviewSession = () => {
         setIsListening(false);
       }
     }
-  };
+  }, [isListening, toast]);
 
-  const endInterview = async () => {
+  const endInterview = useCallback(async () => {
     if (answeredQuestionsCount === 0) {
       toast({
         title: "No answers recorded",
@@ -414,13 +444,13 @@ const InterviewSession = () => {
     }
     
     setTimeout(() => { navigate(`/report/${sessionId}`); }, 3000);
-  };
+  }, [answeredQuestionsCount, sessionId, navigate, toast]);
 
-  const formatTime = (seconds: number) => {
+  const formatTime = useCallback((seconds: number) => {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
-  };
+  }, []);
 
   if (loading) {
     return (
@@ -447,26 +477,51 @@ const InterviewSession = () => {
     <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col font-sans overflow-hidden relative">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
       
-      <header className="p-6 flex items-center justify-between z-10 w-full relative">
-        <div className="flex items-center gap-4">
+      <header className="p-4 sm:p-6 flex items-center justify-between z-10 w-full relative">
+        <div className="flex items-center gap-2 sm:gap-4">
           <BackButton />
           <div className="flex flex-col">
-            <h1 className="text-lg font-bold tracking-tight capitalize">{session?.type?.replace('_', ' ')} Interview</h1>
-            <div className="flex items-center gap-2 text-xs text-white/50 font-medium">
-               <Clock className="w-3 h-3" /> {formatTime(elapsedTime)}
-               <span className="mx-1 opacity-20">•</span>
-               <Layout className="w-3 h-3" /> Question {questionCount} / 6+
+            <h1 className="text-sm sm:text-lg font-bold tracking-tight capitalize truncate max-w-[120px] sm:max-w-none">{session?.type?.replace('_', ' ')} Interview</h1>
+            <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-white/50 font-medium">
+               <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {formatTime(elapsedTime)}
+               <span className="mx-0.5 sm:mx-1 opacity-20">•</span>
+               <Layout className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> Q{questionCount}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-           <div className="flex items-center gap-3 px-4 py-2 bg-white/5 rounded-xl border border-white/10">
-              <span className="text-xs font-semibold text-white/60">Auto-send</span>
-              <Switch checked={autoSend} onCheckedChange={setAutoSend} />
+        <div className="flex items-center gap-2 sm:gap-4">
+           <div className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 bg-white/5 rounded-xl border transition-all ${onboardingStep === 2 ? 'border-primary ring-4 ring-primary/20 bg-primary/10 scale-105 z-50' : 'border-white/10'}`}>
+              <span className="text-[10px] sm:text-xs font-semibold text-white/60">Auto-send</span>
+              <Switch checked={autoSend} onCheckedChange={(val) => {
+                setAutoSend(val);
+                completeStep(2);
+              }} />
+              {onboardingStep === 2 && (
+                <div className="absolute top-full mt-4 right-0 w-48 p-4 bg-primary text-black rounded-2xl shadow-2xl z-[60] text-xs font-bold animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute -top-2 right-6 w-4 h-4 bg-primary rotate-45" />
+                  Enable Auto-send for a seamless, hands-free conversation.
+                  <Button variant="ghost" size="sm" className="mt-2 h-7 px-2 text-[10px] hover:bg-black/10 font-black p-0 border-none" onClick={() => completeStep(2)}>GOT IT</Button>
+                </div>
+              )}
            </div>
-           <Button variant="ghost" onClick={() => setIsTextChatOpen(!isTextChatOpen)} className={`rounded-xl px-4 h-10 ${isTextChatOpen ? 'bg-primary/20 text-primary' : 'bg-white/5'}`}>
-              <MessageSquare className="w-4 h-4 mr-2" /> {isTextChatOpen ? 'Hide History' : 'View History'}
+           <Button 
+            variant="ghost" 
+            onClick={() => {
+              setIsTextChatOpen(!isTextChatOpen);
+              completeStep(3);
+            }} 
+            className={`rounded-xl px-2 sm:px-4 h-9 sm:h-10 transition-all ${isTextChatOpen ? 'bg-primary/20 text-primary' : 'bg-white/5'} ${onboardingStep === 3 ? 'border-primary ring-4 ring-primary/20 bg-primary/10 scale-105 z-50' : ''}`}
+           >
+              <MessageSquare className="w-4 h-4 sm:mr-2" /> 
+              <span className="hidden sm:inline">{isTextChatOpen ? 'Hide History' : 'View History'}</span>
+              {onboardingStep === 3 && (
+                <div className="absolute top-full mt-4 right-0 w-48 p-4 bg-primary text-black rounded-2xl shadow-2xl z-[60] text-xs font-bold animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute -top-2 right-12 w-4 h-4 bg-primary rotate-45" />
+                  Need to review? Check your past responses here.
+                  <Button variant="ghost" size="sm" className="mt-2 h-7 px-2 text-[10px] hover:bg-black/10 font-black p-0 border-none" onClick={() => completeStep(3)}>FINISH GUIDE</Button>
+                </div>
+              )}
            </Button>
         </div>
       </header>
@@ -489,7 +544,7 @@ const InterviewSession = () => {
               </AnimatePresence>
               
               <motion.div 
-                className={`w-48 h-48 rounded-full flex flex-col items-center justify-center z-10 border-4 transition-all duration-500 ${
+                className={`w-40 h-40 sm:w-48 sm:h-48 rounded-full flex flex-col items-center justify-center z-10 border-4 transition-all duration-500 ${
                   isSpeaking 
                     ? 'bg-primary/20 border-primary shadow-[0_0_80px_rgba(0,212,255,0.4)]' 
                     : isThinking 
@@ -499,22 +554,35 @@ const InterviewSession = () => {
               >
                   {isThinking ? (
                     <div className="relative">
-                      <Loader2 className="w-16 h-16 animate-spin text-secondary" />
-                      <div className="absolute inset-0 w-16 h-16 border-4 border-secondary/20 rounded-full animate-ping" />
+                      <Loader2 className="w-12 h-12 sm:w-16 sm:h-16 animate-spin text-secondary" />
+                      <div className="absolute inset-0 w-12 h-12 sm:w-16 sm:h-16 border-4 border-secondary/20 rounded-full animate-ping" />
                     </div>
                   ) : (
                     <div className="flex flex-col items-center">
-                      <div className={`text-4xl font-black mb-2 px-6 py-2 rounded-2xl ${isSpeaking ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>AI</div>
-                      {isSpeaking && <Volume2 className="w-6 h-6 text-primary animate-bounce mt-2" />}
+                      <div className={`text-3xl sm:text-4xl font-black mb-2 px-5 py-1.5 sm:px-6 sm:py-2 rounded-2xl ${isSpeaking ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>AI</div>
+                      {isSpeaking && <Volume2 className="w-5 h-5 sm:w-6 sm:h-6 text-primary animate-bounce mt-2" />}
                     </div>
                   )}
               </motion.div>
               
               <div className="mt-8 text-center space-y-2">
                 <h2 className="text-2xl font-black tracking-tighter uppercase italic opacity-80 italic">AI Interviewer</h2>
-                <div className="flex items-center gap-3 justify-center">
-                   <div className={`w-2.5 h-2.5 rounded-full ${isSpeaking ? 'bg-primary animate-pulse' : isThinking ? 'bg-secondary animate-pulse' : 'bg-success shadow-[0_0_10px_rgba(34,197,94,0.5)]'}`} />
-                   <p className="text-xs font-bold text-white/40 tracking-[0.3em] uppercase">{isSpeaking ? 'Speaking' : isThinking ? 'Thinking' : 'Ready'}</p>
+                <div className="flex flex-col items-center gap-3 justify-center">
+                   <div className="flex items-center gap-3 justify-center">
+                     <div className={`w-2.5 h-2.5 rounded-full ${isSpeaking ? 'bg-primary animate-pulse' : isThinking ? 'bg-secondary animate-pulse' : 'bg-success shadow-[0_0_10px_rgba(34,197,94,0.5)]'}`} />
+                     <p className="text-xs font-bold text-white/40 tracking-[0.3em] uppercase">{isSpeaking ? 'Speaking' : isThinking ? 'Thinking' : 'Ready'}</p>
+                   </div>
+                   
+                   {lastFailedMessage && !isThinking && (
+                     <Button 
+                       variant="outline" 
+                       size="sm" 
+                       onClick={() => handleSendVoiceMessage(lastFailedMessage)}
+                       className="mt-4 border-destructive text-destructive hover:bg-destructive/10 animate-fade-in"
+                     >
+                       <RefreshCcw className="w-4 h-4 mr-2" /> Retry Last Message
+                     </Button>
+                   )}
                 </div>
               </div>
             </div>
@@ -576,38 +644,46 @@ const InterviewSession = () => {
                   </div>
                </div>
 
-               <div className="flex items-center gap-6">
+               <div className="flex items-center gap-4 sm:gap-6">
                  <div className="relative group">
                    <motion.button 
                     whileHover={voiceAvailable ? { scale: 1.1 } : {}} 
                     whileTap={voiceAvailable ? { scale: 0.9 } : {}} 
-                    onClick={voiceAvailable ? toggleMic : undefined} 
-                    className={`w-20 h-20 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl ${
+                    onClick={voiceAvailable ? () => { toggleMic(); completeStep(1); } : undefined} 
+                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl relative ${
                       isListening 
                         ? 'bg-destructive shadow-destructive/20 border-4 border-destructive/20' 
                         : voiceAvailable 
-                          ? 'bg-white/10 hover:bg-white/20 border-2 border-white/5'
+                          ? `bg-white/10 hover:bg-white/20 border-2 ${onboardingStep === 1 ? 'border-primary ring-4 ring-primary/20 bg-primary/10' : 'border-white/5'}`
                           : 'bg-white/5 opacity-30 cursor-not-allowed border-none'
                     }`}
                     title={!voiceAvailable ? "Voice recognition unavailable" : ""}
                    >
-                     {isListening ? <Mic className="w-8 h-8 text-white" /> : <MicOff className="w-8 h-8 text-white/40" />}
+                     {isListening ? <Mic className="w-6 h-6 sm:w-8 sm:h-8 text-white" /> : <MicOff className="w-6 h-6 sm:w-8 sm:h-8 text-white/40" />}
                      <span className={`text-[8px] font-black mt-1 uppercase tracking-tighter ${isListening ? 'text-white' : 'text-white/20'}`}>
                         {isListening ? 'Listening' : voiceAvailable ? 'Voice' : 'Off'}
                      </span>
                      {isListening && (
                         <motion.div className="absolute inset-0 rounded-full border-4 border-destructive" animate={{ scale: [1, 1.4], opacity: [0.6, 0] }} transition={{ duration: 1.2, repeat: Infinity }} />
                      )}
+                     
+                     {onboardingStep === 1 && (
+                       <div className="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 w-56 p-4 bg-primary text-black rounded-2xl shadow-2xl z-[60] text-xs font-bold animate-in fade-in slide-in-from-bottom-2 text-center leading-tight">
+                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-primary rotate-45" />
+                         Tap to start speaking. Our AI listens to your logic and tone in real-time.
+                         <Button variant="ghost" size="sm" className="mt-2 h-7 px-3 text-[10px] hover:bg-black/20 font-black border border-black/10 rounded-lg" onClick={(e) => { e.stopPropagation(); completeStep(1); }}>GOT IT</Button>
+                       </div>
+                     )}
                    </motion.button>
                  </div>
 
-                 <Button onClick={endInterview} className="h-16 px-10 rounded-[2rem] bg-white text-black hover:bg-white/90 font-black uppercase tracking-tighter shadow-xl">
-                    <Phone className="w-5 h-5 mr-3 rotate-[135deg] fill-current" /> End Session
+                 <Button onClick={endInterview} className="h-14 sm:h-16 px-6 sm:px-10 rounded-[2rem] bg-white text-black hover:bg-white/90 font-black uppercase tracking-tighter shadow-xl text-sm sm:text-base">
+                    <Phone className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 rotate-[135deg] fill-current" /> End <span className="hidden sm:inline">Session</span>
                  </Button>
                </div>
 
-               <div className="flex-1 flex justify-end">
-                  <Button variant="ghost" size="icon" className="w-14 h-14 rounded-full text-white/20 hover:text-white hover:bg-white/5 transition-all">
+               <div className="flex-1 hidden sm:flex justify-end">
+                  <Button variant="ghost" size="icon" className="w-12 h-12 sm:w-14 sm:h-14 rounded-full text-white/20 hover:text-white hover:bg-white/5 transition-all">
                      <Settings2 className="w-6 h-6" />
                   </Button>
                </div>

@@ -101,7 +101,10 @@ const MockInterview = () => {
                 placeholder="e.g. Frontend Developer"
                 className="w-full bg-background border border-input px-3 py-2 rounded-md text-sm"
                 value={jobRole}
-                onChange={(e) => setJobRole(e.target.value)}
+                onChange={(e) => {
+                  const sanitized = e.target.value.replace(/[;()"'<>]/g, '').substring(0, 50);
+                  setJobRole(sanitized);
+                }}
               />
             </div>
             <div className="space-y-2">
