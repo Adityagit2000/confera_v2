@@ -55,21 +55,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      const testUser = localStorage.getItem('confera_test_user');
-      if (testUser === '06aditya12@gmail.com') {
-          const mockUser = {
-              id: '0fc1381e-b873-40e1-b92c-80ea47f68c37',
-              email: '06aditya12@gmail.com',
-              user_metadata: { name: 'Aditya Jha' },
-              app_metadata: {},
-              aud: 'authenticated',
-              created_at: new Date().toISOString()
-          } as User;
-          setUser(mockUser);
-          setSession({ user: mockUser, access_token: 'fake-token', refresh_token: 'fake-token', expires_in: 3600, token_type: 'bearer' } as Session);
-          setLoading(false);
-          return;
-      }
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
@@ -85,22 +70,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       options: {
         data: {
           name: name || '',
-        }
+        },
+        emailRedirectTo: `${window.location.origin}/auth`,
       }
     });
-
-    if (error) {
-      toast({
-        title: "Sign Up Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "OTP Sent",
-        description: "We've sent a 6-digit verification code to your email. Please enter it to continue.",
-      });
-    }
 
     return { data, error };
   };
@@ -121,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       toast({
         title: "Account Verified",
-        description: "Your account has been successfully verified.",
+        description: "Your account has been successfully verified Welcome to Confera!",
       });
     }
 
@@ -132,9 +105,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`
-      }
     });
 
     if (error) {
@@ -176,6 +146,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       title: "Signed out",
       description: "You have been successfully signed out.",
     });
+    // Force a full reload and redirect to landing page
+    window.location.href = '/';
   };
 
   return (

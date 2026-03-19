@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '@/components/BackButton';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { Button } from '@/components/ui/button';
@@ -162,7 +163,8 @@ const AtsAnalyzer = () => {
   };
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl min-h-screen">
+    <div className="container mx-auto py-12 px-4 max-w-4xl min-h-screen relative">
+      <BackButton />
       <header className="mb-10 text-center md:text-left">
         <h1 className="text-4xl md:text-6xl font-black mb-4 bg-clip-text text-transparent bg-gradient-to-r from-primary via-primary/80 to-secondary animate-in fade-in slide-in-from-left duration-700">
           ATS Resume Optimizer

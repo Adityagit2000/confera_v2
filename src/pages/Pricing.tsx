@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import BackButton from '@/components/BackButton';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -175,7 +176,8 @@ const Pricing = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background py-20 px-6">
+    <div className="min-h-screen bg-background py-20 px-6 relative">
+      <BackButton />
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <motion.h1 

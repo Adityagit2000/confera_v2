@@ -2,7 +2,6 @@ import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import Features from "@/components/Features";
 import HowItWorks from "@/components/HowItWorks";
-import CTA from "@/components/CTA";
 import ResumeUpload from "@/components/ResumeUpload";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -58,7 +57,6 @@ const Index = () => {
         />
         <Features />
         <HowItWorks />
-        <CTA onGetStarted={() => navigate('/auth')} />
       </main>
       <footer className="bg-background border-t border-border py-12">
         <div className="container mx-auto px-6">
@@ -73,17 +71,6 @@ const Index = () => {
               <p className="text-muted-foreground max-w-sm">
                 The world's most advanced AI interview preparation platform.
               </p>
-            </div>
-            <div className="md:justify-self-end w-full max-w-md">
-              <h4 className="font-semibold text-foreground mb-2">Subscribe to our newsletter</h4>
-              <div className="flex gap-2">
-                <input 
-                  type="email" 
-                  placeholder="Enter your email" 
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                />
-                <Button className="bg-primary hover:bg-primary-glow text-primary-foreground">Subscribe</Button>
-              </div>
             </div>
           </div>
           <div className="text-center">
