@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, X, Zap, Crown, Star, ArrowRight } from 'lucide-react';
+import { Check, X, Zap, Crown, Star, ArrowRight, Building2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 
@@ -174,6 +174,21 @@ const Pricing = () => {
       buttonVariant: 'default' as const,
       highlight: true,
       billingCycle: 'yearly' as const
+    },
+    {
+      name: 'University / Enterprise',
+      price: 'Custom',
+      description: 'Flexible pricing for teams & students.',
+      features: [
+        'Bulk licenses for students/employees',
+        'Admin dashboard & group analytics',
+        'Custom role-specific modules',
+        'Priority dedicated support'
+      ],
+      buttonText: 'Contact Sales',
+      buttonVariant: 'outline' as const,
+      highlight: false,
+      onClick: () => window.location.href = 'mailto:support@confera.ai?subject=Organization Inquiry - Confera'
     }
   ];
 
@@ -199,7 +214,7 @@ const Pricing = () => {
           </motion.p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-20 items-stretch">
           {plans.map((plan, index) => (
             <motion.div
               key={plan.name}
@@ -217,26 +232,27 @@ const Pricing = () => {
                 )}
                 <CardHeader>
                   <div className="flex items-center gap-2 mb-2">
-                    {plan.name === 'Free' ? <Zap className="w-5 h-5 text-muted-foreground" /> : plan.highlight ? <Crown className="w-5 h-5 text-primary" /> : <Star className="w-5 h-5 text-secondary" />}
+                    {plan.name === 'Free' ? <Zap className="w-5 h-5 text-muted-foreground" /> : plan.name === 'University / Enterprise' ? <Building2 className="w-5 h-5 text-accent" /> : plan.highlight ? <Crown className="w-5 h-5 text-primary" /> : <Star className="w-5 h-5 text-secondary" />}
                     <CardTitle className="text-2xl">{plan.name}</CardTitle>
                   </div>
-                  <div className="flex flex-col justify-center min-h-[100px] mt-2">
+                  <div className="flex flex-col justify-center min-h-[110px] mt-2 mb-4">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl md:text-5xl font-extrabold tracking-tight">{plan.price}</span>
+                      {plan.interval && <span className="text-muted-foreground font-medium">{plan.interval}</span>}
+                      {plan.discount && (
+                        <span className="text-[10px] font-bold bg-success/10 text-success px-1.5 py-0.5 rounded-md uppercase tracking-wider">
+                          {plan.discount}
+                        </span>
+                      )}
+                    </div>
                     {plan.originalPrice && (
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm md:text-base text-muted-foreground/60 line-through decoration-muted-foreground/40">
+                      <div className="flex items-center gap-1.5 mt-1 text-muted-foreground/50">
+                        <span className="text-xs">Regularly</span>
+                        <span className="text-xs md:text-sm line-through decoration-muted-foreground/30">
                           {plan.originalPrice}
                         </span>
-                        {plan.discount && (
-                          <span className="text-[10px] font-bold bg-success/10 text-success px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                            {plan.discount}
-                          </span>
-                        )}
                       </div>
                     )}
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-4xl md:text-5xl font-extrabold tracking-tight">{plan.price}</span>
-                      <span className="text-muted-foreground font-medium">{plan.interval}</span>
-                    </div>
                   </div>
                   <CardDescription className="mt-4">{plan.description}</CardDescription>
                 </CardHeader>
@@ -266,7 +282,13 @@ const Pricing = () => {
                     variant={plan.name === 'Free' ? 'link' : 'premium'}
                     size={plan.name === 'Free' ? 'default' : 'lg'}
                     disabled={plan.disabled || (loading !== null)}
-                    onClick={() => plan.billingCycle && handlePayment(plan.billingCycle)}
+                    onClick={() => {
+                      if (plan.onClick) {
+                        plan.onClick();
+                      } else if (plan.billingCycle) {
+                        handlePayment(plan.billingCycle);
+                      }
+                    }}
                   >
                     {loading === plan.billingCycle ? (
                       <div className="flex items-center gap-2">
