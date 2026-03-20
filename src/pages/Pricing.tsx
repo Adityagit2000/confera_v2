@@ -59,7 +59,7 @@ const Pricing = () => {
         amount: orderData.amount,
         currency: 'INR',
         name: 'Confera',
-        description: `Pro Plan - ${billingCycle === 'monthly' ? '₹499/month' : '₹3999/year'}`,
+        description: `Pro Plan - ${billingCycle === 'monthly' ? '₹799/month' : '₹4999/year'}`,
         order_id: orderData.orderId,
         prefill: {
           email: user.email,
@@ -139,13 +139,16 @@ const Pricing = () => {
     },
     {
       name: 'Pro Monthly',
-      price: '₹499',
+      price: '₹799',
+      originalPrice: '₹1,999',
+      discount: '60% OFF',
       interval: '/month',
       description: 'For serious candidates',
       features: [
         'Unlimited mock interviews',
         'Unlimited resume analysis',
-        'All 200+ Specialized Roles',
+        'All 200+ Job-Specific Roles',
+        'Universal Technical/Behavioral Modules',
         'Priority AI responses',
         'Download PDF reports'
       ],
@@ -156,9 +159,10 @@ const Pricing = () => {
     },
     {
       name: 'Pro Yearly',
-      price: '₹3999',
+      price: '₹4,999',
+      originalPrice: '₹19,999',
       interval: '/year',
-      badge: 'Best Value (Save 33%)',
+      badge: 'Massive Savings (Save 75%)',
       description: 'Long-term career success',
       features: [
         'All Pro Monthly features',
@@ -216,9 +220,23 @@ const Pricing = () => {
                     {plan.name === 'Free' ? <Zap className="w-5 h-5 text-muted-foreground" /> : plan.highlight ? <Crown className="w-5 h-5 text-primary" /> : <Star className="w-5 h-5 text-secondary" />}
                     <CardTitle className="text-2xl">{plan.name}</CardTitle>
                   </div>
-                  <div className="flex items-baseline gap-1 mt-2">
-                    <span className="text-4xl font-extrabold">{plan.price}</span>
-                    <span className="text-muted-foreground">{plan.interval}</span>
+                  <div className="flex flex-col justify-center min-h-[100px] mt-2">
+                    {plan.originalPrice && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm md:text-base text-muted-foreground/60 line-through decoration-muted-foreground/40">
+                          {plan.originalPrice}
+                        </span>
+                        {plan.discount && (
+                          <span className="text-[10px] font-bold bg-success/10 text-success px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                            {plan.discount}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-4xl md:text-5xl font-extrabold tracking-tight">{plan.price}</span>
+                      <span className="text-muted-foreground font-medium">{plan.interval}</span>
+                    </div>
                   </div>
                   <CardDescription className="mt-4">{plan.description}</CardDescription>
                 </CardHeader>

@@ -52,11 +52,11 @@ export const UpgradeModal = ({
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                <span>PDF Reports</span>
+                <span>200+ Job Roles</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                <span>McKinsey Score</span>
+                <span>Technical & Behavioral</span>
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary" />
@@ -70,7 +70,7 @@ export const UpgradeModal = ({
             Maybe later
           </Button>
           <Button onClick={() => navigate('/pricing')} className="sm:flex-1 bg-primary hover:bg-primary-glow font-bold shadow-glow">
-            Get Pro - ₹499/mo
+            Get Pro - ₹799/mo
           </Button>
         </DialogFooter>
       </DialogContent>

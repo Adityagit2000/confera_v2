@@ -33,8 +33,8 @@ Deno.serve(async (req) => {
     }
 
     const amounts: Record<string, number> = {
-      pro_monthly: 49900,  // ₹499 in paise
-      pro_yearly: 399900   // ₹3999 in paise
+      pro_monthly: 79900,  // ₹799 in paise
+      pro_yearly: 499900   // ₹4,999 in paise
     };
 
     const amountKey = `${plan}_${billingCycle}`;
