@@ -333,6 +333,8 @@ const InterviewSession = () => {
         return;
       }
 
+      setSession(data);
+
       let parsedTranscript = [];
       try {
         parsedTranscript = typeof data.transcript === 'string' 
