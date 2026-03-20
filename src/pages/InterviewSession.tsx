@@ -128,6 +128,12 @@ const InterviewSession = () => {
     }
   }, [loading, messages.length]);
 
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
+
+  useEffect(() => {
+    if (isIOS) setVoiceAvailable(false)
+  }, [])
+
   const completeStep = (step: number) => {
     if (onboardingStep === step) {
       if (step === 3) {
@@ -521,7 +527,28 @@ const InterviewSession = () => {
       if (import.meta.env.DEV) console.error('Error generating feedback:', error);
     }
     
-    setTimeout(() => { navigate(`/report/${sessionId}`); }, 3000);
+    let attempts = 0
+    const maxAttempts = 15
+    const poll = async () => {
+      attempts++
+      const { data, error } = await supabase
+        .from('feedback_reports')
+        .select('id')
+        .eq('session_id', sessionId)
+        .single()
+      if (data && !error) {
+        navigate(`/report/${sessionId}`)
+        return
+      }
+      if (attempts >= maxAttempts) {
+        setShowCompletion(false)
+        toast({ title: "Report is taking longer than expected", description: "Check your dashboard in a few minutes.", variant: "destructive" })
+        navigate('/dashboard')
+        return
+      }
+      setTimeout(poll, 2000)
+    }
+    setTimeout(poll, 2000)
   }, [answeredQuestionsCount, sessionId, navigate, toast]);
 
   const formatTime = useCallback((seconds: number) => {
@@ -623,6 +650,11 @@ const InterviewSession = () => {
            </Button>
         </div>
       </header>
+      {!voiceAvailable && (
+        <div className="mx-6 mt-2 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-medium">
+          Voice input unavailable on this browser — type your answers below
+        </div>
+      )}
       
       <div className="px-6 relative z-10">
         <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
@@ -734,6 +766,24 @@ const InterviewSession = () => {
           </div>
           
           <div className="flex flex-col gap-4">
+            {!voiceAvailable && (
+              <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-5 flex gap-4 items-center shadow-lg group focus-within:border-primary/40 transition-all">
+                <div className="flex-1 relative">
+                  <input 
+                    ref={textInputRef}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-base text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" 
+                    placeholder={voiceAvailable ? "Speak to the AI or type your comprehensive response here..." : "Voice unavailable — please type your response here..."}
+                    value={inputMsg} 
+                    onChange={(e) => setInputMsg(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleManualSend(e as any)}
+                  />
+                </div>
+                <Button onClick={(e) => handleManualSend(e as any)} size="lg" className="h-16 px-8 rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all font-black uppercase tracking-tighter">
+                  <Send className="w-6 h-6 mr-3" /> Send
+                </Button>
+              </div>
+            )}
+
             <div className="h-24 flex items-center justify-between px-8 bg-white/[0.03] border border-white/10 rounded-[2.5rem] backdrop-blur-md">
                <div className="flex-1 hidden lg:block">
                   <div className="flex flex-col">
@@ -787,22 +837,23 @@ const InterviewSession = () => {
                </div>
             </div>
 
-            {/* Primary text input */}
-            <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-5 flex gap-4 items-center shadow-lg group focus-within:border-primary/40 transition-all">
-              <div className="flex-1 relative">
-                <input 
-                  ref={textInputRef}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-base text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" 
-                  placeholder={voiceAvailable ? "Speak to the AI or type your comprehensive response here..." : "Voice unavailable — please type your response here..."}
-                  value={inputMsg} 
-                  onChange={(e) => setInputMsg(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleManualSend(e as any)}
-                />
+            {voiceAvailable && (
+              <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-5 flex gap-4 items-center shadow-lg group focus-within:border-primary/40 transition-all">
+                <div className="flex-1 relative">
+                  <input 
+                    ref={textInputRef}
+                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-base text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" 
+                    placeholder={voiceAvailable ? "Speak to the AI or type your comprehensive response here..." : "Voice unavailable — please type your response here..."}
+                    value={inputMsg} 
+                    onChange={(e) => setInputMsg(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleManualSend(e as any)}
+                  />
+                </div>
+                <Button onClick={(e) => handleManualSend(e as any)} size="lg" className="h-16 px-8 rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all font-black uppercase tracking-tighter">
+                  <Send className="w-6 h-6 mr-3" /> Send
+                </Button>
               </div>
-              <Button onClick={(e) => handleManualSend(e as any)} size="lg" className="h-16 px-8 rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all font-black uppercase tracking-tighter">
-                <Send className="w-6 h-6 mr-3" /> Send
-              </Button>
-            </div>
+            )}
           </div>
         </div>
 

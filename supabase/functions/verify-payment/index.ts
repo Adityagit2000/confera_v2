@@ -7,6 +7,16 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  
+  const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey)
+  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(authHeader.replace('Bearer ', ''))
+  if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
   console.log('--- verify-payment: Function called ---');
 
   try {
@@ -19,6 +29,8 @@ Deno.serve(async (req) => {
       billingCycle,
       amount
     } = await req.json();
+
+    if (user.id !== userId) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
     console.log(`Verifying payment - Order: ${razorpay_order_id}, User: ${userId}, Plan: ${plan}`);
 
@@ -58,9 +70,6 @@ Deno.serve(async (req) => {
     console.log('Signature verified successfully. Updating database...');
 
     // Payment is verified - update database
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
     if (!supabaseUrl || !supabaseServiceKey) {
       throw new Error('Supabase configuration missing');
     }

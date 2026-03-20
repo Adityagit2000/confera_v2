@@ -128,7 +128,15 @@ You are a Senior ${interviewType?.toUpperCase() || 'General'} Interviewer. Your 
 3. Keep responses under 3 sentences.
 `;
     
-    let conversationStr = transcript.map((m: any) => `${m.role === 'user' ? 'Candidate' : 'Interviewer'}: ${m.content}`).join('\n');
+    const windowedTranscript = (() => {
+    if (transcript.length <= 2) return transcript
+    const opener = transcript[0]
+    const recent = transcript.slice(-8)
+    const openerAlreadyIncluded = recent.some((m: any) => m.content === opener.content)
+    return openerAlreadyIncluded ? recent : [opener, ...recent]
+  })()
+
+    let conversationStr = windowedTranscript.map((m: any) => `${m.role === 'user' ? 'Candidate' : 'Interviewer'}: ${m.content}`).join('\n');
     
     let evaluationPrompt = `
     Based on the following conversation and the candidate's latest answer, provide the next interviewer response.

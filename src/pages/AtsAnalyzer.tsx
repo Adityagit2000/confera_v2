@@ -356,11 +356,19 @@ const AtsAnalyzer = () => {
                 <RefreshCcw className="w-4 h-4" /> Analyze New Resume
              </Button>
              {analysis.created_at && (
-                <div className="text-xs text-muted-foreground flex items-center gap-2">
-                  <Calendar size={14} /> Analyzed on {new Date(analysis.created_at).toLocaleDateString()}
-                </div>
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs font-medium">
+                  Showing previous analysis from {analysis.created_at ? new Date(analysis.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'unknown date'}
+                </span>
              )}
           </div>
+
+          <Button
+            variant="outline"
+            className="w-full mb-6 border-primary/30 text-primary hover:bg-primary/10"
+            onClick={() => { setAnalysis(null) }}
+          >
+            ↑ Upload new resume to refresh this analysis
+          </Button>
 
           {/* Section 1: Score Overview */}
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">

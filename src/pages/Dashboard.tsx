@@ -95,22 +95,22 @@ const Dashboard = () => {
         .eq('id', user.id)
         .single();
 
-      const { data: sessions, error: sessionsError } = await supabase
-        .from('interview_sessions')
-        .select(`*, feedback_reports(overall_score)`)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+      const [sessionsResult, resumesResult] = await Promise.all([
+        supabase
+          .from('interview_sessions')
+          .select('*, feedback_reports(overall_score)')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('resumes')
+          .select('ats_score, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+      ])
 
-      if (sessionsError) console.error('Sessions error:', sessionsError);
-
-      const { data: resumes, error: resumesError } = await supabase
-        .from('resumes')
-        .select('ats_score, created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (resumesError) console.error('Resumes error:', resumesError);
+      const { data: sessions, error: sessionsError } = sessionsResult
+      const { data: resumes, error: resumesError } = resumesResult
 
       const totalSessions = sessions?.length || 0;
       const scoresWithData = sessions?.filter(s => s.feedback_reports?.[0]?.overall_score) || [];
@@ -250,6 +250,11 @@ const Dashboard = () => {
     );
   }
 
+  const resetDate = new Date()
+  resetDate.setMonth(resetDate.getMonth() + 1)
+  resetDate.setDate(1)
+  const resetDateLabel = resetDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+
   return (
     <div className="flex min-h-screen bg-background">
       {/* Dark Sidebar Navigation */}
@@ -334,6 +339,16 @@ const Dashboard = () => {
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold text-foreground mb-1">{stats.totalSessions}</div>
                   <p className="text-muted-foreground text-sm font-medium">Total Interviews</p>
+                  {!isPro && (
+                    <div className="mt-2 space-y-0.5">
+                      <p className="text-xs text-muted-foreground">
+                        {profile?.interviews_used_this_month || 0}/2 free used this month
+                      </p>
+                      <p className="text-xs text-muted-foreground/60">
+                        Resets {resetDateLabel}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

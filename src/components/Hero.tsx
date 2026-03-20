@@ -131,18 +131,18 @@ const Hero = ({ onStartFreeInterview, onWatchDemo }: HeroProps) => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 divide-y md:divide-y-0 md:divide-x divide-border/50 text-center">
             <div className="flex flex-col items-center justify-center pt-4 md:pt-0">
               <Users className="h-6 w-6 text-primary mb-2" />
-              <div className="text-3xl font-bold tracking-tight text-foreground">10k+</div>
+              <div className="text-3xl font-bold tracking-tight text-foreground">500+</div>
               <div className="text-sm font-medium text-muted-foreground mt-1">Interviews Practiced</div>
             </div>
             <div className="flex flex-col items-center justify-center pt-4 md:pt-0">
               <Shield className="h-6 w-6 text-success mb-2" />
-              <div className="text-3xl font-bold tracking-tight text-foreground">95%</div>
-              <div className="text-sm font-medium text-muted-foreground mt-1">Offer Success Rate</div>
+              <div className="text-3xl font-bold tracking-tight text-foreground">6</div>
+              <div className="text-sm font-medium text-muted-foreground mt-1">Specialized Interview Tracks</div>
             </div>
             <div className="flex flex-col items-center justify-center pt-4 md:pt-0">
               <Star className="h-6 w-6 text-warning mb-2" />
-              <div className="text-3xl font-bold tracking-tight text-foreground">4.9/5</div>
-              <div className="text-sm font-medium text-muted-foreground mt-1">User Rating</div>
+              <div className="text-3xl font-bold tracking-tight text-foreground">₹799</div>
+              <div className="text-sm font-medium text-muted-foreground mt-1">Pro Plan Per Month</div>
             </div>
           </div>
         </motion.div>

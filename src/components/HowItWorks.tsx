@@ -84,7 +84,7 @@ const HowItWorks = () => {
 
                   {/* Right Side (Content on odds, Empty on evens) */}
                   <div className={`w-full md:w-1/2 sm:pl-24 md:pl-16 ${!isEven ? 'md:text-left' : 'md:hidden'}`}>
-                    {(!isEven || true) && ( // On mobile we always show it here
+                    {(!isEven) && ( // On mobile we always show it here
                       <div className={`glass-card p-8 rounded-2xl hover:border-secondary/50 transition-colors ${isEven ? 'sm:block md:hidden' : ''}`}>
                         <div className="inline-block px-3 py-1 bg-secondary/10 text-secondary border border-secondary/20 text-xs font-medium rounded-full mb-4">
                           {step.highlight}

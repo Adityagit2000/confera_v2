@@ -180,7 +180,19 @@ Deno.serve(async (req) => {
 
     const responseText = await callAI(systemPrompt, userMessage);
     const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const reportData = JSON.parse(cleaned)
+  let reportData: any
+  try {
+    reportData = JSON.parse(cleaned)
+  } catch (parseError) {
+    console.error('generate-feedback: failed to parse AI response, retrying. Raw:', responseText.substring(0, 500))
+    const retryText = await callAI(systemPrompt, userMessage + '\n\nIMPORTANT: Your previous response could not be parsed as JSON. Return ONLY a valid JSON object with no text before or after it, no markdown code fences, no explanation.')
+    const retryCleaned = retryText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    try {
+      reportData = JSON.parse(retryCleaned)
+    } catch (retryError) {
+      throw new Error('AI returned invalid JSON after two attempts. Raw response: ' + responseText.substring(0, 500))
+    }
+  }
 
     await supabase.from('feedback_reports').delete().eq('session_id', sessionId)
 
