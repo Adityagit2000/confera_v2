@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { useVoiceInput } from '@/hooks/useVoiceInput';
+import { useVoiceSynthesis } from '@/hooks/useVoiceSynthesis';
 import { 
   Mic, 
   MicOff, 
@@ -56,11 +58,31 @@ const InterviewSession = () => {
   const { isPro, canStartInterview, profile } = useSubscription();
   
   // Voice engine state
-  const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [autoSend, setAutoSend] = useState(true);
-  const [voiceAvailable, setVoiceAvailable] = useState(true);
+  
+  const voiceSynth = useVoiceSynthesis();
+
+  const voiceInput = useVoiceInput({
+    onTranscript: (text, isFinal) => {
+      setLiveTranscript(isFinal ? '' : text);
+      if (isFinal) {
+        setInputMsg(prev => prev + text);
+        if (autoSend) {
+          handleSendVoiceMessage(inputMsg + text);
+        }
+      }
+    },
+    onError: (error) => {
+      toast({ title: "Microphone issue", description: error, variant: "destructive" });
+    },
+    autoSend,
+    silenceDelay: 2000,
+  });
+
+  const isListening = voiceInput.isListening;
+  const voiceAvailable = voiceInput.mode !== 'text-only';
   const [cameraAvailable, setCameraAvailable] = useState(true);
   
   // Chat state
@@ -76,13 +98,11 @@ const InterviewSession = () => {
   
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>(localStorage.getItem('confera_voice') || '');
-  const [recognitionRetryCount, setRecognitionRetryCount] = useState(0);
+  const recognitionRetryCount = 0; // Keeping for reference if needed, but likely unused now
 
-  const recognitionRef = useRef<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const candidateVideoRef = useRef<HTMLVideoElement>(null);
-  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const shouldContinueListening = useRef(false);
+  const shouldContinueListeningRef = useRef(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
   // Voice engine initialization
@@ -125,11 +145,6 @@ const InterviewSession = () => {
     }
   }, [loading, messages.length]);
 
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
-
-  useEffect(() => {
-    if (isIOS) setVoiceAvailable(false)
-  }, [])
 
   const completeStep = (step: number) => {
     if (onboardingStep === step) {
@@ -142,135 +157,19 @@ const InterviewSession = () => {
     }
   };
 
-  // Initialize Speech Recognition
-  useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-        setIsListening(true);
-        if (import.meta.env.DEV) console.log('Speech recognition started');
-      };
-
-      recognition.onresult = (event: any) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
-        
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript;
-          } else {
-            interimTranscript += transcript;
-          }
-        }
-        
-        setLiveTranscript(interimTranscript || finalTranscript);
-        if (finalTranscript) {
-          setInputMsg(prev => prev + finalTranscript);
-          
-          if (autoSend) {
-            if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = setTimeout(() => {
-              handleSendVoiceMessage(inputMsg + finalTranscript);
-            }, 2000);
-          }
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-        if (shouldContinueListening.current) {
-          try {
-            // Safety check: ensure we're not already listening or speaking
-            if (!recognitionRef.current.listening && !window.speechSynthesis.speaking) {
-              recognition.start();
-            }
-          } catch (e) {
-            if (import.meta.env.DEV) console.error('Failed to restart recognition:', e);
-            shouldContinueListening.current = false;
-          }
-        }
-      };
-
-      recognition.onnomatch = () => {
-        if (import.meta.env.DEV) console.log('No speech match found');
-        speak("I didn't catch that, could you repeat?");
-      };
-
-      recognition.onerror = (event: any) => {
-        if (import.meta.env.DEV) console.error('Speech recognition error:', event.error);
-        
-        // Stop the loop on specific errors
-        if (event.error === 'network' || event.error === 'not-allowed') {
-          shouldContinueListening.current = false;
-          setIsListening(false);
-          
-          if (event.error === 'network') {
-             if (recognitionRetryCount < 2) {
-               setRecognitionRetryCount(prev => prev + 1);
-               setTimeout(() => {
-                 if (shouldContinueListening.current) {
-                   try { recognition.start(); } catch(e) {}
-                 }
-               }, 1000);
-               return;
-             }
-             setVoiceAvailable(false);
-             toast({ 
-               title: "Voice Unavailable", 
-               description: "Network issues detected. Please type your answers.",
-               variant: "destructive"
-             });
-          } else {
-             toast({ 
-               title: "Microphone Blocked", 
-               description: "Please allow microphone access or type your answers.",
-               variant: "destructive"
-             });
-          }
-          
-          // Auto focus text input
-          setTimeout(() => textInputRef.current?.focus(), 100);
-          return;
-        }
-
-        if (event.error === 'no-speech') return;
-        
-        setIsListening(false);
-        toast({
-          title: "Microphone issue",
-          description: "Speech recognition error. Please try typing.",
-          variant: "destructive"
-        });
-      };
-
-      recognitionRef.current = recognition;
-    }
-
-    return () => {
-      shouldContinueListening.current = false;
-      if (recognitionRef.current) recognitionRef.current.stop();
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      window.speechSynthesis.cancel();
-    };
-  }, [autoSend, toast]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
-      window.speechSynthesis.cancel()
-    }
-    window.addEventListener('beforeunload', handleBeforeUnload)
+      voiceSynth.cancel();
+      voiceInput.cleanup();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-    }
-  }, [])
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      voiceInput.cleanup();
+      voiceSynth.cancel();
+    };
+  }, [voiceInput, voiceSynth]);
 
   useEffect(() => {
     return () => {
@@ -383,31 +282,23 @@ const InterviewSession = () => {
   }, [sessionId, supabase]);
 
   const speak = useCallback((text: string) => {
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Premium Voice Selection
-    const voice = availableVoices.find(v => v.name === selectedVoiceName);
-    if (voice) {
-      utterance.voice = voice;
-    }
-    
-    utterance.rate = 0.95; // Human-like speed
-    utterance.pitch = 1.0;
-
-    utterance.onstart = () => { 
-        setIsSpeaking(true); 
-        if (recognitionRef.current) recognitionRef.current.stop(); 
-    };
-    utterance.onend = () => { 
-        setIsSpeaking(false); 
-        if (shouldContinueListening.current && recognitionRef.current) {
-            try { recognitionRef.current.start(); } catch(e) {}
+    // We don't have setCurrentSpokenText here but let's assume it might be needed or was in the instructions
+    // For now, let's stick to what's available and what the instructions said
+    voiceSynth.speak(
+      text,
+      selectedVoiceName,
+      () => {
+        setIsSpeaking(true);
+        if (voiceInput.isListening) voiceInput.stopListening();
+      },
+      () => {
+        setIsSpeaking(false);
+        if (shouldContinueListeningRef.current) {
+          voiceInput.startListening();
         }
-    };
-    window.speechSynthesis.speak(utterance);
-  }, [availableVoices, selectedVoiceName]);
+      }
+    );
+  }, [voiceSynth, selectedVoiceName, voiceInput]);
 
   const startInterviewFlow = useCallback(async (sessionData: any) => {
     if (!canStartInterview) {
@@ -446,8 +337,6 @@ const InterviewSession = () => {
 
   const handleSendVoiceMessage = useCallback(async (transcript: string) => {
     if (!transcript.trim() || isThinking || isSpeaking) return;
-    
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     
     const userMsg = transcript.trim();
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
@@ -496,31 +385,21 @@ const InterviewSession = () => {
   }, [inputMsg, handleSendVoiceMessage]);
 
   const toggleMic = useCallback(async () => {
-    if (isListening) {
-      shouldContinueListening.current = false;
-      recognitionRef.current?.stop();
-      setIsListening(false);
+    if (voiceInput.isListening) {
+      shouldContinueListeningRef.current = false;
+      voiceInput.stopListening();
     } else {
-      try {
-        // Explicitly request microphone access first
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Stop the tracks immediately after permission check (recognition will use its own)
-        stream.getTracks().forEach(track => track.stop());
-        
-        setIsListening(true);
-        shouldContinueListening.current = true;
-        recognitionRef.current?.start();
-      } catch (e: any) {
-        console.error('Microphone access denied:', e);
+      shouldContinueListeningRef.current = true;
+      const started = await voiceInput.startListening();
+      if (!started) {
         toast({
           title: "Microphone access denied",
-          description: "Microphone access denied by browser.",
+          description: "Please allow microphone access in your browser settings.",
           variant: "destructive"
         });
-        setIsListening(false);
       }
     }
-  }, [isListening, toast]);
+  }, [voiceInput, toast]);
 
   const endInterview = useCallback(async () => {
     if (answeredQuestionsCount === 0) {
@@ -539,9 +418,8 @@ const InterviewSession = () => {
       if (!confirmed) return;
     }
 
-    window.speechSynthesis.cancel();
-    if (recognitionRef.current) recognitionRef.current.stop();
-    setIsListening(false);
+    voiceSynth.cancel();
+    voiceInput.stopListening();
     setShowCompletion(true);
     
     try {
@@ -673,9 +551,11 @@ const InterviewSession = () => {
            </Button>
         </div>
       </header>
-      {!voiceAvailable && (
-        <div className="mx-6 mt-2 px-4 py-3 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-sm font-medium">
-          Voice input unavailable on this browser — type your answers below
+      {voiceInput.isIOS && (
+        <div className="mx-6 mt-2 px-4 py-3 rounded-xl bg-blue-500/10 
+        border border-blue-500/30 text-blue-400 text-sm font-medium">
+          Using Whisper AI transcription for iOS — speak naturally, 
+          answers are sent every 6 seconds
         </div>
       )}
       
@@ -728,15 +608,6 @@ const InterviewSession = () => {
               )}
             </AnimatePresence>
 
-            <AnimatePresence>
-              {!voiceAvailable && (
-                <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="absolute top-8 left-1/2 -translate-x-1/2 z-30 bg-destructive/20 border border-destructive/30 px-6 py-2 rounded-full backdrop-blur-xl">
-                  <p className="text-[10px] font-bold tracking-widest uppercase text-white shadow-sm flex items-center gap-2">
-                    <AlertCircle className="w-3 h-3" /> Voice Unavailable on this network • Please type your answer
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             <div className="absolute top-8 right-8 w-44 h-56 bg-black rounded-[2rem] overflow-hidden border-2 border-white/10 shadow-2xl z-20 group/candidate">
               <video
@@ -769,24 +640,6 @@ const InterviewSession = () => {
           </div>
           
           <div className="flex flex-col gap-4">
-            {!voiceAvailable && (
-              <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-5 flex gap-4 items-center shadow-lg group focus-within:border-primary/40 transition-all">
-                <div className="flex-1 relative">
-                  <input 
-                    ref={textInputRef}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-base text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" 
-                    placeholder={voiceAvailable ? "Speak to the AI or type your comprehensive response here..." : "Voice unavailable — please type your response here..."}
-                    value={inputMsg} 
-                    onChange={(e) => setInputMsg(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleManualSend(e as any)}
-                  />
-                </div>
-                <Button onClick={(e) => handleManualSend(e as any)} size="lg" className="h-16 px-8 rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all font-black uppercase tracking-tighter">
-                  <Send className="w-6 h-6 mr-3" /> Send
-                </Button>
-              </div>
-            )}
-
             <div className="h-24 flex items-center justify-between px-8 bg-white/[0.03] border border-white/10 rounded-[2.5rem] backdrop-blur-md">
                <div className="flex-1 hidden lg:block">
                   <div className="flex flex-col">
@@ -840,23 +693,21 @@ const InterviewSession = () => {
                </div>
             </div>
 
-            {voiceAvailable && (
-              <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-5 flex gap-4 items-center shadow-lg group focus-within:border-primary/40 transition-all">
-                <div className="flex-1 relative">
-                  <input 
-                    ref={textInputRef}
-                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-base text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" 
-                    placeholder={voiceAvailable ? "Speak to the AI or type your comprehensive response here..." : "Voice unavailable — please type your response here..."}
-                    value={inputMsg} 
-                    onChange={(e) => setInputMsg(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleManualSend(e as any)}
-                  />
-                </div>
-                <Button onClick={(e) => handleManualSend(e as any)} size="lg" className="h-16 px-8 rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all font-black uppercase tracking-tighter">
-                  <Send className="w-6 h-6 mr-3" /> Send
-                </Button>
+            <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-5 flex gap-4 items-center shadow-lg group focus-within:border-primary/40 transition-all">
+              <div className="flex-1 relative">
+                <input 
+                  ref={textInputRef}
+                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-base text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" 
+                  placeholder="Speak to the AI or type your comprehensive response here..."
+                  value={inputMsg} 
+                  onChange={(e) => setInputMsg(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleManualSend(e as any)}
+                />
               </div>
-            )}
+              <Button onClick={(e) => handleManualSend(e as any)} size="lg" className="h-16 px-8 rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all font-black uppercase tracking-tighter">
+                <Send className="w-6 h-6 mr-3" /> Send
+              </Button>
+            </div>
           </div>
         </div>
 
