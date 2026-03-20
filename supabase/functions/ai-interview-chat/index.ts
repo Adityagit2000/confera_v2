@@ -104,9 +104,15 @@ Deno.serve(async (req) => {
 
     // Multi-Track Persona Injection
     const trackLenses: Record<string, string> = {
-      'technical': "Focus on core technical proficiency. Ask about specific technologies mentioned in their resume, implementation details, and theoretical depth (e.g., 'In your project [X], how did you handle [Y] complexity, and what were the trade-offs?').",
-      'behavioral': "Focus on leadership, conflict resolution, and cultural fit. Use the STAR method to probe into their past experiences (e.g., 'Tell me about a time you had a disagreement with a teammate at [Company]. How did you resolve it?').",
-      'scenario': "Focus on problem-solving in hypothetical or complex situations. Ask about scalability, system architecture, or business logic (e.g., 'If your current system at [Company] had to handle 100x the traffic tomorrow, where would it break first and how would you redesign it?')."
+      'technical_core': "Focus on core technical proficiency relevant to the specific job role. Ask about domain-specific knowledge, tools, methodologies, and real-world problem solving for this profession (e.g., for a Civil Engineer ask about structural analysis, for a Data Engineer ask about pipelines and PySpark).",
+      'behavioral_hr': "Focus on leadership, conflict resolution, teamwork, and cultural fit. Use the STAR method to probe into their past experiences and how they handle workplace scenarios relevant to their field.",
+      'scenario_case': "Focus on problem-solving in hypothetical or complex situations relevant to the job role. Ask about how they would approach domain-specific challenges, tradeoffs, and decision-making.",
+      'technical': "Focus on core technical proficiency relevant to the specific job role.",
+      'behavioral': "Focus on leadership, conflict resolution, and cultural fit using the STAR method.",
+      'scenario': "Focus on problem-solving in hypothetical or complex situations.",
+      'dsa': "Focus on data structures, algorithms, and coding problem solving.",
+      'system_design': "Focus on system architecture, scalability, and design tradeoffs.",
+      'hr': "Focus on behavioral questions, cultural fit, and HR screening."
     };
 
     const currentLens = trackLenses[interviewType?.toLowerCase()] || "Focus on their overall fit and technical depth based on their resume.";

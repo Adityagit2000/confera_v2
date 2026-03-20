@@ -52,6 +52,15 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
     setIsDropdownOpen(false);
   };
 
+  const mapInterviewType = (displayType: string): string => {
+    const map: Record<string, string> = {
+      'Technical & Core Skills': 'technical_core',
+      'Behavioral & HR Fit': 'behavioral_hr',
+      'Scenario / Case Study': 'scenario_case'
+    }
+    return map[displayType] || 'technical_core'
+  }
+
   const startInterview = async () => {
     if (!user) return;
     
@@ -74,7 +83,7 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
       
       const payload = {
         user_id: user.id,
-        interview_type: interviewType,
+        type: mapInterviewType(interviewType),
         job_role: finalRole
       };
 

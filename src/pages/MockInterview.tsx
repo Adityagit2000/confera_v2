@@ -28,9 +28,9 @@ const MockInterview = () => {
 
   const getInterviewTypeForRole = (role: string) => {
     const r = role.toLowerCase();
-    if (r.includes('product') || r.includes('manager') || r.includes('hr') || r.includes('behavioral')) return 'behavioral';
-    if (r.includes('architect') || r.includes('system') || r.includes('lead') || r.includes('case') || r.includes('consulting')) return 'scenario';
-    return 'technical';
+    if (r.includes('product') || r.includes('manager') || r.includes('hr') || r.includes('behavioral')) return 'behavioral_hr';
+    if (r.includes('architect') || r.includes('system') || r.includes('lead') || r.includes('case') || r.includes('consulting')) return 'scenario_case';
+    return 'technical_core';
   };
 
   useEffect(() => {
@@ -168,9 +168,9 @@ const MockInterview = () => {
                   <SelectValue placeholder="Select interview type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="technical">Technical & Core Skills</SelectItem>
-                  <SelectItem value="behavioral">Behavioral & HR Fit</SelectItem>
-                  <SelectItem value="scenario">Scenario / Case Study</SelectItem>
+                  <SelectItem value="technical_core">Technical & Core Skills</SelectItem>
+                  <SelectItem value="behavioral_hr">Behavioral & HR Fit</SelectItem>
+                  <SelectItem value="scenario_case">Scenario / Case Study</SelectItem>
                 </SelectContent>
               </Select>
             </div>
