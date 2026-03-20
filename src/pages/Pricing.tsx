@@ -170,23 +170,6 @@ const Pricing = () => {
       buttonVariant: 'default' as const,
       highlight: true,
       billingCycle: 'yearly' as const
-    },
-    {
-      name: 'Enterprise / University',
-      price: 'Custom Pricing',
-      interval: '',
-      description: 'Perfect for Career Cells, Bootcamps, and Corporate HR.',
-      features: [
-        'Bulk student/employee seats',
-        'Admin dashboard & analytics',
-        'Custom interview scenarios',
-        'Whitelabeling options',
-        'Priority 24/7 dedicated support'
-      ],
-      buttonText: 'Contact Sales',
-      buttonVariant: 'outline' as const,
-      highlight: false,
-      contactSales: true
     }
   ];
 
@@ -212,7 +195,7 @@ const Pricing = () => {
           </motion.p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
           {plans.map((plan, index) => (
             <motion.div
               key={plan.name}
