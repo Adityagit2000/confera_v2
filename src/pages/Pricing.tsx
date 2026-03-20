@@ -245,16 +245,10 @@ const Pricing = () => {
                 <CardFooter>
                   <Button 
                     className="w-full" 
-                    variant={plan.name === 'Free' ? 'link' : plan.contactSales ? 'outline' : 'premium'}
+                    variant={plan.name === 'Free' ? 'link' : 'premium'}
                     size={plan.name === 'Free' ? 'default' : 'lg'}
-                    disabled={(plan.disabled && !plan.contactSales) || (loading !== null)}
-                    onClick={() => {
-                      if (plan.contactSales) {
-                        window.location.href = 'mailto:support@confera.ai';
-                      } else if (plan.billingCycle) {
-                        handlePayment(plan.billingCycle);
-                      }
-                    }}
+                    disabled={plan.disabled || (loading !== null)}
+                    onClick={() => plan.billingCycle && handlePayment(plan.billingCycle)}
                   >
                     {loading === plan.billingCycle ? (
                       <div className="flex items-center gap-2">
