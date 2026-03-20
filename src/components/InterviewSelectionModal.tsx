@@ -26,7 +26,7 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [interviewType, setInterviewType] = useState('technical');
+  const [interviewType, setInterviewType] = useState('Technical & Core Skills');
   const [searchTerm, setSearchTerm] = useState('');
   const [jobRole, setJobRole] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -74,9 +74,8 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
       
       const payload = {
         user_id: user.id,
-        interview_type: interviewType as any,
-        job_role: finalRole,
-        status: 'scheduled'
+        interview_type: interviewType,
+        job_role: finalRole
       };
 
       console.log("Submitting payload:", payload);
@@ -184,19 +183,19 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
                   <SelectValue placeholder="Select interview type" />
                 </SelectTrigger>
                 <SelectContent className="bg-card border-border/50 rounded-xl shadow-2xl">
-                  <SelectItem value="technical" className="py-3 focus:bg-primary/10 cursor-pointer">
+                  <SelectItem value="Technical & Core Skills" className="py-3 focus:bg-primary/10 cursor-pointer">
                     <div className="flex flex-col">
                       <span className="font-bold">Technical & Core Skills</span>
                       <span className="text-[10px] text-muted-foreground">Hard skills, language depth, and problem-solving</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="behavioral" className="py-3 focus:bg-primary/10 cursor-pointer">
+                  <SelectItem value="Behavioral & HR Fit" className="py-3 focus:bg-primary/10 cursor-pointer">
                     <div className="flex flex-col">
                       <span className="font-bold">Behavioral & HR Fit</span>
                       <span className="text-[10px] text-muted-foreground">Leadership, teamwork, and cultural alignment</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="scenario" className="py-3 focus:bg-primary/10 cursor-pointer">
+                  <SelectItem value="Scenario / Case Study" className="py-3 focus:bg-primary/10 cursor-pointer">
                     <div className="flex flex-col">
                       <span className="font-bold">Scenario / Case Study</span>
                       <span className="text-[10px] text-muted-foreground">Strategic thinking, case analysis, and architecture</span>

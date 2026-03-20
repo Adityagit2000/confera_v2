@@ -62,7 +62,7 @@ const AtsAnalyzer = () => {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [analysis, setAnalysis] = useState<AtsAnalysis | null>(null);
-  const [analysisId, setAnalysisId] = useState<string | null>(null);
+  const [resumeId, setResumeId] = useState<string | null>(null);
   const [jobRole, setJobRole] = useState(() => {
     return localStorage.getItem('last_target_role') || 'Software Engineer';
   });
@@ -80,7 +80,7 @@ const AtsAnalyzer = () => {
     } else {
       setInitialLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, resumeId]);
 
   const fetchExistingAnalysis = async () => {
     try {
@@ -119,7 +119,7 @@ const AtsAnalyzer = () => {
           improvement_roadmap: parsed_data?.improvement_roadmap || [],
           created_at: result.created_at
         });
-        setAnalysisId(result.id);
+        setResumeId(result.id);
       }
     } catch (error) {
       console.error('Error fetching analysis:', error);
@@ -197,7 +197,7 @@ const AtsAnalyzer = () => {
           improvement_roadmap: data.parsed_data.improvement_roadmap || [],
           created_at: new Date().toISOString()
         });
-        setAnalysisId(user.id);
+        setResumeId(data.id || user.id); // Prefer data.id if available, fallback to user.id if just marking existence
       } else {
         // Fallback: refetch after delay
         console.log('Parsed data missing from response, refetching...');

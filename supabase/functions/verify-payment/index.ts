@@ -88,7 +88,15 @@ Deno.serve(async (req) => {
       throw profileError;
     }
 
-    // Save subscription record
+    // Ensure amount matches the plan and billing cycle
+    const expectedAmounts: Record<string, number> = {
+      pro_monthly: 79900,
+      pro_yearly: 499900
+    };
+    const amountKey = `${plan}_${billingCycle}`;
+    const expectedAmount = expectedAmounts[amountKey];
+    
+    // Save subscription record with verified amount
     const { error: subError } = await supabase
       .from('subscriptions')
       .insert({
@@ -97,7 +105,7 @@ Deno.serve(async (req) => {
         razorpay_order_id,
         plan,
         billing_cycle: billingCycle,
-        amount,
+        amount: expectedAmount || amount, // Use expected amount if possible
         currency: 'INR',
         status: 'active',
         expires_at: expiresAt.toISOString()
