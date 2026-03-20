@@ -36,7 +36,7 @@ export function useSubscription() {
     (profile?.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false);
 
   const canStartInterview = isPro || (profile?.interviews_used_this_month || 0) < 2;
-  const canAnalyzeResume = isPro || (profile?.resume_analyses_used_this_month || 0) < 1;
+  const canAnalyzeResume = isPro || (profile?.resume_analyses_used_this_month || 0) < 2;
 
   return { 
     isPro, 

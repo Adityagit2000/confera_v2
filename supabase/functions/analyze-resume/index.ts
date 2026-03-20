@@ -57,11 +57,11 @@ Deno.serve(async (req) => {
     const isPro = profile.plan === 'pro' && 
       (profile.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false)
     
-    if (!isPro && (profile.resume_analyses_used_this_month || 0) >= 1) {
+    if (!isPro && (profile.resume_analyses_used_this_month || 0) >= 2) {
       return new Response(JSON.stringify({ 
         success: false,
         error: 'Resume analysis limit reached', 
-        details: 'You have used your 1 free resume analysis for this month. Upgrade to Pro for unlimited access.' 
+        details: 'You have used your 2 free resume analyses for this month. Upgrade to Pro for unlimited access.' 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 403,

@@ -124,13 +124,12 @@ const Pricing = () => {
       description: 'Perfect for getting started',
       features: [
         '2 mock interviews per month',
-        '1 resume analysis per month',
+        '2 resume analysis per month',
         'Basic feedback report',
         'No credit card required'
       ],
       notIncluded: [
         'Unlimited interviews',
-        'Detailed McKinsey score',
         'Priority AI responses',
         'Download PDF reports'
       ],
@@ -146,8 +145,7 @@ const Pricing = () => {
       features: [
         'Unlimited mock interviews',
         'Unlimited resume analysis',
-        'Detailed McKinsey readiness score',
-        'All 6 interview types',
+        'All 200+ Specialized Roles',
         'Priority AI responses',
         'Download PDF reports'
       ],
@@ -172,6 +170,23 @@ const Pricing = () => {
       buttonVariant: 'default' as const,
       highlight: true,
       billingCycle: 'yearly' as const
+    },
+    {
+      name: 'Enterprise / University',
+      price: 'Custom Pricing',
+      interval: '',
+      description: 'Perfect for Career Cells, Bootcamps, and Corporate HR.',
+      features: [
+        'Bulk student/employee seats',
+        'Admin dashboard & analytics',
+        'Custom interview scenarios',
+        'Whitelabeling options',
+        'Priority 24/7 dedicated support'
+      ],
+      buttonText: 'Contact Sales',
+      buttonVariant: 'outline' as const,
+      highlight: false,
+      contactSales: true
     }
   ];
 
@@ -197,7 +212,7 @@ const Pricing = () => {
           </motion.p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
           {plans.map((plan, index) => (
             <motion.div
               key={plan.name}
@@ -247,10 +262,16 @@ const Pricing = () => {
                 <CardFooter>
                   <Button 
                     className="w-full" 
-                    variant={plan.name === 'Free' ? 'link' : 'premium'}
+                    variant={plan.name === 'Free' ? 'link' : plan.contactSales ? 'outline' : 'premium'}
                     size={plan.name === 'Free' ? 'default' : 'lg'}
-                    disabled={plan.disabled || (loading !== null)}
-                    onClick={() => plan.billingCycle && handlePayment(plan.billingCycle)}
+                    disabled={(plan.disabled && !plan.contactSales) || (loading !== null)}
+                    onClick={() => {
+                      if (plan.contactSales) {
+                        window.location.href = 'mailto:support@confera.ai';
+                      } else if (plan.billingCycle) {
+                        handlePayment(plan.billingCycle);
+                      }
+                    }}
                   >
                     {loading === plan.billingCycle ? (
                       <div className="flex items-center gap-2">
@@ -285,12 +306,11 @@ const Pricing = () => {
               <tbody className="divide-y divide-border/30">
                 {[
                   { name: 'Mock Interviews', free: '2 / month', pro: 'Unlimited' },
-                  { name: 'Resume Analysis', free: '1 / month', pro: 'Unlimited' },
-                  { name: 'McKinsey Readiness Score', free: <X className="w-5 h-5 mx-auto text-destructive/40" />, pro: <Check className="w-5 h-5 mx-auto text-success" /> },
+                  { name: 'Resume Analysis', free: '2 / month', pro: 'Unlimited' },
+                  { name: 'Job-Specific Roles', free: 'Basic Roles', pro: '200+ Specialized Roles' },
                   { name: 'Advanced AI Career Advice', free: <X className="w-5 h-5 mx-auto text-destructive/40" />, pro: <Check className="w-5 h-5 mx-auto text-success" /> },
                   { name: 'PDF Reports Download', free: <X className="w-5 h-5 mx-auto text-destructive/40" />, pro: <Check className="w-5 h-5 mx-auto text-success" /> },
                   { name: 'Priority AI Processing', free: <X className="w-5 h-5 mx-auto text-destructive/40" />, pro: <Check className="w-5 h-5 mx-auto text-success" /> },
-                  { name: 'All Interview Types (6+)', free: 'Basic Types', pro: 'Full Catalog' },
                 ].map((row, i) => (
                   <tr key={i} className="hover:bg-muted/10 transition-colors">
                     <td className="py-5 px-8 text-sm font-medium">{row.name}</td>
