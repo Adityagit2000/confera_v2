@@ -28,6 +28,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
+import AnimatedInterviewer from '@/components/AnimatedInterviewer';
 
 interface Message {
   role: 'system' | 'assistant' | 'user';
@@ -89,22 +90,18 @@ const InterviewSession = () => {
     const updateVoices = () => {
       const voices = window.speechSynthesis.getVoices();
       // Filter for high-quality voices
-      const filtered = voices.filter(v => 
-        (v.name.includes('Google') || 
-         v.name.includes('Natural') || 
-         v.name.includes('Premium') ||
-         v.name.includes('Microsoft') ||
-         v.name.includes('Samantha') ||
-         v.name.includes('Alex')) && v.lang.startsWith('en')
-      );
+      const filtered = voices.filter(v => v.lang.startsWith('en'));
       
       setAvailableVoices(filtered);
       
       if (!selectedVoiceName && filtered.length > 0) {
         // Prefer Google US English Male/Female as defaults
-        const defaultVoice = filtered.find(v => v.name.includes('Google US English Male')) || 
-                             filtered.find(v => v.name.includes('Google US English Female')) || 
-                             filtered[0];
+        const defaultVoice = 
+          filtered.find(v => v.name.includes('Google US English')) ||
+          filtered.find(v => v.name.includes('Microsoft') && v.name.includes('Natural')) ||
+          filtered.find(v => v.name.includes('Samantha')) ||
+          filtered.find(v => !v.localService) ||
+          filtered[0];
         setSelectedVoiceName(defaultVoice.name);
       }
     };
@@ -669,36 +666,16 @@ const InterviewSession = () => {
           <div className="flex-1 relative bg-white/[0.02] rounded-[2.5rem] border border-white/10 flex flex-col items-center justify-center overflow-hidden backdrop-blur-sm">
             
             <div className="relative flex flex-col items-center justify-center">
-              <AnimatePresence>
-                {isSpeaking && (
-                  <motion.div initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: [1, 1.3, 1] }} exit={{ opacity: 0, scale: 0.5 }} transition={{ duration: 2, repeat: Infinity }} className="absolute w-64 h-64 bg-primary/20 rounded-full blur-3xl" />
-                )}
-              </AnimatePresence>
-              
-              <motion.div 
-                className={`w-40 h-40 sm:w-48 sm:h-48 rounded-full flex flex-col items-center justify-center z-10 border-4 transition-all duration-500 ${
-                  isSpeaking 
-                    ? 'bg-primary/20 border-primary shadow-[0_0_80px_rgba(0,212,255,0.4)]' 
-                    : isThinking 
-                      ? 'bg-white/10 border-secondary animate-pulse' 
-                      : 'bg-white/5 border-white/10'
-                }`}
-              >
-                  {isThinking ? (
-                    <div className="relative">
-                      <Loader2 className="w-12 h-12 sm:w-16 sm:h-16 animate-spin text-secondary" />
-                      <div className="absolute inset-0 w-12 h-12 sm:w-16 sm:h-16 border-4 border-secondary/20 rounded-full animate-ping" />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center">
-                      <div className={`text-3xl sm:text-4xl font-black mb-2 px-5 py-1.5 sm:px-6 sm:py-2 rounded-2xl ${isSpeaking ? 'bg-primary text-black' : 'bg-white/10 text-white'}`}>AI</div>
-                      {isSpeaking && <Volume2 className="w-5 h-5 sm:w-6 sm:h-6 text-primary animate-bounce mt-2" />}
-                    </div>
-                  )}
-              </motion.div>
+              <AnimatedInterviewer
+                isSpeaking={isSpeaking}
+                isListening={isListening}
+                isThinking={isThinking}
+              />
               
               <div className="mt-8 text-center space-y-2">
-                <h2 className="text-2xl font-black tracking-tighter uppercase italic opacity-80 italic">AI Interviewer</h2>
+                <h2 className="text-2xl font-black tracking-tighter uppercase opacity-80">
+                  {session?.job_role ? `${session.job_role} Interviewer` : 'AI Interviewer'}
+                </h2>
                 <div className="flex flex-col items-center gap-3 justify-center">
                    <div className="flex items-center gap-3 justify-center">
                      <div className={`w-2.5 h-2.5 rounded-full ${isSpeaking ? 'bg-primary animate-pulse' : isThinking ? 'bg-secondary animate-pulse' : 'bg-success shadow-[0_0_10px_rgba(34,197,94,0.5)]'}`} />
