@@ -258,8 +258,32 @@ const InterviewSession = () => {
       shouldContinueListening.current = false;
       if (recognitionRef.current) recognitionRef.current.stop();
       if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      window.speechSynthesis.cancel();
     };
   }, [autoSend, toast]);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      window.speechSynthesis.cancel()
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      // On unmount, if session is still active, mark as completed
+      if (sessionId && user?.id) {
+        supabase
+          .from('interview_sessions')
+          .update({ status: 'completed' })
+          .eq('id', sessionId)
+          .eq('status', 'active');
+      }
+    }
+  }, [sessionId, user?.id])
 
   // Camera preview initialization logic
   useEffect(() => {

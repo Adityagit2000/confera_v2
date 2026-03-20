@@ -146,12 +146,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    window.speechSynthesis.cancel()
+    
+    // Mark any active sessions as completed before signing out
+    if (user?.id) {
+      await supabase
+        .from('interview_sessions')
+        .update({ status: 'completed' })
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+    }
+
     await supabase.auth.signOut();
     toast({
       title: "Signed out",
       description: "You have been successfully signed out.",
     });
-    // Force a full reload and redirect to landing page
     window.location.href = '/';
   };
 

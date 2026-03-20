@@ -63,6 +63,9 @@ const Dashboard = () => {
     if (user) {
       fetchDashboardData();
       
+      // Silently clean up any stale active sessions on the backend
+      supabase.functions.invoke('cleanup-stale-sessions').catch(() => {})
+      
       // Show welcome toast once per session
       const hasWelcomed = sessionStorage.getItem('confera_welcomed');
       if (!hasWelcomed) {
@@ -122,7 +125,12 @@ const Dashboard = () => {
       const processedSessions = sessions?.map(session => {
         const isOld = new Date().getTime() - new Date(session.created_at).getTime() > 24 * 60 * 60 * 1000;
         if (session.status === 'active' && isOld) {
-          return { ...session, status: 'incomplete' };
+          // Also update the DB so it doesn't keep showing as active
+          supabase
+            .from('interview_sessions')
+            .update({ status: 'completed' })
+            .eq('id', session.id);
+          return { ...session, status: 'completed' };
         }
         return session;
       }) || [];
@@ -468,8 +476,11 @@ const Dashboard = () => {
                         key={session.id} 
                         className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted/10 transition-colors cursor-pointer"
                         onClick={() => {
-                          if (session.status === 'scheduled') window.location.href = `/interview/${session.id}`;
-                          else if (session.status === 'completed') window.location.href = `/report/${session.id}`;
+                          if (session.status === 'scheduled' || session.status === 'active') {
+                            window.location.href = `/interview/${session.id}`;
+                          } else {
+                            window.location.href = `/report/${session.id}`;
+                          }
                         }}
                       >
                         <div className="col-span-12 sm:col-span-5 flex items-center gap-3">
@@ -490,19 +501,7 @@ const Dashboard = () => {
                           </span>
                         </div>
                         <div className="col-span-6 sm:col-span-2 text-right">
-                          {session.status === 'completed' ? (
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
-                              className="text-primary hover:bg-primary/10 px-3 border border-primary/20"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                window.location.href = `/report/${session.id}`;
-                              }}
-                            >
-                              View Report
-                            </Button>
-                          ) : session.status === 'scheduled' || session.status === 'active' ? (
+                          {session.status === 'scheduled' || session.status === 'active' ? (
                             <Button 
                               size="sm" 
                               className="bg-primary hover:bg-primary-glow text-white px-3 shadow-glow"
@@ -514,7 +513,17 @@ const Dashboard = () => {
                               Continue <Play className="w-3 h-3 ml-1 fill-current" />
                             </Button>
                           ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="text-primary hover:bg-primary/10 px-3 border border-primary/20"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.location.href = `/report/${session.id}`;
+                              }}
+                            >
+                              View Report
+                            </Button>
                           )}
                         </div>
                       </div>
