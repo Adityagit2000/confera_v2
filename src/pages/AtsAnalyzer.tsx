@@ -80,7 +80,7 @@ const AtsAnalyzer = () => {
     } else {
       setInitialLoading(false);
     }
-  }, [user]);
+  }, [user?.id]);
 
   const fetchExistingAnalysis = async () => {
     try {

@@ -59,10 +59,11 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
     const exactMatch = JOB_ROLES.find(r => r.toLowerCase() === searchTerm.trim().toLowerCase());
     const finalRole = exactMatch || jobRole || searchTerm.trim();
     
-    if (!finalRole) {
+    // Strict validation check
+    if (!finalRole || !interviewType) {
       toast({
-        title: "Role Required",
-        description: "Please select or enter a job role to proceed.",
+        title: "Selection Required",
+        description: "Please select both a Job Role and Interview Type",
         variant: "destructive"
       });
       return;
@@ -71,14 +72,18 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
     try {
       setLoading(true);
       
+      const payload = {
+        user_id: user.id,
+        interview_type: interviewType as any,
+        job_role: finalRole,
+        status: 'scheduled'
+      };
+
+      console.log("Submitting payload:", payload);
+      
       const { data: sessionData, error: sessionError } = await supabase
         .from('interview_sessions')
-        .insert({
-          user_id: user.id,
-          type: interviewType as any,
-          job_role: finalRole,
-          status: 'scheduled'
-        })
+        .insert(payload)
         .select()
         .single();
 
