@@ -83,9 +83,43 @@ const Dashboard = () => {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+    const name = profile?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'there';
+
+    if (hour >= 5 && hour < 12) {
+      const morningLines = [
+        `Rise and grind`,
+        `Morning energy`,
+        `Early start`,
+        `Good morning`,
+      ];
+      return morningLines[Math.floor(Math.random() * morningLines.length)];
+    }
+    if (hour >= 12 && hour < 17) {
+      const afternoonLines = [
+        `Good afternoon`,
+        `Keep the momentum`,
+        `Afternoon grind`,
+        `Still going strong`,
+      ];
+      return afternoonLines[Math.floor(Math.random() * afternoonLines.length)];
+    }
+    if (hour >= 17 && hour < 21) {
+      const eveningLines = [
+        `Good evening`,
+        `Evening session`,
+        `Winding down or just starting`,
+        `Evening grind`,
+      ];
+      return eveningLines[Math.floor(Math.random() * eveningLines.length)];
+    }
+    // Late night: 9pm to 5am
+    const lateNightLines = [
+      `Burning the midnight oil`,
+      `Late night grind`,
+      `Still at it`,
+      `The night owls win`,
+    ];
+    return lateNightLines[Math.floor(Math.random() * lateNightLines.length)];
   };
 
   const fetchDashboardData = useCallback(async () => {
@@ -123,23 +157,44 @@ const Dashboard = () => {
 
       // Handle session aging (active > 24h = incomplete)
       const processedSessions = sessions?.map(session => {
-        const isOld = new Date().getTime() - new Date(session.created_at).getTime() > 24 * 60 * 60 * 1000;
-        if (session.status === 'active' && isOld) {
-          // Also update the DB so it doesn't keep showing as active
-          supabase
-            .from('interview_sessions')
-            .update({ status: 'completed' })
-            .eq('id', session.id);
+        const ageMinutes = (new Date().getTime() - new Date(session.created_at).getTime()) / 60000;
+        const isStale = session.status === 'active' && ageMinutes > 10;
+        const isVeryStale = session.status === 'active' && ageMinutes > 120;
+
+        if (isVeryStale || isStale) {
+          Promise.resolve(
+            supabase
+              .from('interview_sessions')
+              .update({ status: 'completed' })
+              .eq('id', session.id)
+          ).catch(() => {});
           return { ...session, status: 'completed' };
         }
         return session;
       }) || [];
 
+      // Filter: show active sessions (user can continue) OR
+      // completed sessions that have a feedback report.
+      // Hide ghost sessions — completed with no report and no transcript.
+      const visibleSessions = processedSessions.filter(session => {
+        if (session.status === 'scheduled' || session.status === 'active') {
+          // Only show active sessions that are recent (last 30 mins)
+          // so user can continue them. Older active ones are ghosts.
+          const ageMinutes = (new Date().getTime() - new Date(session.created_at).getTime()) / 60000;
+          return ageMinutes <= 30;
+        }
+        // For completed: show if there's a feedback report attached
+        if (session.status === 'completed') {
+          return session.feedback_reports?.[0]?.overall_score != null;
+        }
+        return false;
+      });
+
       setStats({
         totalSessions,
         avgScore,
         resumeScore: resumes?.[0]?.ats_score || null,
-        recentSessions: processedSessions.slice(0, 5) || []
+        recentSessions: visibleSessions.slice(0, 5)
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -332,9 +387,32 @@ const Dashboard = () => {
         <div className="px-6 py-10 max-w-6xl mx-auto">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
             <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-3">
-              {getGreeting()}, <span className="text-gradient capitalize">{profile?.name || user?.email?.split('@')[0]}</span>
+              {getGreeting()}, <span className="text-gradient capitalize">{profile?.name?.split(' ')[0] || user?.email?.split('@')[0]}</span>
             </h1>
-            <p className="text-muted-foreground text-lg">Here's a breakdown of your interview progress.</p>
+            <p className="text-muted-foreground text-lg">
+              {(() => {
+                const hour = new Date().getHours();
+                const count = stats.totalSessions;
+                const score = stats.avgScore;
+                if (hour >= 22 || hour < 5) {
+                  return count > 0
+                    ? `${count} interviews in — the work you're putting in at this hour is what separates you.`
+                    : `Most people are asleep. You're here. That already puts you ahead.`;
+                }
+                if (hour >= 5 && hour < 12) {
+                  return count > 0
+                    ? `You're off to a strong start. ${score > 0 ? `Averaging ${score}% — let's push that higher.` : `Keep the sessions coming.`}`
+                    : `Fresh start. Today's a good day to run your first mock interview.`;
+                }
+                if (count > 0 && score >= 75) {
+                  return `Strong numbers. ${score}% average across ${count} sessions — you're in the top tier.`;
+                }
+                if (count > 0 && score > 0) {
+                  return `${count} sessions done. There's room to improve — that's exactly why you're here.`;
+                }
+                return `Here's a breakdown of your interview progress.`;
+              })()}
+            </p>
           </motion.div>
 
           {/* Stats Cards with Glow */}
