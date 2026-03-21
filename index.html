@@ -3,27 +3,54 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <!-- Viewport — viewport-fit=cover handles iPhone notch -->
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
+
+  <!-- PWA manifest — the modern replacement for all legacy meta tags -->
+  <link rel="manifest" href="/manifest.json" />
+
+  <!-- Theme color for browser chrome -->
+  <meta name="theme-color" content="#0a0a0f" />
+
+  <!-- iOS Safari specific — keep BOTH for maximum compatibility -->
+  <!-- apple-mobile-web-app-capable is still required by Safari  -->
+  <!-- for splash screens even though Chrome flags it deprecated -->
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Confera" />
+
+  <!-- Prevent iOS from auto-linking phone numbers -->
   <meta name="format-detection" content="telephone=no" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <title>Confera - AI Mock Interview & Interview Prep</title>
-  <meta name="description"
-    content="Master your career with Confera: The best AI Mock Interview platform. Expert Interview Prep, Consulting Interview Prep, Big4, Big3, and Faang Interview Prep. Optimized with ATS Resume Optimizer 2026." />
-  <link rel="canonical" href="https://confera.ai" />
 
-  <meta property="og:title" content="Confera - AI Mock Interview, Interview Prep & ATS Resume Optimizer" />
+  <!-- SEO -->
+  <meta name="description" content="AI-powered mock interview preparation. 
+    Practice with a real-time AI interviewer, get ATS resume analysis, 
+    and land your dream job." />
+  <meta name="robots" content="index, follow" />
+
+  <!-- Open Graph (WhatsApp, LinkedIn previews) -->
   <meta property="og:type" content="website" />
-  <meta property="og:description"
-    content="Ace your FAANG, Big4, and Consulting interviews with our AI-powered practice sessions and ATS resume optimizer." />
-  <!-- <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" /> -->
+  <meta property="og:title" content="Confera — AI Mock Interview Platform" />
+  <meta property="og:description" content="Practice mock interviews with AI. 
+    ATS resume analysis. 200+ job roles. ₹799/month." />
+  <meta property="og:url" content="https://conferav2.vercel.app" />
 
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Confera - AI Mock Interview & Interview Prep" />
-  <meta name="twitter:description"
-    content="Master your interviews with AI-powered practice sessions, resume analysis, and real-time feedback." />
-  <!-- <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" /> -->
+  <!-- Twitter card -->
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Confera — AI Mock Interview" />
+  <meta name="twitter:description" content="AI mock interviews for 
+    placement prep. McKinsey, ZS, TCS and 200+ roles." />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+
+  <title>Confera — AI Mock Interview Platform</title>
 </head>
 
 <body>
