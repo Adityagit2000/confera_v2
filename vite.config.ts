@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   optimizeDeps: {
-    include: ["react", "react-dom", "react-router-dom"],
+    include: ["react", "react-dom", "react-router-dom", "three", "@react-three/fiber", "@react-three/drei"],
   },
   server: {
     host: "::",

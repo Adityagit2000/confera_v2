@@ -31,6 +31,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import AnimatedInterviewer from '@/components/AnimatedInterviewer';
+import { AvatarScene } from '@/components/Avatar3D/AvatarScene';
 
 interface Message {
   role: 'system' | 'assistant' | 'user';
@@ -61,6 +62,7 @@ const InterviewSession = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [autoSend, setAutoSend] = useState(true);
+  const [currentSpokenText, setCurrentSpokenText] = useState('')
   
   const voiceSynth = useVoiceSynthesis();
 
@@ -282,8 +284,7 @@ const InterviewSession = () => {
   }, [sessionId, supabase]);
 
   const speak = useCallback((text: string) => {
-    // We don't have setCurrentSpokenText here but let's assume it might be needed or was in the instructions
-    // For now, let's stick to what's available and what the instructions said
+    setCurrentSpokenText(text)
     voiceSynth.speak(
       text,
       selectedVoiceName,
@@ -569,16 +570,19 @@ const InterviewSession = () => {
         <div className={`flex-1 flex flex-col gap-6 transition-all duration-500 ${isTextChatOpen ? 'md:w-2/3' : 'w-full'}`}>
           <div className="flex-1 relative bg-white/[0.02] rounded-[2.5rem] border border-white/10 flex flex-col items-center justify-center overflow-hidden backdrop-blur-sm">
             
-            <div className="relative flex flex-col items-center justify-center">
-              <AnimatedInterviewer
+            <div className="w-full h-full min-h-[420px] relative flex flex-col items-center justify-center">
+              <AvatarScene
                 isSpeaking={isSpeaking}
                 isListening={isListening}
                 isThinking={isThinking}
+                currentText={currentSpokenText}
               />
               
               <div className="mt-8 text-center space-y-2">
-                <h2 className="text-2xl font-black tracking-tighter uppercase opacity-80">
-                  {session?.job_role ? `${session.job_role} Interviewer` : 'AI Interviewer'}
+                <h2 className="text-xl font-black tracking-tighter uppercase opacity-60">
+                  {session?.job_role
+                    ? `${session.job_role} Interviewer`
+                    : 'AI Interviewer'}
                 </h2>
                 <div className="flex flex-col items-center gap-3 justify-center">
                    <div className="flex items-center gap-3 justify-center">
