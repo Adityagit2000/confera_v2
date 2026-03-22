@@ -384,7 +384,7 @@ const Dashboard = () => {
         </header>
 
         {/* Welcome Banner */}
-        <div className="px-6 py-10 max-w-6xl mx-auto">
+        <div className="px-4 sm:px-6 py-6 sm:py-10 max-w-6xl mx-auto">
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-10">
             <h1 className="text-3xl md:text-5xl font-bold text-foreground mb-3">
               {getGreeting()}, <span className="text-gradient capitalize">{profile?.name?.split(' ')[0] || user?.email?.split('@')[0]}</span>
@@ -511,8 +511,8 @@ const Dashboard = () => {
           </div>
 
           {/* Quick Actions Array */}
-          <div className="flex flex-wrap gap-4 mb-12">
-            <Button variant="premium" size="lg" className="px-8 h-14 text-base shadow-glow hover:scale-[1.02] transition-transform" onClick={() => {
+          <div className="flex flex-col sm:flex-row gap-4 mb-12">
+            <Button variant="premium" size="lg" className="w-full sm:w-auto px-8 h-14 text-base shadow-glow hover:scale-[1.02] transition-transform" onClick={() => {
               if (canStartInterview) setShowInterviewDialog(true);
               else {
                 setUpgradeMessage("You've used all your free interviews this month. Upgrade to Pro for unlimited access.");
@@ -521,7 +521,7 @@ const Dashboard = () => {
             }}>
               <Mic className="w-5 h-5 mr-2" /> Start New Interview
             </Button>
-            <Button variant="outline" size="lg" className="px-8 h-14 text-base glass-card border-border hover:bg-card/80 hover:text-white hover:scale-[1.02] transition-all" onClick={() => {
+            <Button variant="outline" size="lg" className="w-full sm:w-auto px-8 h-14 text-base glass-card border-border hover:bg-card/80 hover:text-white hover:scale-[1.02] transition-all" onClick={() => {
               if (canAnalyzeResume) navigate('/ats');
               else {
                 setUpgradeMessage("You've used your free resume analysis this month. Upgrade to Pro for unlimited analysis.");

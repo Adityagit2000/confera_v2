@@ -178,7 +178,7 @@ const Pricing = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background py-20 px-6 relative">
+    <div className="min-h-screen bg-background py-10 sm:py-20 px-4 sm:px-6 relative">
       <BackButton />
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">

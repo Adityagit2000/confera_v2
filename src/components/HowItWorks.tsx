@@ -50,7 +50,7 @@ const HowItWorks = () => {
         
         <div className="relative">
           {/* Vertical joining line */}
-          <div className="absolute left-8 md:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-primary/50 via-secondary/50 to-transparent -translate-x-1/2 hidden sm:block"></div>
+          <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-primary/50 via-secondary/50 to-transparent -translate-x-1/2 hidden md:block"></div>
           
           <div className="space-y-12 md:space-y-24">
             {steps.map((step, index) => {
@@ -58,24 +58,22 @@ const HowItWorks = () => {
               return (
                 <div key={index} className="relative flex flex-col md:flex-row items-center gap-8 md:gap-0">
                   {/* Left Side (Empty on odds, Content on evens) */}
-                  <div className={`w-full md:w-1/2 ${isEven ? 'md:pr-16 md:text-right' : 'md:hidden'}`}>
-                    {isEven && (
-                      <div className="glass-card p-8 rounded-2xl hover:border-primary/50 transition-colors">
-                        <div className="inline-block px-3 py-1 bg-primary/10 text-primary border border-primary/20 text-xs font-medium rounded-full mb-4">
-                          {step.highlight}
-                        </div>
-                        <h3 className="text-2xl font-semibold text-foreground mb-4">
-                          {step.title}
-                        </h3>
-                        <p className="text-muted-foreground leading-relaxed">
-                          {step.description}
-                        </p>
+                  <div className={`w-full md:w-1/2 ${isEven ? 'md:pr-16 md:text-right' : 'hidden md:block'}`}>
+                    <div className="glass-card p-6 sm:p-8 rounded-2xl hover:border-primary/50 transition-colors">
+                      <div className="inline-block px-3 py-1 bg-primary/10 text-primary border border-primary/20 text-xs font-medium rounded-full mb-4">
+                        {step.highlight}
                       </div>
-                    )}
+                      <h3 className="text-xl sm:text-2xl font-semibold text-foreground mb-4">
+                        {step.title}
+                      </h3>
+                      <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
+                        {step.description}
+                      </p>
+                    </div>
                   </div>
 
                   {/* Center Node */}
-                  <div className="absolute left-8 md:relative md:left-0 w-16 h-16 rounded-full glass-card border-2 border-primary/50 flex items-center justify-center shadow-glow z-10 hidden sm:flex shrink-0">
+                  <div className="w-16 h-16 rounded-full glass-card border-2 border-primary/50 items-center justify-center shadow-glow z-10 hidden md:flex shrink-0">
                     <div className="absolute inset-0 bg-background/50 rounded-full backdrop-blur-md"></div>
                     <div className="relative z-10 font-bold bg-clip-text text-transparent bg-gradient-to-br from-primary to-secondary">
                       {step.step}
@@ -83,20 +81,18 @@ const HowItWorks = () => {
                   </div>
 
                   {/* Right Side (Content on odds, Empty on evens) */}
-                  <div className={`w-full md:w-1/2 sm:pl-24 md:pl-16 ${!isEven ? 'md:text-left' : 'md:hidden'}`}>
-                    {(!isEven) && ( // On mobile we always show it here
-                      <div className={`glass-card p-8 rounded-2xl hover:border-secondary/50 transition-colors ${isEven ? 'sm:block md:hidden' : ''}`}>
-                        <div className="inline-block px-3 py-1 bg-secondary/10 text-secondary border border-secondary/20 text-xs font-medium rounded-full mb-4">
-                          {step.highlight}
-                        </div>
-                        <h3 className="text-2xl font-semibold text-foreground mb-4">
-                          {step.title}
-                        </h3>
-                        <p className="text-muted-foreground leading-relaxed">
-                          {step.description}
-                        </p>
+                  <div className={`w-full md:w-1/2 md:pl-16 ${!isEven ? 'md:text-left' : 'hidden md:block'}`}>
+                    <div className="glass-card p-6 sm:p-8 rounded-2xl hover:border-secondary/50 transition-colors">
+                      <div className="inline-block px-3 py-1 bg-secondary/10 text-secondary border border-secondary/20 text-xs font-medium rounded-full mb-4">
+                        {step.highlight}
                       </div>
-                    )}
+                      <h3 className="text-xl sm:text-2xl font-semibold text-foreground mb-4">
+                        {step.title}
+                      </h3>
+                      <p className="text-muted-foreground leading-relaxed text-sm sm:text-base">
+                        {step.description}
+                      </p>
+                    </div>
                   </div>
                 </div>
               );

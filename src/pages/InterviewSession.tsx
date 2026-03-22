@@ -30,8 +30,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
-import AnimatedInterviewer from '@/components/AnimatedInterviewer';
-import { AvatarScene } from '@/components/Avatar3D/AvatarScene';
+import { AvatarScene } from '@/components/Avatar3D/AvatarScene'
 
 interface Message {
   role: 'system' | 'assistant' | 'user';
@@ -109,30 +108,27 @@ const InterviewSession = () => {
 
   // Voice engine initialization
   useEffect(() => {
-    const updateVoices = () => {
-      const voices = window.speechSynthesis.getVoices();
-      // Filter for high-quality voices
-      const filtered = voices.filter(v => v.lang.startsWith('en'));
-      
-      setAvailableVoices(filtered);
-      
-      if (!selectedVoiceName && filtered.length > 0) {
-        // Prefer Google US English Male/Female as defaults
-        const defaultVoice = 
-          filtered.find(v => v.name.includes('Google US English')) ||
-          filtered.find(v => v.name.includes('Microsoft') && v.name.includes('Natural')) ||
-          filtered.find(v => v.name.includes('Samantha')) ||
-          filtered.find(v => !v.localService) ||
-          filtered[0];
-        setSelectedVoiceName(defaultVoice.name);
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices()
+      const englishVoices = voices.filter(v => v.lang.startsWith('en'))
+      setAvailableVoices(englishVoices)
+      if (!selectedVoiceName && englishVoices.length > 0) {
+        const preferred = 
+          englishVoices.find(v => v.name.includes('Google US English')) ||
+          englishVoices.find(v => v.name.includes('Samantha')) ||
+          englishVoices.find(v => !v.localService) ||
+          englishVoices[0]
+        if (preferred) setSelectedVoiceName(preferred.name)
       }
-    };
-
-    if (window.speechSynthesis.onvoiceschanged !== undefined) {
-      window.speechSynthesis.onvoiceschanged = updateVoices;
     }
-    updateVoices();
-  }, [selectedVoiceName]);
+    
+    loadVoices()
+    window.speechSynthesis.onvoiceschanged = loadVoices
+    
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null
+    }
+  }, [selectedVoiceName])
 
   const handleVoiceChange = (voiceName: string) => {
     setSelectedVoiceName(voiceName);
@@ -284,22 +280,50 @@ const InterviewSession = () => {
   }, [sessionId, supabase]);
 
   const speak = useCallback((text: string) => {
-    setCurrentSpokenText(text)
-    voiceSynth.speak(
-      text,
-      selectedVoiceName,
-      () => {
-        setIsSpeaking(true);
-        if (voiceInput.isListening) voiceInput.stopListening();
-      },
-      () => {
-        setIsSpeaking(false);
-        if (shouldContinueListeningRef.current) {
-          voiceInput.startListening();
-        }
+    if (!window.speechSynthesis) return
+    window.speechSynthesis.cancel()
+    
+    if (typeof setCurrentSpokenText === 'function') {
+      setCurrentSpokenText(text)
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text)
+    
+    const voices = window.speechSynthesis.getVoices()
+    const voice = voices.find(v => v.name === selectedVoiceName)
+      || voices.find(v => v.lang.startsWith('en') && !v.localService)
+      || voices.find(v => v.lang.startsWith('en'))
+      || voices[0]
+
+    if (voice) utterance.voice = voice
+    utterance.rate = 0.92
+    utterance.pitch = 1.0
+    utterance.volume = 1.0
+
+    utterance.onstart = () => {
+      setIsSpeaking(true)
+      shouldContinueListeningRef.current = false
+      voiceInput.stopListening()
+    }
+    utterance.onend = () => {
+      setIsSpeaking(false)
+      if (shouldContinueListeningRef.current) {
+        voiceInput.startListening()
       }
-    );
-  }, [voiceSynth, selectedVoiceName, voiceInput]);
+    }
+    utterance.onerror = (e) => {
+      console.error('SpeechSynthesis error:', e)
+      setIsSpeaking(false)
+    }
+
+    // iOS fix: delay needed for audio session
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    if (isIOS) {
+      setTimeout(() => window.speechSynthesis.speak(utterance), 150)
+    } else {
+      window.speechSynthesis.speak(utterance)
+    }
+  }, [selectedVoiceName, voiceInput])
 
   const startInterviewFlow = useCallback(async (sessionData: any) => {
     if (!canStartInterview) {
@@ -570,38 +594,13 @@ const InterviewSession = () => {
         <div className={`flex-1 flex flex-col gap-6 transition-all duration-500 ${isTextChatOpen ? 'md:w-2/3' : 'w-full'}`}>
           <div className="flex-1 relative bg-white/[0.02] rounded-[2.5rem] border border-white/10 flex flex-col items-center justify-center overflow-hidden backdrop-blur-sm">
             
-            <div className="w-full h-full min-h-[420px] relative flex flex-col items-center justify-center">
+            <div className="w-full h-full min-h-[420px]">
               <AvatarScene
                 isSpeaking={isSpeaking}
                 isListening={isListening}
                 isThinking={isThinking}
                 currentText={currentSpokenText}
               />
-              
-              <div className="mt-8 text-center space-y-2">
-                <h2 className="text-xl font-black tracking-tighter uppercase opacity-60">
-                  {session?.job_role
-                    ? `${session.job_role} Interviewer`
-                    : 'AI Interviewer'}
-                </h2>
-                <div className="flex flex-col items-center gap-3 justify-center">
-                   <div className="flex items-center gap-3 justify-center">
-                     <div className={`w-2.5 h-2.5 rounded-full ${isSpeaking ? 'bg-primary animate-pulse' : isThinking ? 'bg-secondary animate-pulse' : 'bg-success shadow-[0_0_10px_rgba(34,197,94,0.5)]'}`} />
-                     <p className="text-xs font-bold text-white/40 tracking-[0.3em] uppercase">{isSpeaking ? 'Speaking' : isThinking ? 'Thinking' : 'Ready'}</p>
-                   </div>
-                   
-                   {lastFailedMessage && !isThinking && (
-                     <Button 
-                       variant="outline" 
-                       size="sm" 
-                       onClick={() => handleSendVoiceMessage(lastFailedMessage)}
-                       className="mt-4 border-destructive text-destructive hover:bg-destructive/10 animate-fade-in"
-                     >
-                       <RefreshCcw className="w-4 h-4 mr-2" /> Retry Last Message
-                     </Button>
-                   )}
-                </div>
-              </div>
             </div>
 
             <AnimatePresence>
@@ -613,7 +612,7 @@ const InterviewSession = () => {
             </AnimatePresence>
 
 
-            <div className="absolute top-8 right-8 w-44 h-56 bg-black rounded-[2rem] overflow-hidden border-2 border-white/10 shadow-2xl z-20 group/candidate">
+            <div className="absolute top-4 sm:top-8 right-4 sm:right-8 w-28 h-36 sm:w-44 sm:h-56 bg-black rounded-[1.5rem] sm:rounded-[2rem] overflow-hidden border-2 border-white/10 shadow-2xl z-20 group/candidate">
               <video
                 ref={candidateVideoRef}
                 autoPlay
@@ -624,15 +623,15 @@ const InterviewSession = () => {
               
               {!cameraAvailable && (
                 <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center">
-                  <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary/30 shadow-[0_0_30px_rgba(var(--primary-rgb),0.2)]">
-                    <span className="text-3xl font-black text-primary uppercase tracking-tighter">
+                  <div className="w-12 h-12 sm:w-20 sm:h-20 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary/30 shadow-[0_0_30px_rgba(var(--primary-rgb),0.2)]">
+                    <span className="text-xl sm:text-3xl font-black text-primary uppercase tracking-tighter">
                       {profile?.name?.substring(0, 2) || user?.email?.substring(0, 2) || 'C'}
                     </span>
                   </div>
                 </div>
               )}
               
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-2 sm:p-4">
                 <div className="flex flex-col">
                   <p className="text-[10px] font-black tracking-[0.2em] uppercase text-white/90">Candidate</p>
                   <p className="text-[8px] font-bold text-primary/80 uppercase">
@@ -644,7 +643,7 @@ const InterviewSession = () => {
           </div>
           
           <div className="flex flex-col gap-4">
-            <div className="h-24 flex items-center justify-between px-8 bg-white/[0.03] border border-white/10 rounded-[2.5rem] backdrop-blur-md">
+            <div className="h-20 sm:h-24 flex items-center justify-between px-4 sm:px-8 bg-white/[0.03] border border-white/10 rounded-[1.5rem] sm:rounded-[2.5rem] backdrop-blur-md">
                <div className="flex-1 hidden lg:block">
                   <div className="flex flex-col">
                     <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Audio Engine</p>

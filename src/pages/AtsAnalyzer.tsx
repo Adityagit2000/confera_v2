@@ -260,7 +260,7 @@ const AtsAnalyzer = () => {
   const roadmap = resumeData?.improvement_roadmap || rawParsed?.improvement_roadmap || [];
 
   return (
-    <div className="container mx-auto py-12 px-4 max-w-6xl min-h-screen relative dark">
+    <div className="container mx-auto py-6 sm:py-12 px-4 max-w-6xl min-h-screen relative dark">
       <Button
         variant="link"
         onClick={() => navigate('/dashboard')}

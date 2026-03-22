@@ -58,43 +58,42 @@ export function AvatarScene({ isSpeaking, isListening, isThinking, currentText }
   return (
     <div className="w-full h-full relative">
       <Canvas
-        camera={{ position: [0, 0.1, 3.2], fov: 42 }}
-        gl={{
-          antialias: true,
-          alpha: true,
-          toneMapping: THREE.ACESFilmicToneMapping,
-          toneMappingExposure: 1.1,
-        }}
+        camera={{ position: [0, 0.15, 2.8], fov: 38 }}
+        gl={{ antialias: true, alpha: true }}
         shadows
         style={{ background: 'transparent' }}
       >
         <Suspense fallback={null}>
-
-          {/* Three-point studio lighting */}
-          {/* Key light — upper left, warm */}
+          {/* Soft key light — upper left warm */}
           <directionalLight
-            position={[-2.5, 3, 3]}
-            intensity={1.8}
-            color="#fff5e6"
+            position={[-1.8, 2.5, 2.5]}
+            intensity={2.2}
+            color="#fff8f0"
             castShadow
-            shadow-mapSize={[1024, 1024]}
+            shadow-mapSize={[2048, 2048]}
+            shadow-bias={-0.001}
           />
-          {/* Fill light — right, cool */}
+          {/* Cool fill from right */}
           <directionalLight
-            position={[2, 1, 2]}
-            intensity={0.7}
-            color="#d0e8ff"
+            position={[2.2, 0.8, 1.8]}
+            intensity={0.9}
+            color="#c8e0ff"
           />
-          {/* Rim light — behind, blue */}
+          {/* Subtle back rim */}
           <directionalLight
-            position={[0, 2, -3]}
-            intensity={0.5}
-            color="#4488ff"
+            position={[0, 1.5, -2.5]}
+            intensity={0.45}
+            color="#6688cc"
           />
-          {/* Ambient */}
-          <ambientLight intensity={0.35} color="#202030" />
+          {/* Warm under fill — removes harsh shadows under chin */}
+          <pointLight
+            position={[0, -0.8, 1.5]}
+            intensity={0.35}
+            color="#ffddaa"
+          />
+          {/* Soft ambient */}
+          <ambientLight intensity={0.4} color="#1a1a2e" />
 
-          {/* Speaking glow — blue point light on face */}
           {isSpeaking && (
             <pointLight
               position={[0, 0.2, 1.8]}
@@ -103,8 +102,6 @@ export function AvatarScene({ isSpeaking, isListening, isThinking, currentText }
               distance={3}
             />
           )}
-
-          {/* Listening glow — green */}
           {isListening && (
             <pointLight
               position={[0, 0.2, 1.8]}
@@ -140,27 +137,31 @@ export function AvatarScene({ isSpeaking, isListening, isThinking, currentText }
       </Canvas>
 
       {/* Status indicator */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2
-                      flex items-center gap-2 px-4 py-1.5 rounded-full
-                      bg-black/50 backdrop-blur-md border border-white/10
-                      pointer-events-none">
-        <div className={`w-2 h-2 rounded-full transition-all duration-300 ${
-          isSpeaking
-            ? 'bg-blue-400 shadow-[0_0_6px_#60a5fa] animate-pulse'
-            : isListening
+      <div
+        className="absolute bottom-3 left-1/2 -translate-x-1/2
+                   flex items-center gap-2 px-4 py-1.5 rounded-full
+                   bg-black/50 backdrop-blur-md border border-white/10
+                   pointer-events-none"
+      >
+        <div
+          className={`w-2 h-2 rounded-full transition-all duration-300 ${
+            isSpeaking
+              ? 'bg-blue-400 shadow-[0_0_6px_#60a5fa] animate-pulse'
+              : isListening
               ? 'bg-green-400 shadow-[0_0_6px_#4ade80] animate-pulse'
               : isThinking
-                ? 'bg-purple-400 shadow-[0_0_6px_#c084fc] animate-pulse'
-                : 'bg-white/30'
-        }`} />
+              ? 'bg-purple-400 shadow-[0_0_6px_#c084fc] animate-pulse'
+              : 'bg-white/30'
+          }`}
+        />
         <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">
           {isSpeaking
             ? 'Speaking'
             : isListening
-              ? 'Listening'
-              : isThinking
-                ? 'Thinking'
-                : 'Ready'}
+            ? 'Listening'
+            : isThinking
+            ? 'Thinking'
+            : 'Ready'}
         </span>
       </div>
     </div>

@@ -22,7 +22,7 @@ const Header = () => {
           <button onClick={() => navigate('/pricing')} className="text-muted-foreground hover:text-foreground transition-smooth">Pricing</button>
         </nav>
         
-        <div className="flex items-center space-x-6">
+        <div className="flex items-center space-x-2 sm:space-x-6">
           {user ? (
             <>
               <Button variant="link" onClick={() => navigate('/dashboard')}>

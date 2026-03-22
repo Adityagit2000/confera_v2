@@ -10,7 +10,7 @@ interface HeroProps {
 
 const Hero = ({ onStartFreeInterview, onWatchDemo }: HeroProps) => {
   return (
-    <section className="relative pt-32 pb-16 px-6 overflow-hidden">
+    <section className="relative pt-24 sm:pt-32 pb-16 px-6 overflow-hidden">
       {/* Animated Mesh Background */}
       <div className="absolute inset-0 z-0 opacity-40">
         <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-primary/30 blur-[120px] animate-mesh" />
@@ -34,7 +34,7 @@ const Hero = ({ onStartFreeInterview, onWatchDemo }: HeroProps) => {
                 </span>
                 <span className="text-sm font-medium">Confera AI 2.0 is live</span>
               </div>
-              <h1 className="text-5xl lg:text-7xl font-extrabold text-foreground leading-tight tracking-tight">
+              <h1 className="text-4xl sm:text-5xl lg:text-7xl font-extrabold text-foreground leading-tight tracking-tight">
                 Master Your <br />
                 <span className="text-gradient">
                   AI Mock Interview

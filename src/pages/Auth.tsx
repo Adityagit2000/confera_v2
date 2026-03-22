@@ -142,7 +142,7 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#070708] p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-[#070708] px-4 py-8 sm:p-6 relative overflow-hidden">
       <BackButton />
       {/* Background radial glow */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
@@ -328,7 +328,7 @@ const Auth = () => {
                     minLength={6}
                   />
                 </div>
-                <div className="flex items-start space-x-2 py-2">
+                <div className="flex items-center space-x-2 sm:space-x-6 py-2">
                   <Checkbox 
                     id="terms" 
                     checked={consentChecked}
@@ -376,7 +376,7 @@ const Auth = () => {
 
             {step === 'verify-otp' && (
               <div className="space-y-6">
-                <div className="flex justify-center gap-3">
+                <div className="flex justify-center gap-2 sm:gap-3">
                   {otpValues.map((value, index) => (
                     <Input
                       key={index}
@@ -387,7 +387,7 @@ const Auth = () => {
                       value={value}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      className="w-12 h-12 text-center text-2xl font-bold bg-background/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      className="w-10 h-10 sm:w-12 sm:h-12 text-center text-xl sm:text-2xl font-bold bg-background/50 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                     />
                   ))}
                 </div>
