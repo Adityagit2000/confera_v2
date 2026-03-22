@@ -21,6 +21,7 @@ const MockInterview = lazy(() => import("./pages/MockInterview"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const TestAvatar = lazy(() => import("./pages/TestAvatar"));
 
 const queryClient = new QueryClient();
 
@@ -121,6 +122,9 @@ const AppRoutes = () => {
         } />
         <Route path="/terms" element={
           <PageTransition><TermsOfService /></PageTransition>
+        } />
+        <Route path="/test-avatar" element={
+          <PageTransition><TestAvatar /></PageTransition>
         } />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />

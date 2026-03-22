@@ -64,50 +64,52 @@ export function AvatarScene({ isSpeaking, isListening, isThinking, currentText }
         style={{ background: 'transparent' }}
       >
         <Suspense fallback={null}>
-          {/* Soft key light — upper left warm */}
+          {/* Studio lighting setup for realism */}
+          {/* Main Key Light — warm and soft */}
           <directionalLight
-            position={[-1.8, 2.5, 2.5]}
-            intensity={2.2}
-            color="#fff8f0"
+            position={[-3, 4, 4]}
+            intensity={2.5}
+            color="#fffcf5"
             castShadow
             shadow-mapSize={[2048, 2048]}
-            shadow-bias={-0.001}
+            shadow-bias={-0.0002}
           />
-          {/* Cool fill from right */}
+          {/* Fill Light — cool and subtle */}
           <directionalLight
-            position={[2.2, 0.8, 1.8]}
-            intensity={0.9}
-            color="#c8e0ff"
+            position={[3, 1, 2]}
+            intensity={0.8}
+            color="#e3f2fd"
           />
-          {/* Subtle back rim */}
+          {/* Back Rim Light — strong for silhouette definition */}
           <directionalLight
-            position={[0, 1.5, -2.5]}
-            intensity={0.45}
-            color="#6688cc"
+            position={[0, 2.5, -4]}
+            intensity={1.5}
+            color="#ffffff"
           />
-          {/* Warm under fill — removes harsh shadows under chin */}
+          {/* Bounce Light — warm under fill */}
           <pointLight
-            position={[0, -0.8, 1.5]}
-            intensity={0.35}
-            color="#ffddaa"
+            position={[0, -1, 2]}
+            intensity={0.4}
+            color="#fff3e0"
           />
-          {/* Soft ambient */}
-          <ambientLight intensity={0.4} color="#1a1a2e" />
+          {/* Soft ambient environment light */}
+          <ambientLight intensity={0.4} color="#ffffff" />
+
 
           {isSpeaking && (
             <pointLight
-              position={[0, 0.2, 1.8]}
-              intensity={0.6}
-              color="#4488ff"
-              distance={3}
+              position={[0, 0, 2]}
+              intensity={0.8}
+              color="#60a5fa"
+              distance={4}
             />
           )}
           {isListening && (
             <pointLight
-              position={[0, 0.2, 1.8]}
-              intensity={0.4}
-              color="#22c55e"
-              distance={3}
+              position={[0, 0, 2]}
+              intensity={0.6}
+              color="#4ade80"
+              distance={4}
             />
           )}
 
