@@ -223,7 +223,7 @@ const Report = () => {
         <section className="relative">
           <div className={`absolute inset-0 ${overallScoreColor.bg} blur-3xl rounded-[3rem] opacity-30`}></div>
           <Card className="bg-card/40 backdrop-blur-md border border-border/50 shadow-2xl rounded-[2.5rem] overflow-hidden">
-            <CardContent className="p-10 md:p-16 flex flex-col items-center justify-center text-center relative">
+            <CardContent className="p-6 sm:p-10 md:p-16 flex flex-col items-center justify-center text-center relative">
               <div className="grid md:grid-cols-2 gap-12 items-center w-full">
                 
                 <div className="flex flex-col items-center md:items-start text-left order-2 md:order-1">
@@ -231,17 +231,17 @@ const Report = () => {
                     <Target className="w-4 h-4" />
                     <span className="text-sm font-semibold tracking-wide uppercase">Performance Analysis</span>
                   </div>
-                  <h2 className="text-4xl md:text-5xl font-bold mb-6 text-foreground leading-tight">
+                  <h2 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-4 sm:mb-6 text-foreground leading-tight">
                     Your Interview Results are In
                   </h2>
-                  <p className="text-lg text-muted-foreground leading-relaxed max-w-xl">
+                  <p className="text-sm sm:text-lg text-muted-foreground leading-relaxed max-w-xl">
                     {reportData.summary}
                   </p>
                 </div>
 
                 <div className="flex items-center justify-center order-1 md:order-2">
-                  <div className="relative w-64 h-64">
-                    <svg className="w-full h-full transform -rotate-90 drop-shadow-2xl">
+                  <div className="relative w-48 h-48 sm:w-64 sm:h-64">
+                    <svg className="w-full h-full transform -rotate-90 drop-shadow-2xl" viewBox="0 0 256 256">
                       <circle cx="128" cy="128" r="110" className="stroke-muted/30 fill-none" strokeWidth="16" />
                       <motion.circle 
                         cx="128" cy="128" r="110" 
@@ -255,7 +255,7 @@ const Report = () => {
                       />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className={`text-7xl font-black ${overallScoreColor.text} tracking-tighter`}>{reportData.overall_score || 0}</span>
+                      <span className={`text-5xl sm:text-7xl font-black ${overallScoreColor.text} tracking-tighter`}>{reportData.overall_score || 0}</span>
                       <span className="text-sm text-muted-foreground uppercase tracking-widest font-bold mt-2">Overall Score</span>
                     </div>
                   </div>
@@ -335,7 +335,7 @@ const Report = () => {
           <h3 className="text-2xl font-bold text-foreground mb-6 flex items-center gap-3">
             <Zap className="w-6 h-6 text-primary" /> Skill Breakdown
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             <CircularScore score={reportData.technical_score || 0} label="Technical Depth" icon={Code} />
             <CircularScore score={reportData.communication_score || 0} label="Communication" icon={MessageSquare} />
             <CircularScore score={reportData.behavior_score || 0} label="Behavioral" icon={Users} />

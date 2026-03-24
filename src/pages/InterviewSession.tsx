@@ -590,11 +590,11 @@ const InterviewSession = () => {
         </div>
       </div>
 
-      <main className="flex-1 flex p-6 gap-6 relative z-10 overflow-hidden">
+      <main className="flex-1 flex flex-col md:flex-row p-3 sm:p-6 gap-3 sm:gap-6 relative z-10 overflow-hidden">
         <div className={`flex-1 flex flex-col gap-6 transition-all duration-500 ${isTextChatOpen ? 'md:w-2/3' : 'w-full'}`}>
           <div className="flex-1 relative bg-white/[0.02] rounded-[2.5rem] border border-white/10 flex flex-col items-center justify-center overflow-hidden backdrop-blur-sm">
             
-            <div className="w-full h-full min-h-[420px]">
+            <div className="w-full h-full min-h-[260px] sm:min-h-[420px]">
               <AvatarScene
                 isSpeaking={isSpeaking}
                 isListening={isListening}
@@ -696,19 +696,19 @@ const InterviewSession = () => {
                </div>
             </div>
 
-            <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-5 flex gap-4 items-center shadow-lg group focus-within:border-primary/40 transition-all">
+            <div className="bg-white/5 border border-white/10 rounded-xl sm:rounded-[2.5rem] p-3 sm:p-5 flex gap-3 sm:gap-4 items-center shadow-lg group focus-within:border-primary/40 transition-all">
               <div className="flex-1 relative">
                 <input 
                   ref={textInputRef}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-5 text-base text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" 
+                  className="w-full bg-black/40 border border-white/10 rounded-xl sm:rounded-2xl px-4 sm:px-6 py-3 sm:py-5 text-sm sm:text-base text-white placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium" 
                   placeholder="Speak to the AI or type your comprehensive response here..."
                   value={inputMsg} 
                   onChange={(e) => setInputMsg(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleManualSend(e as any)}
                 />
               </div>
-              <Button onClick={(e) => handleManualSend(e as any)} size="lg" className="h-16 px-8 rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all font-black uppercase tracking-tighter">
-                <Send className="w-6 h-6 mr-3" /> Send
+              <Button onClick={(e) => handleManualSend(e as any)} size="lg" className="h-12 sm:h-16 px-4 sm:px-8 rounded-xl sm:rounded-2xl bg-primary hover:bg-primary-glow shadow-glow transition-all font-black uppercase tracking-tighter">
+                <Send className="w-5 h-5 sm:w-6 sm:h-6 sm:mr-3" /><span className="hidden sm:inline">Send</span>
               </Button>
             </div>
           </div>
@@ -716,7 +716,7 @@ const InterviewSession = () => {
 
         <AnimatePresence>
           {isTextChatOpen && (
-            <motion.div initial={{ width: 0, opacity: 0 }} animate={{ width: '380px', opacity: 1 }} exit={{ width: 0, opacity: 0 }} className="bg-white/5 rounded-[2.5rem] border border-white/10 flex flex-col overflow-hidden backdrop-blur-xl">
+            <motion.div initial={{ width: 0, opacity: 0 }} animate={{ width: '100%', opacity: 1 }} exit={{ width: 0, opacity: 0 }} className="md:max-w-[380px] bg-white/5 rounded-xl sm:rounded-[2.5rem] border border-white/10 flex flex-col overflow-hidden backdrop-blur-xl">
               <div className="p-6 border-b border-white/5">
                 <h3 className="font-bold tracking-tight">Conversation History</h3>
               </div>

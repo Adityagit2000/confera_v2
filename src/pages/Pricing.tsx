@@ -294,9 +294,9 @@ const Pricing = () => {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-muted/30">
-                  <th className="text-left py-6 px-8 font-semibold">Features</th>
-                  <th className="text-center py-6 px-4 font-semibold">Free</th>
-                  <th className="text-center py-6 px-4 font-semibold text-primary">Pro</th>
+                  <th className="text-left py-4 sm:py-6 px-4 sm:px-8 font-semibold text-sm sm:text-base">Features</th>
+                  <th className="text-center py-4 sm:py-6 px-2 sm:px-4 font-semibold text-sm sm:text-base">Free</th>
+                  <th className="text-center py-4 sm:py-6 px-2 sm:px-4 font-semibold text-primary text-sm sm:text-base">Pro</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/30">
@@ -309,9 +309,9 @@ const Pricing = () => {
                   { name: 'Priority AI Processing', free: <X className="w-5 h-5 mx-auto text-destructive/40" />, pro: <Check className="w-5 h-5 mx-auto text-success" /> },
                 ].map((row, i) => (
                   <tr key={i} className="hover:bg-muted/10 transition-colors">
-                    <td className="py-5 px-8 text-sm font-medium">{row.name}</td>
-                    <td className="py-5 px-4 text-center text-sm text-muted-foreground">{row.free}</td>
-                    <td className="py-5 px-4 text-center text-sm font-semibold text-primary">{row.pro}</td>
+                    <td className="py-3 sm:py-5 px-4 sm:px-8 text-xs sm:text-sm font-medium">{row.name}</td>
+                    <td className="py-3 sm:py-5 px-2 sm:px-4 text-center text-xs sm:text-sm text-muted-foreground">{row.free}</td>
+                    <td className="py-3 sm:py-5 px-2 sm:px-4 text-center text-xs sm:text-sm font-semibold text-primary">{row.pro}</td>
                   </tr>
                 ))}
               </tbody>

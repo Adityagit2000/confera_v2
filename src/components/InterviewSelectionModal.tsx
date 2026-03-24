@@ -119,7 +119,7 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
       <DialogContent className="max-w-2xl bg-card border-border/50 p-0 overflow-hidden shadow-2xl">
         <div className="absolute inset-0 bg-mesh-gradient opacity-5 pointer-events-none" />
         
-        <div className="bg-gradient-to-r from-background to-card px-8 py-6 border-b border-border/50 relative z-10">
+        <div className="bg-gradient-to-r from-background to-card px-4 py-4 sm:px-8 sm:py-6 border-b border-border/50 relative z-10">
           <div className="flex items-center gap-3 mb-1">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
               <Sparkles className="w-4 h-4 text-primary" />
@@ -133,7 +133,7 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
           </DialogDescription>
         </div>
 
-        <div className="p-8 relative z-10">
+        <div className="p-4 sm:p-8 relative z-10">
           <div className="space-y-8">
             {/* Job Role Section */}
             <div className="space-y-3 relative" ref={dropdownRef}>
@@ -220,7 +220,7 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
                 disabled={loading} 
                 variant="premium" 
                 size="lg" 
-                className="w-full h-16 text-lg font-bold shadow-glow hover:scale-[1.01] transition-all rounded-xl relative overflow-hidden group"
+                className="w-full h-14 sm:h-16 text-base sm:text-lg font-bold shadow-glow hover:scale-[1.01] transition-all rounded-xl relative overflow-hidden group"
               >
                 {loading ? (
                   <div className="flex items-center gap-2">

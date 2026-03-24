@@ -324,7 +324,7 @@ const AtsAnalyzer = () => {
               >
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="application/pdf" />
                 <div className="flex flex-col items-center justify-center space-y-4">
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${file ? 'bg-primary text-white shadow-glow' : 'bg-primary/10 text-primary group-hover:bg-primary/20'}`}>
+                  <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center transition-colors ${file ? 'bg-primary text-white shadow-glow' : 'bg-primary/10 text-primary group-hover:bg-primary/20'}`}>
                     <UploadCloud size={32} />
                   </div>
                   {file ? (
@@ -351,7 +351,7 @@ const AtsAnalyzer = () => {
       ) : (
         <div className="space-y-12 animate-in fade-in slide-in-from-bottom-10 duration-700 pb-20">
           {/* Action Bar */}
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
              <Button variant="outline" size="sm" onClick={() => setAnalysis(null)} className="flex items-center gap-2">
                 <RefreshCcw className="w-4 h-4" /> Analyze New Resume
              </Button>
@@ -373,8 +373,8 @@ const AtsAnalyzer = () => {
           {/* Section 1: Score Overview */}
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-4 flex flex-col items-center">
-              <div className="relative w-64 h-64 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90">
+              <div className="relative w-48 h-48 sm:w-64 sm:h-64 flex items-center justify-center">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 256 256">
                   <circle cx="128" cy="128" r="110" className="stroke-muted fill-none" strokeWidth="12" />
                   <motion.circle 
                     cx="128" cy="128" r="110" 
@@ -388,7 +388,7 @@ const AtsAnalyzer = () => {
                   />
                 </svg>
                 <div className="absolute flex flex-col items-center">
-                  <span className="text-7xl font-black text-foreground">{atsScore}</span>
+                  <span className="text-5xl sm:text-7xl font-black text-foreground">{atsScore}</span>
                   <span className={`text-xl font-bold uppercase tracking-widest ${getScoreLabel(atsScore).color}`}>
                     {getScoreLabel(atsScore).text}
                   </span>
@@ -614,18 +614,18 @@ const AtsAnalyzer = () => {
 
 
 
-          <Card className="bg-primary shadow-glow border-none text-white overflow-hidden relative group p-10 mt-10">
-            <div className="flex flex-col md:flex-row items-center gap-8 relative z-10 text-center md:text-left">
-              <div className="w-24 h-24 bg-white/20 rounded-3xl flex items-center justify-center backdrop-blur-xl border border-white/30">
-                <Mic className="w-12 h-12" />
+          <Card className="bg-primary shadow-glow border-none text-white overflow-hidden relative group p-5 sm:p-10 mt-10">
+            <div className="flex flex-col items-center gap-6 sm:gap-8 relative z-10 text-center">
+              <div className="w-16 h-16 sm:w-24 sm:h-24 bg-white/20 rounded-2xl sm:rounded-3xl flex items-center justify-center backdrop-blur-xl border border-white/30">
+                <Mic className="w-8 h-8 sm:w-12 sm:h-12" />
               </div>
               <div className="flex-1">
-                <CardTitle className="text-3xl font-black uppercase">Ready for the real world?</CardTitle>
+                <CardTitle className="text-xl sm:text-3xl font-black uppercase">Ready for the real world?</CardTitle>
                 <p className="text-white/80 mt-2 font-medium">Your resume is optimized. Let's practice the interview session now!</p>
               </div>
               <Button 
                 variant="secondary" size="lg" 
-                className="h-16 px-12 text-xl font-black shadow-2xl hover:scale-105 transition-all bg-white text-primary rounded-full"
+                className="h-12 sm:h-16 px-6 sm:px-12 text-base sm:text-xl font-black shadow-2xl hover:scale-105 transition-all bg-white text-primary rounded-full"
                 onClick={() => navigate('/mock-interview', { state: { jobRole } })}
               >
                 Start Interview <Play className="w-5 h-5 ml-4" />

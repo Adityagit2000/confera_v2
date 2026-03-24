@@ -76,12 +76,12 @@ const Onboarding = () => {
     <div className="min-h-screen bg-[#0A0A0A] text-white flex flex-col font-sans selection:bg-primary/30 overflow-hidden">
       {/* Neural Progress Bar */}
       <div className="w-full border-b border-white/[0.04] bg-black/40 backdrop-blur-3xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-10 py-8 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-10 sm:py-8 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-4 group">
             <div className="w-10 h-10 bg-primary rounded-2xl flex items-center justify-center shadow-glow">
               <span className="text-black font-black text-xl">C</span>
             </div>
-            <span className="text-2xl font-display font-black text-white tracking-tighter italic">Confera.</span>
+            <span className="text-lg sm:text-2xl font-display font-black text-white tracking-tighter italic">Confera.</span>
           </Link>
           
           <div className="flex items-center gap-3">
@@ -89,7 +89,7 @@ const Onboarding = () => {
               <div 
                 key={step.id}
                 className={cn(
-                  "h-[2px] w-16 md:w-24 rounded-full transition-all duration-700 relative overflow-hidden",
+                  "h-[2px] w-8 sm:w-16 md:w-24 rounded-full transition-all duration-700 relative overflow-hidden",
                   step.id <= currentStep ? "bg-primary/40" : "bg-white/[0.04]"
                 )}
               >
@@ -123,14 +123,14 @@ const Onboarding = () => {
               className="space-y-12"
             >
               <div className="text-center space-y-6">
-                <h1 className="text-6xl md:text-7xl font-display font-black tracking-tighter italic">
+                <h1 className="text-3xl sm:text-5xl md:text-7xl font-display font-black tracking-tighter italic">
                   {currentStep === 1 && <span className="flex items-center justify-center gap-4">Define the <span className='text-primary NOT-italic'>Objective.</span></span>}
                   {currentStep === 2 && <span className="flex items-center justify-center gap-4">Target <span className='text-primary NOT-italic'>Protocol.</span></span>}
                   {currentStep === 3 && <span className="flex items-center justify-center gap-4">Technical <span className='text-primary NOT-italic'>Seniority.</span></span>}
                   {currentStep === 4 && <span className="flex items-center justify-center gap-4">Deployment <span className='text-primary NOT-italic'>Sync.</span></span>}
                   {currentStep === 5 && <span className="flex items-center justify-center gap-4">Neural <span className='text-primary NOT-italic'>Sync.</span></span>}
                 </h1>
-                <p className="text-[#A1A1AA] text-xl font-medium max-w-2xl mx-auto leading-relaxed">
+                <p className="text-[#A1A1AA] text-sm sm:text-xl font-medium max-w-2xl mx-auto leading-relaxed">
                   {currentStep === 1 && "Incorporate your primary ambition into the neural engine."}
                   {currentStep === 2 && "Select the professional trajectory for adaptive scaling."}
                   {currentStep === 3 && "Calibrate the complexity index for advanced simulation."}
@@ -139,7 +139,7 @@ const Onboarding = () => {
                 </p>
               </div>
 
-              <div className="bg-[#111] border border-white/[0.04] shadow-2xl p-12 rounded-[3.5rem] relative overflow-hidden">
+              <div className="bg-[#111] border border-white/[0.04] shadow-2xl p-5 sm:p-12 rounded-[2rem] sm:rounded-[3.5rem] relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
                 
                 <div className="space-y-10">
@@ -155,20 +155,20 @@ const Onboarding = () => {
                           key={item.id}
                           onClick={() => updateFormData('goal', item.id)}
                           className={cn(
-                            "p-10 rounded-[2.5rem] border transition-all duration-500 flex flex-col gap-6 group relative overflow-hidden",
+                            "p-5 sm:p-10 rounded-[1.5rem] sm:rounded-[2.5rem] border transition-all duration-500 flex flex-col gap-4 sm:gap-6 group relative overflow-hidden",
                             formData.goal === item.id 
                               ? "border-primary bg-primary/10 shadow-glow" 
                               : "border-white/[0.04] bg-white/[0.02] hover:border-white/[0.08] hover:bg-white/[0.04]"
                           )}
                         >
                           <div className={cn(
-                            "w-16 h-16 rounded-3xl flex items-center justify-center transition-all duration-500",
+                            "w-12 h-12 sm:w-16 sm:h-16 rounded-2xl sm:rounded-3xl flex items-center justify-center transition-all duration-500",
                             formData.goal === item.id ? "bg-primary text-black shadow-glow-sm" : "bg-white/[0.04] text-[#52525B] group-hover:text-primary"
                           )}>
-                            <item.icon className="w-8 h-8" />
+                            <item.icon className="w-6 h-6 sm:w-8 sm:h-8" />
                           </div>
                           <span className={cn(
-                            "font-black text-xl font-display tracking-tight transition-colors duration-500",
+                            "font-black text-base sm:text-xl font-display tracking-tight transition-colors duration-500",
                             formData.goal === item.id ? "text-white" : "text-[#52525B] group-hover:text-white"
                           )}>
                             {item.label}
@@ -186,7 +186,7 @@ const Onboarding = () => {
                           placeholder="e.g. Senior Logic Architect"
                           value={formData.role}
                           onChange={(e) => updateFormData('role', e.target.value)}
-                          className="h-20 bg-white/[0.02] border-white/[0.04] text-xl rounded-[1.5rem] px-8 font-black focus:border-primary/50 transition-all placeholder:text-[#2A2A2A]"
+                          className="h-14 sm:h-20 bg-white/[0.02] border-white/[0.04] text-base sm:text-xl rounded-xl sm:rounded-[1.5rem] px-4 sm:px-8 font-black focus:border-primary/50 transition-all placeholder:text-[#2A2A2A]"
                         />
                       </div>
                       <div className="space-y-4">
@@ -195,7 +195,7 @@ const Onboarding = () => {
                           placeholder="e.g. Google, Goldman Sachs, OpenAI"
                           value={formData.company}
                           onChange={(e) => updateFormData('company', e.target.value)}
-                          className="h-20 bg-white/[0.02] border-white/[0.04] text-xl rounded-[1.5rem] px-8 font-black focus:border-primary/50 transition-all placeholder:text-[#2A2A2A]"
+                          className="h-14 sm:h-20 bg-white/[0.02] border-white/[0.04] text-base sm:text-xl rounded-xl sm:rounded-[1.5rem] px-4 sm:px-8 font-black focus:border-primary/50 transition-all placeholder:text-[#2A2A2A]"
                         />
                       </div>
                     </div>
@@ -213,14 +213,14 @@ const Onboarding = () => {
                           key={item.id}
                           onClick={() => updateFormData('experience', item.id)}
                           className={cn(
-                            "p-8 rounded-[1.5rem] border transition-all duration-500 flex items-center justify-between group",
+                            "p-5 sm:p-8 rounded-xl sm:rounded-[1.5rem] border transition-all duration-500 flex items-center justify-between group",
                             formData.experience === item.id 
                               ? "border-primary bg-primary/10 shadow-glow" 
                               : "border-white/[0.04] bg-white/[0.02] hover:border-white/[0.08]"
                           )}
                         >
                           <span className={cn(
-                            "font-black text-xl tracking-tight transition-colors duration-500",
+                            "font-black text-base sm:text-xl tracking-tight transition-colors duration-500",
                             formData.experience === item.id ? "text-white" : "text-[#52525B] group-hover:text-white"
                           )}>
                             {item.label}
@@ -240,7 +240,7 @@ const Onboarding = () => {
                             type="date"
                             value={formData.interviewDate}
                             onChange={(e) => updateFormData('interviewDate', e.target.value)}
-                            className="h-20 bg-white/[0.02] border-white/[0.04] text-xl rounded-[1.5rem] px-8 font-black focus:border-primary/50 transition-all appearance-none"
+                            className="h-14 sm:h-20 bg-white/[0.02] border-white/[0.04] text-base sm:text-xl rounded-xl sm:rounded-[1.5rem] px-4 sm:px-8 font-black focus:border-primary/50 transition-all appearance-none"
                           />
                           <CalendarIcon className="absolute right-8 top-1/2 -translate-y-1/2 text-primary w-8 h-8 pointer-events-none opacity-40" />
                         </div>
@@ -264,7 +264,7 @@ const Onboarding = () => {
                   variant="ghost"
                   onClick={handleBack}
                   disabled={currentStep === 1}
-                  className="h-20 px-12 text-[10px] font-black uppercase tracking-[0.4em] text-[#52525B] hover:text-white hover:bg-white/[0.02] transition-all disabled:opacity-0"
+                  className="h-12 sm:h-20 px-4 sm:px-12 text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.4em] text-[#52525B] hover:text-white hover:bg-white/[0.02] transition-all disabled:opacity-0"
                 >
                   <ChevronLeft className="mr-3 w-5 h-5" /> Previous Phase
                 </Button>
@@ -272,7 +272,7 @@ const Onboarding = () => {
                 <Button
                   onClick={handleNext}
                   disabled={!isStepValid()}
-                  className="h-20 px-16 rounded-full bg-primary text-black hover:bg-primary/90 text-sm font-black uppercase tracking-[0.3em] shadow-glow flex-1 md:flex-none active:scale-95 transition-all disabled:opacity-20"
+                  className="h-12 sm:h-20 px-6 sm:px-16 rounded-full bg-primary text-black hover:bg-primary/90 text-xs sm:text-sm font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] shadow-glow flex-1 md:flex-none active:scale-95 transition-all disabled:opacity-20"
                 >
                   {currentStep === 5 ? "Initialize Core" : "Next Protocol"} <ChevronRight className="ml-3 w-5 h-5" />
                 </Button>
