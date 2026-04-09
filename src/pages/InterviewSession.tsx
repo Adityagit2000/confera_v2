@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import BackButton from '@/components/BackButton';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
-import { AvatarScene } from '@/components/Avatar3D/AvatarScene'
+
 
 interface Message {
   role: 'system' | 'assistant' | 'user';
@@ -59,27 +59,45 @@ const InterviewSession = () => {
   
   // Voice engine state
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [autoSend, setAutoSend] = useState(true);
-  const [currentSpokenText, setCurrentSpokenText] = useState('')
+  const isSpeakingRef = useRef(false);
+  const submitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [finalTranscript, setFinalTranscript] = useState('');
   
   const voiceSynth = useVoiceSynthesis();
 
   const voiceInput = useVoiceInput({
     onTranscript: (text, isFinal) => {
-      setLiveTranscript(isFinal ? '' : text);
-      if (isFinal) {
-        setInputMsg(prev => prev + text);
-        if (autoSend) {
-          handleSendVoiceMessage(inputMsg + text);
-        }
+      if (!isFinal) {
+        setLiveTranscript(text);
+        return;
       }
+
+      // Accumulate final transcripts
+      setFinalTranscript(prev => prev + text + ' ');
+      setLiveTranscript('');
+
+      // DEBOUNCE: reset timer every time new speech comes in
+      // Only submit after 3 seconds of REAL silence
+      if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
+      submitTimerRef.current = setTimeout(() => {
+        setFinalTranscript(prev => {
+          const fullAnswer = prev.trim();
+          if (fullAnswer.length > 10 && autoSend) {
+            handleSendVoiceMessage(fullAnswer);
+          }
+          return '';
+        });
+        setLiveTranscript('');
+      }, 3000); // 3 seconds of silence = done talking
     },
     onError: (error) => {
       toast({ title: "Microphone issue", description: error, variant: "destructive" });
     },
     autoSend,
-    silenceDelay: 2000,
+    silenceDelay: 6000, // increased — debounce in component handles it now
   });
 
   const isListening = voiceInput.isListening;
@@ -128,7 +146,7 @@ const InterviewSession = () => {
     return () => {
       window.speechSynthesis.onvoiceschanged = null
     }
-  }, [selectedVoiceName])
+  }, [])
 
   const handleVoiceChange = (voiceName: string) => {
     setSelectedVoiceName(voiceName);
@@ -158,16 +176,19 @@ const InterviewSession = () => {
 
   useEffect(() => {
     const handleBeforeUnload = () => {
-      voiceSynth.cancel();
+      window.speechSynthesis?.cancel();
+      isSpeakingRef.current = false;
       voiceInput.cleanup();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.speechSynthesis?.cancel();
+      isSpeakingRef.current = false;
       voiceInput.cleanup();
-      voiceSynth.cancel();
+      if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
     };
-  }, [voiceInput, voiceSynth]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -280,50 +301,55 @@ const InterviewSession = () => {
   }, [sessionId, supabase]);
 
   const speak = useCallback((text: string) => {
-    if (!window.speechSynthesis) return
-    window.speechSynthesis.cancel()
-    
-    if (typeof setCurrentSpokenText === 'function') {
-      setCurrentSpokenText(text)
-    }
+    if (!window.speechSynthesis) return;
+    if (isSpeakingRef.current) return; // prevent double-call
+    isSpeakingRef.current = true;
 
-    const utterance = new SpeechSynthesisUtterance(text)
-    
-    const voices = window.speechSynthesis.getVoices()
-    const voice = voices.find(v => v.name === selectedVoiceName)
-      || voices.find(v => v.lang.startsWith('en') && !v.localService)
-      || voices.find(v => v.lang.startsWith('en'))
-      || voices[0]
+    // Cancel any in-progress speech first
+    window.speechSynthesis.cancel();
 
-    if (voice) utterance.voice = voice
-    utterance.rate = 0.92
-    utterance.pitch = 1.0
-    utterance.volume = 1.0
+    setTimeout(() => {
+      const utterance = new SpeechSynthesisUtterance(text);
 
-    utterance.onstart = () => {
-      setIsSpeaking(true)
-      shouldContinueListeningRef.current = false
-      voiceInput.stopListening()
-    }
-    utterance.onend = () => {
-      setIsSpeaking(false)
-      if (shouldContinueListeningRef.current) {
-        voiceInput.startListening()
-      }
-    }
-    utterance.onerror = (e) => {
-      console.error('SpeechSynthesis error:', e)
-      setIsSpeaking(false)
-    }
+      const voices = window.speechSynthesis.getVoices();
+      const voice = voices.find(v => v.name === selectedVoiceName)
+        || voices.find(v => v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha'))
+        || voices.find(v => v.lang.startsWith('en') && !v.localService)
+        || voices.find(v => v.lang === 'en-US')
+        || voices[0];
 
-    // iOS fix: delay needed for audio session
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-    if (isIOS) {
-      setTimeout(() => window.speechSynthesis.speak(utterance), 150)
-    } else {
-      window.speechSynthesis.speak(utterance)
-    }
-  }, [selectedVoiceName, voiceInput])
+      if (voice) utterance.voice = voice;
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+        setIsAiSpeaking(true);
+        shouldContinueListeningRef.current = false;
+        voiceInput.stopListening();
+      };
+      utterance.onend = () => {
+        isSpeakingRef.current = false;
+        setIsSpeaking(false);
+        setIsAiSpeaking(false);
+        if (shouldContinueListeningRef.current) {
+          voiceInput.startListening();
+        }
+      };
+      utterance.onerror = (e) => {
+        isSpeakingRef.current = false;
+        setIsSpeaking(false);
+        setIsAiSpeaking(false);
+        // Only log if it's not an 'interrupted' error (those are expected on cancel)
+        if ((e as any).error !== 'interrupted' && (e as any).error !== 'canceled') {
+          console.warn('TTS error:', (e as any).error);
+        }
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }, 150); // small delay to let cancel settle
+  }, [selectedVoiceName, voiceInput]);
 
   const startInterviewFlow = useCallback(async (sessionData: any) => {
     if (!canStartInterview) {
@@ -594,14 +620,81 @@ const InterviewSession = () => {
         <div className={`flex-1 flex flex-col gap-6 transition-all duration-500 ${isTextChatOpen ? 'md:w-2/3' : 'w-full'}`}>
           <div className="flex-1 relative bg-white/[0.02] rounded-[2.5rem] border border-white/10 flex flex-col items-center justify-center overflow-hidden backdrop-blur-sm">
             
-            <div className="w-full h-full min-h-[260px] sm:min-h-[420px]">
-              <AvatarScene
-                isSpeaking={isSpeaking}
-                isListening={isListening}
-                isThinking={isThinking}
-                currentText={currentSpokenText}
-              />
+            {/* Camera Off Panel — replaces 3D avatar */}
+            <div className="w-full h-full min-h-[260px] sm:min-h-[420px] flex items-center justify-center">
+              <div style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: '#0f0f0f',
+                borderRadius: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '12px',
+                border: '1px solid #2a2a2a',
+                position: 'relative',
+                minHeight: '240px',
+              }}>
+                {/* Camera off icon */}
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  backgroundColor: '#1e1e1e',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '24px',
+                }}>
+                  🎙️
+                </div>
+                {/* AI label */}
+                <span style={{ color: '#888', fontSize: '13px', fontWeight: 500 }}>
+                  AI Interviewer
+                </span>
+
+                {/* Status text */}
+                <span style={{ color: '#555', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+                  {isSpeaking ? 'Speaking' : isThinking ? 'Thinking...' : isListening ? 'Listening' : 'Ready'}
+                </span>
+
+                {/* Speaking indicator — animated dots */}
+                {isAiSpeaking && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '16px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    gap: '6px',
+                    alignItems: 'center',
+                  }}>
+                    {[0,1,2].map(i => (
+                      <div key={i} style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: '#4ade80',
+                        animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`,
+                      }} />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Keyframe animations */}
+            <style>{`
+              @keyframes bounce {
+                0%, 80%, 100% { transform: scaleY(1); }
+                40% { transform: scaleY(1.6); }
+              }
+              @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.4; }
+              }
+            `}</style>
 
             <AnimatePresence>
               {liveTranscript && (
@@ -657,21 +750,34 @@ const InterviewSession = () => {
                     whileHover={voiceAvailable ? { scale: 1.1 } : {}} 
                     whileTap={voiceAvailable ? { scale: 0.9 } : {}} 
                     onClick={voiceAvailable ? () => { toggleMic(); completeStep(1); } : undefined} 
+                    style={{
+                      backgroundColor: isListening ? '#ef4444' : voiceAvailable ? '#22c55e' : 'rgba(255,255,255,0.05)',
+                      boxShadow: isListening ? '0 0 0 4px rgba(239,68,68,0.3)' : 'none',
+                    }}
                     className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl relative ${
-                      isListening 
-                        ? 'bg-destructive shadow-destructive/20 border-4 border-destructive/20' 
-                        : voiceAvailable 
-                          ? `bg-white/10 hover:bg-white/20 border-2 ${onboardingStep === 1 ? 'border-primary ring-4 ring-primary/20 bg-primary/10' : 'border-white/5'}`
-                          : 'bg-white/5 opacity-30 cursor-not-allowed border-none'
-                    }`}
+                      !voiceAvailable ? 'opacity-30 cursor-not-allowed' : ''
+                    } ${onboardingStep === 1 ? 'ring-4 ring-primary/20' : ''}`}
                     title={!voiceAvailable ? "Voice recognition unavailable" : ""}
                    >
-                     {isListening ? <Mic className="w-6 h-6 sm:w-8 sm:h-8 text-white" /> : <MicOff className="w-6 h-6 sm:w-8 sm:h-8 text-white/40" />}
-                     <span className={`text-[8px] font-black mt-1 uppercase tracking-tighter ${isListening ? 'text-white' : 'text-white/20'}`}>
-                        {isListening ? 'Listening' : voiceAvailable ? 'Voice' : 'Off'}
+                     {isListening && (
+                       <span style={{
+                         width: '8px',
+                         height: '8px',
+                         borderRadius: '50%',
+                         backgroundColor: 'white',
+                         display: 'inline-block',
+                         animation: 'pulse 1s ease-in-out infinite',
+                         position: 'absolute',
+                         top: '8px',
+                         right: '8px',
+                       }} />
+                     )}
+                     {isListening ? <Mic className="w-6 h-6 sm:w-8 sm:h-8 text-white" /> : <MicOff className="w-6 h-6 sm:w-8 sm:h-8 text-white" />}
+                     <span className="text-[8px] font-black mt-1 uppercase tracking-tighter text-white">
+                        {isListening ? '🎤 Listening...' : voiceAvailable ? '🎤 Start' : 'Off'}
                      </span>
                      {isListening && (
-                        <motion.div className="absolute inset-0 rounded-full border-4 border-destructive" animate={{ scale: [1, 1.4], opacity: [0.6, 0] }} transition={{ duration: 1.2, repeat: Infinity }} />
+                        <motion.div className="absolute inset-0 rounded-full border-4 border-red-400" animate={{ scale: [1, 1.4], opacity: [0.6, 0] }} transition={{ duration: 1.2, repeat: Infinity }} />
                      )}
                      
                      {onboardingStep === 1 && (
@@ -683,6 +789,24 @@ const InterviewSession = () => {
                      )}
                    </motion.button>
                  </div>
+
+                 {/* Done Answering manual submit button */}
+                 {isListening && (finalTranscript.trim().length > 0 || liveTranscript.trim().length > 0) && (
+                   <Button
+                     onClick={() => {
+                       if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
+                       const answer = (finalTranscript + liveTranscript).trim();
+                       if (answer.length > 0) {
+                         handleSendVoiceMessage(answer);
+                         setFinalTranscript('');
+                         setLiveTranscript('');
+                       }
+                     }}
+                     className="h-14 sm:h-16 px-6 sm:px-8 rounded-[2rem] bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-tighter shadow-xl text-sm sm:text-base"
+                   >
+                     <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> Done
+                   </Button>
+                 )}
 
                  <Button onClick={endInterview} className="h-14 sm:h-16 px-6 sm:px-10 rounded-[2rem] bg-white text-black hover:bg-white/90 font-black uppercase tracking-tighter shadow-xl text-sm sm:text-base">
                     <Phone className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 rotate-[135deg] fill-current" /> End <span className="hidden sm:inline">Session</span>
