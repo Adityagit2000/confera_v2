@@ -32,12 +32,18 @@ const Report = () => {
   const [reportData, setReportData] = useState<any>(null);
   const [sessionData, setSessionData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [hasFetched, setHasFetched] = useState(false);
 
   useEffect(() => {
-    if (sessionId && user) {
-      fetchReportData();
-    }
-  }, [sessionId, user]);
+    if (!sessionId || !user?.id || hasFetched) return;
+    let cancelled = false;
+    setHasFetched(true);
+
+    fetchReportData();
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, user?.id]);
 
   const fetchReportData = async () => {
     try {

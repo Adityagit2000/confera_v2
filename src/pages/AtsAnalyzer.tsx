@@ -63,6 +63,7 @@ const AtsAnalyzer = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [analysis, setAnalysis] = useState<AtsAnalysis | null>(null);
   const [resumeId, setResumeId] = useState<string | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
   const [jobRole, setJobRole] = useState(() => {
     return localStorage.getItem('last_target_role') || 'Software Engineer';
   });
@@ -73,19 +74,60 @@ const AtsAnalyzer = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const { isPro, canAnalyzeResume, refetch: refetchSubscription } = useSubscription();
 
-  // Load existing analysis on mount
+  // Load existing analysis on mount — stable dep: user?.id only
   useEffect(() => {
-    if (user) {
-      fetchExistingAnalysis();
-    } else {
-      setInitialLoading(false);
+    if (!user?.id || hasFetched) {
+      if (!user?.id) setInitialLoading(false);
+      return;
     }
-  }, [user?.id, resumeId]);
+    let cancelled = false;
+    setHasFetched(true);
 
-  const fetchExistingAnalysis = async () => {
+    const run = async () => {
+      try {
+        setInitialLoading(true);
+        const { data, error } = await supabase
+          .from('resumes')
+          .select('id, user_id, ats_score, parsed_data, keywords_missing, original_filename, created_at, file_url')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error) throw error;
+
+        if (!cancelled && data && data.length > 0) {
+          const result = data[0];
+          let parsed_data = result.parsed_data as any;
+          if (typeof parsed_data === 'string') {
+            try { parsed_data = JSON.parse(parsed_data); } catch { parsed_data = {}; }
+          }
+          setAnalysis({
+            ats_score: result.ats_score,
+            parsed_data,
+            keywords_missing: result.keywords_missing as any || [],
+            dos: parsed_data?.dos || [],
+            donts: parsed_data?.donts || [],
+            improvement_roadmap: parsed_data?.improvement_roadmap || [],
+            created_at: result.created_at
+          });
+          setResumeId(result.id);
+        }
+      } catch (error) {
+        if (!cancelled) console.error('Error fetching analysis:', error);
+      } finally {
+        if (!cancelled) setInitialLoading(false);
+      }
+    };
+
+    run();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Re-fetch helper — only used by handleAnalyze fallback, NOT by the mount effect
+  const refetchAnalysis = async () => {
     try {
       setInitialLoading(true);
-      // Fix 1: Explicit column selection in resumes table
       const { data, error } = await supabase
         .from('resumes')
         .select('id, user_id, ats_score, parsed_data, keywords_missing, original_filename, created_at, file_url')
@@ -97,22 +139,13 @@ const AtsAnalyzer = () => {
 
       if (data && data.length > 0) {
         const result = data[0];
-        console.log('Fetched resume data from DB:', result);
-        console.log('parsed_data field from DB:', result.parsed_data);
-
         let parsed_data = result.parsed_data as any;
         if (typeof parsed_data === 'string') {
-          try {
-            parsed_data = JSON.parse(parsed_data);
-          } catch (e) {
-            console.error('Error parsing parsed_data:', e);
-            parsed_data = {};
-          }
+          try { parsed_data = JSON.parse(parsed_data); } catch { parsed_data = {}; }
         }
-
         setAnalysis({
           ats_score: result.ats_score,
-          parsed_data: parsed_data,
+          parsed_data,
           keywords_missing: result.keywords_missing as any || [],
           dos: parsed_data?.dos || [],
           donts: parsed_data?.donts || [],
@@ -201,7 +234,7 @@ const AtsAnalyzer = () => {
       } else {
         // Fallback: refetch after delay
         console.log('Parsed data missing from response, refetching...');
-        setTimeout(() => fetchExistingAnalysis(), 1500);
+        setTimeout(() => refetchAnalysis(), 1500);
       }
       
       toast({

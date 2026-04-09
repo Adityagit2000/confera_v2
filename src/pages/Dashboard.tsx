@@ -46,6 +46,7 @@ interface DashboardStats {
 const Dashboard = () => {
   const { user, signOut } = useAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [showAllSessions, setShowAllSessions] = useState(false);
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats>({
     totalSessions: 0,
@@ -54,6 +55,7 @@ const Dashboard = () => {
     recentSessions: []
   });
   const [loading, setLoading] = useState(true);
+  const [hasFetched, setHasFetched] = useState(false);
   const [interviewType, setInterviewType] = useState<string>('');
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
   const [showResumeDialog, setShowResumeDialog] = useState(false);
@@ -63,26 +65,32 @@ const Dashboard = () => {
   const { isPro, canStartInterview, canAnalyzeResume, profile, refetch: refetchSubscription } = useSubscription();
 
   useEffect(() => {
-    if (user) {
-      fetchDashboardData();
-      
-      // Silently clean up any stale active sessions on the backend
-      supabase.functions.invoke('cleanup-stale-sessions').catch(() => {})
-      
-      // Show welcome toast once per session
-      const hasWelcomed = sessionStorage.getItem('confera_welcomed');
-      if (!hasWelcomed) {
-        setTimeout(() => {
-          toast({
-            title: `Welcome back, ${profile?.name || user?.email?.split('@')[0]}!`,
-            description: "Ready to crush your next interview session?",
-            className: "bg-background/80 backdrop-blur-xl border-primary/20",
-          });
-          sessionStorage.setItem('confera_welcomed', 'true');
-        }, 1000);
-      }
+    if (!user?.id || hasFetched) return;
+    let cancelled = false;
+    setHasFetched(true);
+
+    fetchDashboardData();
+
+    // Silently clean up any stale active sessions on the backend
+    supabase.functions.invoke('cleanup-stale-sessions').catch(() => {});
+
+    // Show welcome toast once per session
+    const hasWelcomed = sessionStorage.getItem('confera_welcomed');
+    if (!hasWelcomed) {
+      setTimeout(() => {
+        if (cancelled) return;
+        toast({
+          title: `Welcome back, ${profile?.name || user?.email?.split('@')[0]}!`,
+          description: "Ready to crush your next interview session?",
+          className: "bg-background/80 backdrop-blur-xl border-primary/20",
+        });
+        sessionStorage.setItem('confera_welcomed', 'true');
+      }, 1000);
     }
-  }, [user, profile]);
+
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -197,7 +205,7 @@ const Dashboard = () => {
         totalSessions,
         avgScore,
         resumeScore: resumes?.[0]?.ats_score || null,
-        recentSessions: visibleSessions.slice(0, 5)
+        recentSessions: visibleSessions
       });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
@@ -205,7 +213,8 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [user, supabase, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const calculateTrend = (current: number, previous: number) => {
     if (!previous) return null;
@@ -242,7 +251,8 @@ const Dashboard = () => {
       console.error('Error starting interview:', error);
       toast({ title: "Error", description: error.message || "Failed to start interview", variant: "destructive" });
     }
-  }, [interviewType, user, supabase, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interviewType, user]);
 
   const getInterviewTypeLabel = (type: string) => {
     switch (type) {
@@ -599,7 +609,14 @@ const Dashboard = () => {
           <div id="recent-sessions" className="glass-card rounded-2xl border border-border/50 overflow-hidden">
             <div className="px-6 py-5 border-b border-border/50 bg-card/40 flex justify-between items-center">
               <h3 className="font-semibold text-lg">Recent Sessions</h3>
-              <Button variant="ghost" size="sm" className="text-primary hover:text-primary-glow hover:bg-primary/10">View All</Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="text-primary hover:text-primary-glow hover:bg-primary/10"
+                onClick={() => setShowAllSessions(!showAllSessions)}
+              >
+                {showAllSessions ? 'Show Less' : `View All (${stats.recentSessions.length})`}
+              </Button>
             </div>
             
             <div className="p-0">
@@ -612,7 +629,7 @@ const Dashboard = () => {
                     <div className="col-span-6 sm:col-span-2 text-right">Score/Action</div>
                   </div>
                   <div className="divide-y divide-border/30">
-                    {stats.recentSessions.map((session) => (
+                    {(showAllSessions ? stats.recentSessions : stats.recentSessions.slice(0, 5)).map((session) => (
                       <div 
                         key={session.id} 
                         className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted/10 transition-colors cursor-pointer"
