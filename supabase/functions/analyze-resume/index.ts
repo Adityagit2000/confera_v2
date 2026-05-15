@@ -108,7 +108,8 @@ Deno.serve(async (req) => {
 
     // 3. Call AI for analysis
     const systemPrompt = `
-    You are an expert ATS resume analyzer. You must respond with ONLY a valid JSON object, no markdown, no explanation, no extra text. Just the raw JSON.
+    You are an expert resume analyst and ATS specialist.
+    Analyze the following resume and return ONLY a JSON object. No markdown. No explanation.
     Evaluate candidates strictly based on the requirements and expectations for a ${safeJobRole}.
     `;
 
@@ -118,22 +119,15 @@ Deno.serve(async (req) => {
 
     Return ONLY this exact JSON structure with no deviations:
     {
+      "candidate_name": "<full name>",
+      "total_experience_years": <integer>,
+      "technical_skills": ["skill1", "skill2"],
+      "soft_skills": ["skill1", "skill2"],
+      "job_roles": ["role1"],
+      "key_achievements": ["achievement1"],
       "ats_score": <integer 0-100>,
-      "contact": {
-        "name": "<full name>",
-        "email": "<email>",
-        "phone": "<phone number>"
-      },
-      "skills": ["skill1", "skill2"],
-      "experience": [{"title": "", "company": "", "duration": "", "description": ""}],
-      "education": [{"degree": "", "school": "", "year": ""}],
-      "missing_keywords": [{"keyword": "", "importance": <1-10>}],
-      "strengths": ["strength1"],
-      "weaknesses": ["weakness1"],
-      "suggestions": ["suggestion1"],
-      "dos": ["do1", "do2"],
-      "donts": ["dont1", "dont2"],
-      "improvement_roadmap": [{"step": "", "impact": "", "priority": ""}]
+      "ats_improvements": ["improvement1"],
+      "summary": "<2-3 lines>"
     }
 
     Resume text should be fetched from the signed URL provided above.
@@ -151,20 +145,30 @@ Deno.serve(async (req) => {
     const parsed = safeParseJSON(aiResponse);
 
     const standardizedData = {
+      // Map new schema fields back to frontend expected structure for compatibility
       contact: {
-        name: parsed.contact?.name || null,
-        email: parsed.contact?.email || null,
-        phone: parsed.contact?.phone || null
+        name: parsed.candidate_name || null,
+        email: null,
+        phone: null
       },
-      skills: parsed.skills || [],
-      experience: parsed.experience || [],
-      education: parsed.education || [],
-      strengths: parsed.strengths || [],
-      weaknesses: parsed.weaknesses || [],
-      suggestions: parsed.suggestions || [],
-      dos: parsed.dos || [],
-      donts: parsed.donts || [],
-      improvement_roadmap: parsed.improvement_roadmap || []
+      skills: [...(parsed.technical_skills || []), ...(parsed.soft_skills || [])],
+      experience: parsed.job_roles?.map((role: string) => ({ title: role, company: "Unknown", duration: `${parsed.total_experience_years} years total`, description: "" })) || [],
+      education: [],
+      strengths: parsed.key_achievements || [],
+      weaknesses: [],
+      suggestions: parsed.ats_improvements || [],
+      dos: [],
+      donts: [],
+      improvement_roadmap: parsed.ats_improvements?.map((imp: string) => ({ step: imp, impact: "High", priority: "High" })) || [],
+      
+      // Preserve new fields for later steps
+      candidate_name: parsed.candidate_name,
+      total_experience_years: parsed.total_experience_years,
+      technical_skills: parsed.technical_skills,
+      soft_skills: parsed.soft_skills,
+      job_roles: parsed.job_roles,
+      key_achievements: parsed.key_achievements,
+      summary: parsed.summary
     };
 
     // Fix 3: Log exactly what is being saved
@@ -177,7 +181,7 @@ Deno.serve(async (req) => {
       .from('resumes')
       .update({
         ats_score: parsed.ats_score,
-        keywords_missing: parsed.missing_keywords || [],
+        keywords_missing: parsed.ats_improvements?.map((imp: string) => ({ keyword: imp, importance: 8 })) || [],
         parsed_data: standardizedData
       })
       .eq('id', resumeId);
@@ -203,7 +207,7 @@ Deno.serve(async (req) => {
       success: true, 
       ats_score: parsed.ats_score,
       parsed_data: standardizedData,
-      keywords_missing: parsed.missing_keywords || [],
+      keywords_missing: parsed.ats_improvements?.map((imp: string) => ({ keyword: imp, importance: 8 })) || [],
       message: `Analysis complete. ATS Score: ${parsed.ats_score}%`
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

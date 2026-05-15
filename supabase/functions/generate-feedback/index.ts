@@ -124,6 +124,17 @@ Deno.serve(async (req) => {
       .limit(1)
       .single();
 
+    // 3.5 Fetch historical skill memory
+    const { data: skillMemory } = await supabase
+      .from('user_skill_memory')
+      .select('*')
+      .eq('user_id', session.user_id)
+      .single();
+
+    const skillMemoryContext = skillMemory
+      ? `Communication: ${skillMemory.communication}/100\nTechnical Depth: ${skillMemory.technical_depth}/100\nProblem Solving: ${skillMemory.problem_solving}/100\nDomain Knowledge: ${skillMemory.domain_knowledge}/100\nWeak Areas: ${(skillMemory.weak_areas || []).join(', ')}`
+      : "No historical data available. First session.";
+
     // 4. Build the evaluation prompt with actual answers
     const qaTranscript = answers.map((a, i) => 
       `Question ${i+1}: ${a.question}\nCandidate Answer: ${a.answer_text || 'No answer provided'}`
@@ -156,22 +167,23 @@ Deno.serve(async (req) => {
     Skills: ${JSON.stringify(resume?.parsed_data?.skills || [])}
     ATS Score: ${resume?.ats_score || 'N/A'}
 
+    HISTORICAL SKILL CONTEXT:
+    ${skillMemoryContext}
+
     Provide evaluation as JSON with:
     {
       "overall_score": <0-100 based on actual answers>,
-      "technical_score": <0-100>,
-      "communication_score": <0-100>,
-      "behavior_score": <0-100>,
-      "summary": "<2-3 sentences specifically about their actual answers>",
+      "per_question_scores": [{"question_id": 1, "relevance": 0, "accuracy": 0, "clarity": 0, "depth": 0}],
+      "skill_scores": {
+        "communication": <0-100>,
+        "technical_depth": <0-100>,
+        "problem_solving": <0-100>,
+        "domain_knowledge": <0-100>
+      },
       "strengths": ["<specific strength from their answers>"],
       "improvements": ["<specific area to improve based on their answers>"],
-      "nextSteps": ["<actionable next step>"]
-      ${(session.type === 'mckinsey_de') ? `,
-      "mckinsey_readiness": {
-        "gaps": ["array of strings"],
-        "study_plan": "string",
-        "resources": ["array of strings"]
-      }` : ''}
+      "focus_areas_next_session": ["<top 3 focus areas for next time>"],
+      "overall_summary": "<3-4 sentences specifically about their actual answers>"
     }
 
     IMPORTANT: Base ALL scores and feedback on the actual answers above. 
@@ -201,15 +213,15 @@ Deno.serve(async (req) => {
       .insert({
         session_id: sessionId,
         overall_score: reportData.overall_score,
-        technical_score: reportData.technical_score,
-        communication_score: reportData.communication_score,
-        behavior_score: reportData.behavior_score,
-        summary: reportData.summary,
+        technical_score: reportData.skill_scores?.technical_depth || 0,
+        communication_score: reportData.skill_scores?.communication || 0,
+        behavior_score: reportData.skill_scores?.problem_solving || 0,
+        summary: reportData.overall_summary,
         recommendations: {
           strengths: reportData.strengths,
           improvements: reportData.improvements,
-          nextSteps: reportData.nextSteps,
-          mckinsey_readiness: reportData.mckinsey_readiness || null
+          nextSteps: reportData.focus_areas_next_session,
+          per_question_scores: reportData.per_question_scores
         }
       })
       .select()
@@ -220,13 +232,41 @@ Deno.serve(async (req) => {
       throw reportError
     }
 
+    // --- Update user_skill_memory with weighted running average ---
+    try {
+      const currentScores = reportData.skill_scores || {
+        communication: 50, technical_depth: 50, problem_solving: 50, domain_knowledge: 50
+      };
+
+      if (skillMemory) {
+        await supabase.from('user_skill_memory').update({
+          communication: (skillMemory.communication * 0.6) + (currentScores.communication * 0.4),
+          technical_depth: (skillMemory.technical_depth * 0.6) + (currentScores.technical_depth * 0.4),
+          problem_solving: (skillMemory.problem_solving * 0.6) + (currentScores.problem_solving * 0.4),
+          domain_knowledge: (skillMemory.domain_knowledge * 0.6) + (currentScores.domain_knowledge * 0.4),
+          weak_areas: reportData.focus_areas_next_session || skillMemory.weak_areas,
+          updated_at: new Date().toISOString()
+        }).eq('user_id', session.user_id);
+      } else {
+        await supabase.from('user_skill_memory').insert({
+          user_id: session.user_id,
+          communication: currentScores.communication,
+          technical_depth: currentScores.technical_depth,
+          problem_solving: currentScores.problem_solving,
+          domain_knowledge: currentScores.domain_knowledge,
+          weak_areas: reportData.focus_areas_next_session || []
+        });
+      }
+    } catch (skillErr) {
+      console.error('Failed to update skill memory:', skillErr);
+    }
+
     // --- Generate Learning Path ---
     try {
       const improvements = reportData.improvements || []
-      const nextSteps = reportData.nextSteps || []
-      const gaps = reportData.mckinsey_readiness?.gaps || []
+      const nextSteps = reportData.focus_areas_next_session || []
       
-      const allGaps = Array.from(new Set([...improvements, ...nextSteps, ...gaps]))
+      const allGaps = Array.from(new Set([...improvements, ...nextSteps]))
       
       if (allGaps.length > 0) {
         const { data: resourcesData, error: resourcesError } = await supabase.functions.invoke('fetch-resources', {

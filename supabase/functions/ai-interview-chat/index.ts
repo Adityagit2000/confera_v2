@@ -51,6 +51,17 @@ Deno.serve(async (req) => {
       ? JSON.stringify(latestResume.parsed_data) 
       : "No resume analysis available. Proceed with general background questions.";
 
+    // 2.5 Fetch user skill memory
+    const { data: skillMemory } = await supabase
+      .from('user_skill_memory')
+      .select('communication, technical_depth, problem_solving, domain_knowledge, weak_areas')
+      .eq('user_id', session.user_id)
+      .single();
+
+    const skillMemoryContext = skillMemory
+      ? `Historical Performance: Communication: ${skillMemory.communication}/100, Technical: ${skillMemory.technical_depth}/100, Problem Solving: ${skillMemory.problem_solving}/100, Domain Knowledge: ${skillMemory.domain_knowledge}/100. Weak Areas to probe: ${(skillMemory.weak_areas || []).join(', ')}`
+      : "No historical performance data. Treat as a new candidate.";
+
     // 3. Handle First Message Case (Start of Interview)
     if ((!message || message.trim() === '') && transcript.length === 0) {
       console.log('Generating first message for start of interview...');
@@ -61,6 +72,7 @@ Deno.serve(async (req) => {
       
       CONTEXT:
       - Candidate Resume: ${resumeJsonSummary}
+      - ${skillMemoryContext}
       - Track: ${interviewType}
       
       TASK: 
@@ -100,7 +112,7 @@ Deno.serve(async (req) => {
     }
 
     // 4. Normal Interview Flow: Evaluate and Generate Next Question
-    const isFinalAnswer = questionIndex >= 6;
+    const isFinalAnswer = questionIndex >= 10;
 
     // Multi-Track Persona Injection
     const trackLenses: Record<string, string> = {
@@ -126,6 +138,7 @@ You are a Senior ${interviewType?.toUpperCase() || 'General'} Interviewer. Your 
 
 # CONTEXT
 - Candidate Resume: ${resumeJsonSummary}
+- ${skillMemoryContext}
 - Track: ${interviewType}
 
 # OPERATING GUIDELINES
@@ -155,8 +168,8 @@ You are a Senior ${interviewType?.toUpperCase() || 'General'} Interviewer. Your 
     
     Task: 
     1. Acknowledge their response briefly.
-    2. If not finished (current question count is ${questionIndex}), ask the next relevant question for ${interviewType} based on YOUR ROLE and THE LENS.
-    3. If 6 or more questions have been asked, conclude the interview.
+    2. If not finished (current question count is ${questionIndex}), ask the next relevant question for ${interviewType} based on YOUR ROLE and THE LENS. Focus heavily on probing their 'Weak Areas to probe' if any are listed in the CONTEXT.
+    3. If 10 or more questions have been asked, conclude the interview.
     
     Respond with ONLY the text of the interviewer's next response (concise, professional). No JSON, no markdown tags.
     `;
