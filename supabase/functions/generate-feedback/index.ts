@@ -291,6 +291,16 @@ Deno.serve(async (req) => {
       console.error('Failed to generate learning path:', lpErr)
     }
 
+    // --- Trigger RAG embedding pipeline (fire-and-forget) ---
+    try {
+      supabase.functions.invoke('embed-session', {
+        body: { sessionId }
+      }).catch(err => console.error('embed-session background call failed:', err));
+      console.log('generate-feedback: Triggered embed-session pipeline for session:', sessionId);
+    } catch (embedErr) {
+      console.error('Failed to trigger embed-session:', embedErr);
+    }
+
     return new Response(JSON.stringify({
       success: true,
       report,

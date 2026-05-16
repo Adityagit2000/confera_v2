@@ -26,7 +26,11 @@ import {
   Play,
   Zap,
   Menu,
-  X
+  X,
+  BookOpen,
+  Sparkles,
+  RefreshCw,
+  Clock
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ResumeUpload from '@/components/ResumeUpload';
@@ -63,6 +67,8 @@ const Dashboard = () => {
   const [upgradeMessage, setUpgradeMessage] = useState("");
   const { toast } = useToast();
   const { isPro, canStartInterview, canAnalyzeResume, profile, refetch: refetchSubscription } = useSubscription();
+  const [prepPlan, setPrepPlan] = useState<any>(null);
+  const [prepPlanLoading, setPrepPlanLoading] = useState(false);
 
   useEffect(() => {
     if (!user?.id || hasFetched) return;
@@ -70,6 +76,7 @@ const Dashboard = () => {
     setHasFetched(true);
 
     fetchDashboardData();
+    fetchPrepPlan();
 
     // Silently clean up any stale active sessions on the backend
     supabase.functions.invoke('cleanup-stale-sessions').catch(() => {});
@@ -215,6 +222,46 @@ const Dashboard = () => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  const fetchPrepPlan = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data: plan } = await supabase
+        .from('prep_plans')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (plan) {
+        const ageMs = Date.now() - new Date(plan.created_at).getTime();
+        const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+        if (ageMs < sevenDaysMs) {
+          setPrepPlan(plan);
+        }
+      }
+    } catch {
+      // No plan found — that's fine
+    }
+  }, [user]);
+
+  const generatePrepPlan = useCallback(async () => {
+    if (!user?.id) return;
+    setPrepPlanLoading(true);
+    try {
+      const { error } = await supabase.functions.invoke('generate-prep-plan', {
+        body: { userId: user.id }
+      });
+      if (error) throw error;
+      toast({ title: "Prep Plan Generated", description: "Your personalized 7-day plan is ready!" });
+      await fetchPrepPlan();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to generate prep plan", variant: "destructive" });
+    } finally {
+      setPrepPlanLoading(false);
+    }
+  }, [user, toast, fetchPrepPlan]);
 
   const calculateTrend = (current: number, previous: number) => {
     if (!previous) return null;
@@ -603,6 +650,80 @@ const Dashboard = () => {
             }}>
               <Upload className="w-5 h-5 mr-2 text-primary" /> Update Resume
             </Button>
+          </div>
+
+          {/* Prep Plan Section */}
+          <div className="mb-12">
+            {prepPlan ? (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-foreground flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-primary/10">
+                      <BookOpen className="w-5 h-5 text-primary" />
+                    </div>
+                    Your 7-Day Prep Plan
+                  </h3>
+                  <Button variant="ghost" size="sm" onClick={generatePrepPlan} disabled={prepPlanLoading} className="text-muted-foreground hover:text-primary">
+                    <RefreshCw className={`w-4 h-4 mr-2 ${prepPlanLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+
+                {/* Focus + Coaching Card */}
+                <div className="glass-card rounded-2xl p-6 border border-primary/20 bg-gradient-to-br from-primary/5 to-card mb-4 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10" />
+                  <div className="relative z-10">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-bold text-primary uppercase tracking-widest">Weekly Focus</span>
+                    </div>
+                    <p className="text-foreground font-semibold text-lg mb-3">{prepPlan.weekly_focus}</p>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{prepPlan.coaching_note}</p>
+                    <div className="mt-4">
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
+                        prepPlan.priority_interview_type === 'dsa' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
+                        prepPlan.priority_interview_type === 'system_design' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
+                        prepPlan.priority_interview_type === 'hr' || prepPlan.priority_interview_type === 'behavioral' ? 'bg-green-500/10 text-green-400 border-green-500/30' :
+                        'bg-orange-500/10 text-orange-400 border-orange-500/30'
+                      }`}>
+                        Priority: {prepPlan.priority_interview_type?.replace('_', ' ')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 7-Day Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {(prepPlan.daily_tasks || []).map((task: any, idx: number) => (
+                    <div key={idx} className="glass-card rounded-xl p-4 border border-border/50 bg-card/50 hover:border-primary/30 transition-colors group">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black text-primary uppercase tracking-widest">Day {task.day || idx + 1}</span>
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="w-3 h-3" /> {task.duration_minutes}m
+                        </span>
+                      </div>
+                      <span className="inline-block px-2 py-0.5 rounded-md bg-muted/50 text-xs font-semibold text-foreground/80 mb-2">{task.topic}</span>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{task.task}</p>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+                <div className="glass-card rounded-2xl p-8 border border-border/50 bg-card/30 text-center">
+                  <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <BookOpen className="w-8 h-8 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-bold text-foreground mb-2">Personalized Prep Plan</h3>
+                  <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+                    Complete an interview session and Confera will generate a personalized 7-day preparation plan based on your strengths and weaknesses.
+                  </p>
+                  <Button onClick={generatePrepPlan} disabled={prepPlanLoading} className="bg-primary hover:bg-primary-glow text-primary-foreground shadow-glow">
+                    {prepPlanLoading ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Generating...</> : <><Sparkles className="w-4 h-4 mr-2" /> Generate Plan</>}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
           </div>
 
           {/* Recent Sessions Table */}

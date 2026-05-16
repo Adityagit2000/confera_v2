@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
 import { 
   ArrowLeft, 
   MessageSquare, 
@@ -31,6 +32,7 @@ const Report = () => {
   
   const [reportData, setReportData] = useState<any>(null);
   const [sessionData, setSessionData] = useState<any>(null);
+  const [answerCoaching, setAnswerCoaching] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasFetched, setHasFetched] = useState(false);
 
@@ -75,6 +77,28 @@ const Report = () => {
          if (transcript && transcript.length > 2) {
              await generateReport();
          }
+      }
+
+      // Fetch per-answer coaching data
+      try {
+        const { data: answers } = await supabase
+          .from('interview_answers')
+          .select('question, answer_text, tags')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: true });
+
+        if (answers) {
+          const coachingRows = answers
+            .filter(a => a.tags && (a.tags as any).coaching)
+            .map(a => ({
+              question: a.question,
+              answer: a.answer_text,
+              ...(a.tags as any).coaching
+            }));
+          setAnswerCoaching(coachingRows);
+        }
+      } catch (coachErr) {
+        console.warn('Failed to load per-answer coaching:', coachErr);
       }
     } catch (error: any) {
       console.error('Error loading report:', error);
@@ -348,6 +372,79 @@ const Report = () => {
           </div>
         </section>
 
+        {/* Per-Answer Coaching */}
+        {answerCoaching.length > 0 && (
+          <section>
+            <h3 className="text-2xl font-bold text-foreground mb-6 flex items-center gap-3">
+              <Target className="w-6 h-6 text-primary" /> Answer-by-Answer Coaching
+            </h3>
+            <div className="space-y-4">
+              {answerCoaching.map((item, idx) => {
+                const scoreColor = item.score >= 8 ? 'bg-success/20 text-success border-success/30' 
+                  : item.score >= 5 ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' 
+                  : 'bg-destructive/20 text-destructive border-destructive/30';
+                const depthColor = item.depth === 'strong' ? 'bg-success/10 text-success' 
+                  : item.depth === 'adequate' ? 'bg-yellow-500/10 text-yellow-400' 
+                  : 'bg-destructive/10 text-destructive';
+                return (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="bg-card/50 border border-border/50 rounded-2xl p-5 sm:p-6 space-y-4 hover:border-primary/30 transition-colors"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1">Question {idx + 1}</p>
+                        <p className="text-sm text-foreground/90 font-medium leading-relaxed line-clamp-2">{item.question}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge className={`${scoreColor} border font-black text-sm px-3 py-1`}>
+                          {item.score}/10
+                        </Badge>
+                        <Badge className={`${depthColor} font-semibold text-xs capitalize`}>
+                          {item.depth}
+                        </Badge>
+                        {item.used_star_format && (
+                          <Badge className="bg-primary/10 text-primary border-primary/20 font-semibold text-xs">
+                            ★ STAR
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {item.answer && (
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3 bg-background/40 p-3 rounded-xl border border-border/30">
+                        {item.answer}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap gap-4 text-xs">
+                      {item.filler_word_count > 0 && (
+                        <span className="text-yellow-400 font-medium">
+                          ⚠ {item.filler_word_count} filler word{item.filler_word_count > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {item.missing_points && item.missing_points.length > 0 && (
+                        <span className="text-muted-foreground">
+                          Missing: {item.missing_points.join(', ')}
+                        </span>
+                      )}
+                    </div>
+
+                    {item.coaching_tip && (
+                      <div className="bg-primary/5 border border-primary/15 rounded-xl p-3 flex gap-2">
+                        <Zap className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                        <p className="text-sm text-foreground/80 font-medium">{item.coaching_tip}</p>
+                      </div>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
 
         {/* Detailed Feedback */}

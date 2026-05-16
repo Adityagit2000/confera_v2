@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
+import { getEmbedding } from '../_shared/embedding-service.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -59,7 +60,7 @@ Deno.serve(async (req) => {
       .single();
 
     const skillMemoryContext = skillMemory
-      ? `Historical Performance: Communication: ${skillMemory.communication}/100, Technical: ${skillMemory.technical_depth}/100, Problem Solving: ${skillMemory.problem_solving}/100, Domain Knowledge: ${skillMemory.domain_knowledge}/100. Weak Areas to probe: ${(skillMemory.weak_areas || []).join(', ')}`
+      ? `Historical Performance: Communication: ${skillMemory.communication}/100, Technical: ${skillMemory.technical_depth}/100, Problem Solving: ${skillMemory.problem_solving}/100, Domain Knowledge: ${skillMemory.domain_knowledge}/100. Weak Areas to probe: ${(skillMemory.weak_areas || []).join(', ')}. Filler word rate: ${skillMemory.filler_word_rate || 0}%. Avg answer length: ${skillMemory.avg_answer_length || 0} words. Sessions completed: ${skillMemory.total_sessions || 0}.`
       : "No historical performance data. Treat as a new candidate.";
 
     // 3. Handle First Message Case (Start of Interview)
@@ -114,6 +115,29 @@ Deno.serve(async (req) => {
     // 4. Normal Interview Flow: Evaluate and Generate Next Question
     const isFinalAnswer = questionIndex >= 10;
 
+    // 4.1 RAG Retrieval: fetch similar past answers to avoid repetition
+    let pastAnswerContext = '';
+    try {
+      if (message && message.trim().length > 10) {
+        const queryEmbedding = await getEmbedding(message);
+        const { data: pastAnswers, error: ragError } = await supabase
+          .rpc('match_transcript_embeddings', {
+            query_embedding: JSON.stringify(queryEmbedding),
+            match_user_id: session.user_id,
+            match_interview_type: interviewType || session.type || 'general',
+            match_count: 5
+          });
+
+        if (!ragError && pastAnswers && pastAnswers.length > 0) {
+          pastAnswerContext = `\n# PAST ANSWER CONTEXT (from previous sessions)\nThe candidate has answered similar questions before. DO NOT repeat or closely rephrase these:\n${pastAnswers.map((a: any) => `- Q: ${a.question}\n  A (similarity: ${(a.similarity * 100).toFixed(0)}%): ${a.answer.substring(0, 200)}`).join('\n')}\n\nIf any past answer was shallow or incomplete, probe that same TOPIC from a completely different angle.\n`;
+          console.log(`ai-interview-chat: RAG retrieved ${pastAnswers.length} past answers`);
+        }
+      }
+    } catch (ragErr) {
+      console.warn('ai-interview-chat: RAG retrieval failed (non-fatal):', (ragErr as any).message);
+      // Graceful degradation — continue without past context
+    }
+
     // Multi-Track Persona Injection
     const trackLenses: Record<string, string> = {
       'technical_core': "Focus on core technical proficiency relevant to the specific job role. Ask about domain-specific knowledge, tools, methodologies, and real-world problem solving for this profession (e.g., for a Civil Engineer ask about structural analysis, for a Data Engineer ask about pipelines and PySpark).",
@@ -140,11 +164,12 @@ You are a Senior ${interviewType?.toUpperCase() || 'General'} Interviewer. Your 
 - Candidate Resume: ${resumeJsonSummary}
 - ${skillMemoryContext}
 - Track: ${interviewType}
-
+${pastAnswerContext}
 # OPERATING GUIDELINES
 1. Use the Resume as the 'Case Study'. 
 2. Ask 3-step deep questions: (1) The specific project task -> (2) The technical/business hurdle -> (3) The theoretical scaling/optimization.
 3. Keep responses under 3 sentences.
+4. NEVER repeat or closely rephrase a question from PAST ANSWER CONTEXT above.
 `;
     
     const windowedTranscript = (() => {
@@ -203,6 +228,20 @@ You are a Senior ${interviewType?.toUpperCase() || 'General'} Interviewer. Your 
       answer_text: message || "",
       score: null // will be evaluated in generate-feedback
     });
+
+    // Fire-and-forget: per-answer coaching analysis
+    try {
+      supabase.functions.invoke('analyze-answer', {
+        body: {
+          sessionId,
+          question: lastQuestion || 'Initial Question',
+          answer: message || '',
+          interviewType: interviewType || session.type || 'general'
+        }
+      }).catch(err => console.error('analyze-answer fire-and-forget failed:', err));
+    } catch (analyzeErr) {
+      console.warn('Failed to trigger analyze-answer:', analyzeErr);
+    }
 
     return new Response(JSON.stringify({ 
       success: true,
