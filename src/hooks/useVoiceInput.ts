@@ -31,6 +31,7 @@ export function useVoiceInput({
   const recognitionRef = useRef<any>(null)
   const shouldContinueRef = useRef(false)
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const isStartingRef = useRef(false) // guard against rapid start/stop
 
   // MediaRecorder refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
@@ -40,6 +41,13 @@ export function useVoiceInput({
 
   // ── Speech API mode (Chrome/Android) ──
   const startSpeechAPI = useCallback(() => {
+    // Guard: don't start if already starting or already listening
+    if (isStartingRef.current) return false
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort() } catch (e) {}
+      recognitionRef.current = null
+    }
+
     const SpeechRecognition = (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition
     if (!SpeechRecognition) {
@@ -53,7 +61,10 @@ export function useVoiceInput({
     recognition.lang = 'en-US'
     recognition.maxAlternatives = 1
 
-    recognition.onstart = () => setIsListening(true)
+    recognition.onstart = () => {
+      isStartingRef.current = false
+      setIsListening(true)
+    }
 
     recognition.onresult = (event: any) => {
       let interim = ''
@@ -76,12 +87,19 @@ export function useVoiceInput({
     }
 
     recognition.onend = () => {
+      isStartingRef.current = false
       setIsListening(false)
-      if (shouldContinueRef.current) {
-        // iOS needs a delay before restart
+      // Only auto-restart if we explicitly want to continue
+      // and a new start isn't already in progress
+      if (shouldContinueRef.current && !isStartingRef.current) {
+        isStartingRef.current = true
         setTimeout(() => {
-          try { recognition.start() } catch (e) {}
-        }, 300)
+          try {
+            recognition.start()
+          } catch (e) {
+            isStartingRef.current = false
+          }
+        }, 500) // longer delay to prevent rapid cycling
       }
     }
 
@@ -89,25 +107,33 @@ export function useVoiceInput({
       if (event.error === 'not-allowed') {
         onError('Microphone permission denied')
         shouldContinueRef.current = false
+        isStartingRef.current = false
         setIsListening(false)
+      } else if (event.error === 'aborted' || event.error === 'no-speech') {
+        // These are expected — recognition was aborted or no speech detected
+        // onend will handle restart if shouldContinueRef is true
+        isStartingRef.current = false
       }
     }
 
     recognitionRef.current = recognition
     shouldContinueRef.current = true
+    isStartingRef.current = true
     try {
       recognition.start()
       return true
     } catch (e) {
+      isStartingRef.current = false
       return false
     }
   }, [autoSend, silenceDelay, onTranscript, onError])
 
   const stopSpeechAPI = useCallback(() => {
     shouldContinueRef.current = false
+    isStartingRef.current = false
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch (e) {}
+      try { recognitionRef.current.abort() } catch (e) {}
     }
     setIsListening(false)
   }, [])

@@ -226,15 +226,15 @@ const Dashboard = () => {
   const fetchPrepPlan = useCallback(async () => {
     if (!user?.id) return;
     try {
-      const { data: plan } = await supabase
+      const { data: plans } = await supabase
         .from('prep_plans')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (plan) {
+      if (plans && plans.length > 0) {
+        const plan = plans[0];
         const ageMs = Date.now() - new Date(plan.created_at).getTime();
         const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
         if (ageMs < sevenDaysMs) {
@@ -250,12 +250,16 @@ const Dashboard = () => {
     if (!user?.id) return;
     setPrepPlanLoading(true);
     try {
-      const { error } = await supabase.functions.invoke('generate-prep-plan', {
+      const { data, error } = await supabase.functions.invoke('generate-prep-plan', {
         body: { userId: user.id }
       });
       if (error) throw error;
-      toast({ title: "Prep Plan Generated", description: "Your personalized 7-day plan is ready!" });
-      await fetchPrepPlan();
+      if (data?.skipped) {
+        toast({ title: "No Data Yet", description: "Complete at least one interview session first so we can analyze your skills.", variant: "destructive" });
+      } else {
+        toast({ title: "Prep Plan Generated", description: "Your personalized 7-day plan is ready!" });
+        await fetchPrepPlan();
+      }
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate prep plan", variant: "destructive" });
     } finally {
