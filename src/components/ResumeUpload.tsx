@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { Upload, FileText, TrendingUp, AlertCircle, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Upload, FileText, TrendingUp, AlertCircle, Loader2, CheckCircle2, XCircle, Crown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Setup pdf.js worker from local node_modules via Vite
@@ -26,8 +27,10 @@ const ResumeUpload = ({ onAnalysisComplete }: ResumeUploadProps) => {
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [targetRole, setTargetRole] = useState('Software Engineer');
   const [isDragging, setIsDragging] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const handleFile = (selectedFile: File) => {
     if (selectedFile.type !== 'application/pdf') {
@@ -110,7 +113,27 @@ const ResumeUpload = ({ onAnalysisComplete }: ResumeUploadProps) => {
         } : undefined
       });
 
-      if (error) throw error;
+      if (error) {
+        // Detect 403 paywall response from edge function
+        let errorBody: any = null;
+        try {
+          if (error.context && typeof error.context.json === 'function') {
+            errorBody = await error.context.json();
+          }
+        } catch (_) { /* context may not be parseable */ }
+
+        if (errorBody?.error === 'Resume analysis limit reached' || error.message?.includes('limit reached')) {
+          setShowUpgradePrompt(true);
+          toast({
+            title: "Free Limit Reached",
+            description: "You've used all your free resume analyses. Upgrade to Pro for unlimited access.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        throw new Error(errorBody?.error || errorBody?.details || error.message || 'Analysis failed');
+      }
 
       setAnalysisResult(data);
       onAnalysisComplete?.(data);
@@ -345,6 +368,45 @@ const ResumeUpload = ({ onAnalysisComplete }: ResumeUploadProps) => {
                 </ul>
               </div>
             )}
+          </motion.div>
+        ) : showUpgradePrompt ? (
+          <motion.div
+            key="upgrade"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="space-y-5"
+          >
+            <div className="relative overflow-hidden border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-card to-orange-500/10 rounded-2xl p-6 text-center shadow-lg">
+              <div className="absolute top-0 right-0 w-40 h-40 bg-amber-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+              <div className="absolute bottom-0 left-0 w-32 h-32 bg-orange-500/10 rounded-full blur-2xl -ml-12 -mb-12 pointer-events-none" />
+              
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center shadow-lg">
+                <Crown className="w-8 h-8 text-amber-500" />
+              </div>
+              
+              <h3 className="text-xl font-bold text-foreground mb-2">Free Analyses Used Up</h3>
+              <p className="text-muted-foreground text-sm max-w-xs mx-auto mb-6 leading-relaxed">
+                You've used all your free resume analyses. Upgrade to Pro for unlimited access.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Button
+                  onClick={() => navigate('/pricing')}
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold py-5 px-8 rounded-xl shadow-lg transition-all duration-300 hover:shadow-amber-500/25 hover:scale-[1.02]"
+                >
+                  <Crown className="w-4 h-4 mr-2" />
+                  Upgrade to Pro
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => { setFile(null); setShowUpgradePrompt(false); }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Go Back
+                </Button>
+              </div>
+            </div>
           </motion.div>
         ) : (
           <motion.div 
