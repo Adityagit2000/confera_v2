@@ -91,11 +91,10 @@ const InterviewSession = () => {
           const fullAnswer = prev.trim();
           if (fullAnswer.length > 10 && autoSend) {
             handleSendVoiceMessage(fullAnswer);
-          }
           return '';
         });
         setLiveTranscript('');
-      }, 3000); // 3 seconds of silence = done talking
+      }, voiceInput.mode === 'media-recorder' ? 0 : 3000); // 3 seconds for Web Speech, instant for fallback
     },
     onError: (error) => {
       toast({ title: "Microphone issue", description: error, variant: "destructive" });
@@ -582,8 +581,7 @@ const InterviewSession = () => {
       {voiceInput.isIOS && (
         <div className="mx-6 mt-2 px-4 py-3 rounded-xl bg-blue-500/10 
         border border-blue-500/30 text-blue-400 text-sm font-medium">
-          Using Whisper AI transcription for iOS — speak naturally, 
-          answers are sent every 6 seconds
+          Using Whisper AI transcription for iOS — tap the microphone to start, speak naturally, and tap again when done.
         </div>
       )}
       

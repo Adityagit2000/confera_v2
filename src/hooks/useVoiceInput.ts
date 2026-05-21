@@ -39,7 +39,6 @@ interface UseVoiceInputOptions {
 const MAX_RETRIES = 3
 const RETRY_BACKOFF_MS = 200
 const START_TIMEOUT_MS = 5000
-const CHUNK_DURATION_MS = 6000
 
 export function useVoiceInput({
   onTranscript,
@@ -402,11 +401,8 @@ export function useVoiceInput({
         audioChunksRef.current = []
         try {
           mediaRecorderRef.current.start()
-          recordingTimerRef.current = setTimeout(() => {
-            if (mediaRecorderRef.current?.state === 'recording') {
-              mediaRecorderRef.current.stop()
-            }
-          }, CHUNK_DURATION_MS)
+          // We removed the 6-second chunking timer here. It records indefinitely
+          // until the user manually stops listening to prevent premature chunking boundaries.
         } catch (e) {
           console.error('[VoiceInput] Failed to start new recording chunk:', e)
         }
