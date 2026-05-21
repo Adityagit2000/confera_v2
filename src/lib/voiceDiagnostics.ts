@@ -41,8 +41,14 @@ export function detectBrowser(): BrowserInfo {
   let name = 'Unknown';
   let version = '0';
 
+  const isBrave = (navigator as any).brave !== undefined;
+
   // Order matters — Edge/Opera must be checked before Chrome
-  if (ua.includes('Edg/')) {
+  if (isBrave) {
+    name = 'Brave';
+    // Brave uses Chrome's UA string, so we extract the underlying Chromium version
+    version = ua.match(/Chrome\/(\d+)/)?.[1] || '0';
+  } else if (ua.includes('Edg/')) {
     name = 'Edge';
     version = ua.match(/Edg\/(\d+)/)?.[1] || '0';
   } else if (ua.includes('OPR/') || ua.includes('Opera/')) {
@@ -89,11 +95,11 @@ function checkHTTPS(): DiagnosticCheck {
 }
 
 function checkBrowserSupport(browser: BrowserInfo): DiagnosticCheck {
-  const supported = ['Chrome', 'Edge', 'Safari', 'Opera'];
+  const supported = ['Chrome', 'Edge', 'Safari', 'Opera', 'Brave'];
   const partialSupport = ['Firefox'];
   
   if (supported.includes(browser.name)) {
-    const minVersions: Record<string, number> = { Chrome: 80, Edge: 80, Safari: 14, Opera: 67 };
+    const minVersions: Record<string, number> = { Chrome: 80, Edge: 80, Safari: 14, Opera: 67, Brave: 80 };
     const minVersion = minVersions[browser.name] || 0;
     const currentVersion = parseInt(browser.version);
     
@@ -170,7 +176,9 @@ function checkSpeechRecognition(browser: BrowserInfo): DiagnosticCheck {
     label: 'Speech Recognition API',
     status: 'fail',
     detail: 'Web Speech API is not available in this browser',
-    fix: 'Use Chrome, Edge, or Safari for real-time speech recognition. Text input will still work.',
+    fix: browser.name === 'Brave' 
+      ? 'Brave Shields may block the Speech API. Use the fallback mode, or disable Shields for this site.'
+      : 'Use Chrome, Edge, or Safari for real-time speech recognition. Text input will still work.',
   };
 }
 
