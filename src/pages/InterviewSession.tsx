@@ -557,24 +557,26 @@ const InterviewSession = () => {
                 </div>
               )}
            </div>
-           <Button 
-            variant="ghost" 
-            onClick={() => {
-              setIsTextChatOpen(!isTextChatOpen);
-              completeStep(3);
-            }} 
-            className={`rounded-xl px-2 sm:px-4 h-9 sm:h-10 transition-all ${isTextChatOpen ? 'bg-primary/20 text-primary' : 'bg-white/5'} ${onboardingStep === 3 ? 'border-primary ring-4 ring-primary/20 bg-primary/10 scale-105 z-50' : ''}`}
-           >
-              <MessageSquare className="w-4 h-4 sm:mr-2" /> 
-              <span className="hidden sm:inline">{isTextChatOpen ? 'Hide History' : 'View History'}</span>
-              {onboardingStep === 3 && (
+           <div className="relative">
+             <Button 
+              variant="ghost" 
+              onClick={() => {
+                setIsTextChatOpen(!isTextChatOpen);
+                completeStep(3);
+              }} 
+              className={`rounded-xl px-2 sm:px-4 h-9 sm:h-10 transition-all ${isTextChatOpen ? 'bg-primary/20 text-primary' : 'bg-white/5'} ${onboardingStep === 3 ? 'border-primary ring-4 ring-primary/20 bg-primary/10 scale-105 z-50' : ''}`}
+             >
+                <MessageSquare className="w-4 h-4 sm:mr-2" /> 
+                <span className="hidden sm:inline">{isTextChatOpen ? 'Hide History' : 'View History'}</span>
+             </Button>
+             {onboardingStep === 3 && (
                 <div className="absolute top-full mt-4 right-0 w-48 p-4 bg-primary text-black rounded-2xl shadow-2xl z-[60] text-xs font-bold animate-in fade-in slide-in-from-top-2">
                   <div className="absolute -top-2 right-12 w-4 h-4 bg-primary rotate-45" />
                   Need to review? Check your past responses here.
                   <Button variant="ghost" size="sm" className="mt-2 h-7 px-2 text-[10px] hover:bg-black/10 font-black p-0 border-none" onClick={() => completeStep(3)}>FINISH GUIDE</Button>
                 </div>
               )}
-           </Button>
+           </div>
         </div>
       </header>
       {voiceInput.isIOS && (
@@ -754,15 +756,14 @@ const InterviewSession = () => {
                      {isListening && (
                         <motion.div className="absolute inset-0 rounded-full border-4 border-red-400" animate={{ scale: [1, 1.4], opacity: [0.6, 0] }} transition={{ duration: 1.2, repeat: Infinity }} />
                      )}
-                     
-                     {onboardingStep === 1 && (
-                       <div className="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 w-56 p-4 bg-primary text-black rounded-2xl shadow-2xl z-[60] text-xs font-bold animate-in fade-in slide-in-from-bottom-2 text-center leading-tight">
-                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-primary rotate-45" />
-                         Tap to start speaking. Our AI listens to your logic and tone in real-time.
-                         <Button variant="ghost" size="sm" className="mt-2 h-7 px-3 text-[10px] hover:bg-black/20 font-black border border-black/10 rounded-lg" onClick={(e) => { e.stopPropagation(); completeStep(1); }}>GOT IT</Button>
-                       </div>
-                     )}
                    </motion.button>
+                   {onboardingStep === 1 && (
+                     <div className="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 w-56 p-4 bg-primary text-black rounded-2xl shadow-2xl z-[60] text-xs font-bold animate-in fade-in slide-in-from-bottom-2 text-center leading-tight">
+                       <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-primary rotate-45" />
+                       Tap to start speaking. Our AI listens to your logic and tone in real-time.
+                       <Button variant="ghost" size="sm" className="mt-2 h-7 px-3 text-[10px] hover:bg-black/20 font-black border border-black/10 rounded-lg" onClick={(e) => { e.stopPropagation(); completeStep(1); }}>GOT IT</Button>
+                     </div>
+                   )}
                  </div>
 
                  {/* Done Answering manual submit button */}
