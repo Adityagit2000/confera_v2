@@ -1,96 +1,36 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const geminiApiKey = Deno.env.get('GEMINI_API_KEY')!
-const groqKey = Deno.env.get('GROQ_API_KEY')!
-
-async function callAI(systemPrompt: string, userMessage: string): Promise<string> {
-  try {
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ parts: [{ text: userMessage }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 2048 }
-        })
-      }
-    );
-
-    if (geminiResponse.status === 429 || geminiResponse.status === 503) {
-      throw new Error('Gemini rate limited');
-    }
-
-    if (!geminiResponse.ok) {
-      const errText = await geminiResponse.text();
-      if(errText.includes('quota')) throw new Error('Gemini rate limited');
-      throw new Error(`Gemini error: ${geminiResponse.status} ${errText}`);
-    }
-
-    const geminiData = await geminiResponse.json();
-    return geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-  } catch (error: any) {
-    if (!error.message.includes('rate limited')) {
-       console.log('Gemini failed with non-rate limit error, trying Groq anyway:', error.message);
-    } else {
-       console.log('Gemini rate limited, falling back to Groq:', error.message);
-    }
-
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${groqKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        max_tokens: 2048,
-        temperature: 0.2
-      })
-    });
-
-    if (!groqResponse.ok) {
-      const err = await groqResponse.text();
-      throw new Error(`Both Gemini and Groq failed. Groq error: ${err}`);
-    }
-
-    const groqData = await groqResponse.json();
-    let text = groqData.choices[0].message.content;
-    // Extra safety to strip trailing/leading text if Groq hallucinated
-    if(text.includes('{')) {
-        return text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1);
-    }
-    return text;
-  }
-}
+import { callAiWithFallback } from '../_shared/ai-service.ts'
+import { createRequestContext, createLogger, requireEnvVars, sanitizeError } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  const ctx = createRequestContext('generate-feedback')
+  const log = createLogger(ctx)
+
   try {
+    // Step 1: Validate environment
+    log.step(1, 'Validating environment')
+    const env = requireEnvVars('SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY')
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
+
+    // Step 2: Parse request
+    log.step(2, 'Parsing request')
     const { sessionId } = await req.json()
-    
     if (!sessionId) {
-      throw new Error('Session ID is required')
+      return new Response(
+        JSON.stringify({ success: false, error: 'Session ID is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
+    log.info('Session', sessionId)
 
-    console.log(`Generating feedback for session: ${sessionId}`)
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    // 1. Fetch all answers for this session
+    // Step 3: Fetch answers
+    log.step(3, 'Fetching interview answers')
     const { data: answers, error: answersError } = await supabase
       .from('interview_answers')
       .select('question, answer_text, score')
@@ -98,13 +38,16 @@ Deno.serve(async (req) => {
       .order('created_at', { ascending: true });
 
     if (answersError || !answers || answers.length === 0) {
+      log.warn('No answers found', answersError?.message)
       return new Response(
-        JSON.stringify({ error: 'No answers found for this session. Please complete the interview first.' }),
+        JSON.stringify({ success: false, error: 'No answers found for this session. Please complete the interview first.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      )
     }
+    log.info('Answers found', `${answers.length} answers`)
 
-    // 2. Fetch session details
+    // Step 4: Fetch session details
+    log.step(4, 'Fetching session details')
     const { data: session, error: sessionError } = await supabase
       .from('interview_sessions')
       .select('*')
@@ -112,10 +55,12 @@ Deno.serve(async (req) => {
       .single()
 
     if (sessionError || !session) {
+      log.error('Session not found', sessionError)
       throw new Error('Interview session not found')
     }
 
-    // 3. Fetch user's resume for context
+    // Step 5: Fetch resume context
+    log.step(5, 'Fetching resume context')
     const { data: resume } = await supabase
       .from('resumes')
       .select('parsed_data, ats_score')
@@ -124,7 +69,8 @@ Deno.serve(async (req) => {
       .limit(1)
       .single();
 
-    // 3.5 Fetch historical skill memory
+    // Step 6: Fetch skill memory
+    log.step(6, 'Fetching skill memory')
     const { data: skillMemory } = await supabase
       .from('user_skill_memory')
       .select('*')
@@ -135,7 +81,8 @@ Deno.serve(async (req) => {
       ? `Communication: ${skillMemory.communication}/100\nTechnical Depth: ${skillMemory.technical_depth}/100\nProblem Solving: ${skillMemory.problem_solving}/100\nDomain Knowledge: ${skillMemory.domain_knowledge}/100\nWeak Areas: ${(skillMemory.weak_areas || []).join(', ')}`
       : "No historical data available. First session.";
 
-    // 4. Build the evaluation prompt with actual answers
+    // Step 7: Build evaluation prompt
+    log.step(7, 'Building evaluation prompt')
     const qaTranscript = answers.map((a, i) => 
       `Question ${i+1}: ${a.question}\nCandidate Answer: ${a.answer_text || 'No answer provided'}`
     ).join('\n\n');
@@ -157,7 +104,7 @@ Deno.serve(async (req) => {
     ${scoringGuideline}
     `;
 
-    let userMessage = `
+    const userMessage = `
     Evaluate this ${session.type.replace('_', ' ')} interview performance based on the actual Q&A transcript below.
 
     INTERVIEW TRANSCRIPT:
@@ -190,22 +137,49 @@ Deno.serve(async (req) => {
     Respond with ONLY the raw JSON. No markdown tags.
     `;
 
-    const responseText = await callAI(systemPrompt, userMessage);
-    const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-  let reportData: any
-  try {
-    reportData = JSON.parse(cleaned)
-  } catch (parseError) {
-    console.error('generate-feedback: failed to parse AI response, retrying. Raw:', responseText.substring(0, 500))
-    const retryText = await callAI(systemPrompt, userMessage + '\n\nIMPORTANT: Your previous response could not be parsed as JSON. Return ONLY a valid JSON object with no text before or after it, no markdown code fences, no explanation.')
-    const retryCleaned = retryText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    // Step 8: Call AI (uses shared callAiWithFallback with circuit breaker + timeout)
+    log.step(8, 'Calling AI for evaluation')
+    let responseText: string
     try {
-      reportData = JSON.parse(retryCleaned)
-    } catch (retryError) {
-      throw new Error('AI returned invalid JSON after two attempts. Raw response: ' + responseText.substring(0, 500))
+      responseText = await callAiWithFallback({
+        systemPrompt,
+        userMessage,
+        temperature: 0.2,
+        maxTokens: 2048,
+        responseMimeType: 'application/json'
+      })
+    } catch (aiError) {
+      log.error('AI call failed', aiError)
+      throw new Error(`AI evaluation failed: ${(aiError as Error).message}`)
     }
-  }
+    log.timing('AI evaluation complete')
 
+    // Step 9: Parse AI response
+    log.step(9, 'Parsing AI response')
+    const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    let reportData: any
+    try {
+      reportData = JSON.parse(cleaned)
+    } catch (parseError) {
+      log.warn('First parse failed, retrying', cleaned.substring(0, 200))
+      const retryText = await callAiWithFallback({
+        systemPrompt,
+        userMessage: userMessage + '\n\nIMPORTANT: Your previous response could not be parsed as JSON. Return ONLY a valid JSON object with no text before or after it, no markdown code fences, no explanation.',
+        temperature: 0.1,
+        maxTokens: 2048,
+        responseMimeType: 'application/json'
+      })
+      const retryCleaned = retryText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      try {
+        reportData = JSON.parse(retryCleaned)
+      } catch (retryError) {
+        log.error('Second parse also failed', retryError)
+        throw new Error('AI returned invalid JSON after two attempts. Raw response: ' + responseText.substring(0, 500))
+      }
+    }
+
+    // Step 10: Save feedback report
+    log.step(10, 'Saving feedback report')
     await supabase.from('feedback_reports').delete().eq('session_id', sessionId)
 
     const { data: report, error: reportError } = await supabase
@@ -228,11 +202,12 @@ Deno.serve(async (req) => {
       .single()
 
     if (reportError) {
-      console.error('Error creating feedback report:', reportError)
+      log.error('Report insert failed', reportError)
       throw reportError
     }
 
-    // --- Update user_skill_memory with weighted running average ---
+    // Step 11: Update skill memory
+    log.step(11, 'Updating skill memory')
     try {
       const currentScores = reportData.skill_scores || {
         communication: 50, technical_depth: 50, problem_solving: 50, domain_knowledge: 50
@@ -258,10 +233,11 @@ Deno.serve(async (req) => {
         });
       }
     } catch (skillErr) {
-      console.error('Failed to update skill memory:', skillErr);
+      log.error('Skill memory update failed (non-fatal)', skillErr);
     }
 
-    // --- Generate Learning Path ---
+    // Step 12: Generate learning path
+    log.step(12, 'Generating learning path')
     try {
       const improvements = reportData.improvements || []
       const nextSteps = reportData.focus_areas_next_session || []
@@ -288,18 +264,21 @@ Deno.serve(async (req) => {
         }
       }
     } catch (lpErr) {
-      console.error('Failed to generate learning path:', lpErr)
+      log.error('Learning path generation failed (non-fatal)', lpErr)
     }
 
-    // --- Trigger RAG embedding pipeline (fire-and-forget) ---
+    // Step 13: Trigger RAG embedding pipeline
+    log.step(13, 'Triggering embed-session pipeline')
     try {
       supabase.functions.invoke('embed-session', {
         body: { sessionId }
-      }).catch(err => console.error('embed-session background call failed:', err));
-      console.log('generate-feedback: Triggered embed-session pipeline for session:', sessionId);
+      }).catch(err => log.error('embed-session background call failed', err));
     } catch (embedErr) {
-      console.error('Failed to trigger embed-session:', embedErr);
+      log.error('Failed to trigger embed-session (non-fatal)', embedErr);
     }
+
+    log.timing('Total execution')
+    log.info('Success', `Report ID: ${report.id}, Score: ${reportData.overall_score}`)
 
     return new Response(JSON.stringify({
       success: true,
@@ -311,11 +290,13 @@ Deno.serve(async (req) => {
     })
 
   } catch (error: any) {
-    console.error('Error in generate-feedback function:', error)
+    log.error('FATAL', error)
+    const sanitized = sanitizeError(error)
     return new Response(
       JSON.stringify({ 
-        error: 'Failed to generate feedback', 
-        details: error.message 
+        success: false,
+        error: sanitized.error,
+        correlationId: ctx.correlationId,
       }),
       {
         status: 500,

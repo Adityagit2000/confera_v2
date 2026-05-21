@@ -1,5 +1,6 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { corsHeaders } from '../_shared/cors.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { createClient } from 'npm:@supabase/supabase-js@2'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!

@@ -10,6 +10,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { useVoiceSynthesis } from '@/hooks/useVoiceSynthesis';
+import { PreFlightCheck } from '@/components/PreFlightCheck';
+import { closeAudioContext, type DiagnosticReport } from '@/lib/voiceDiagnostics';
 import { 
   Mic, 
   MicOff, 
@@ -50,6 +52,10 @@ const InterviewSession = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   
+  // Pre-flight check state
+  const [preFlightComplete, setPreFlightComplete] = useState(false);
+  const [diagnosticReport, setDiagnosticReport] = useState<DiagnosticReport | null>(null);
+  
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
@@ -58,11 +64,9 @@ const InterviewSession = () => {
   const { isPro, canStartInterview, profile } = useSubscription();
   
   // Voice engine state
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [autoSend, setAutoSend] = useState(true);
-  const isSpeakingRef = useRef(false);
   const submitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [finalTranscript, setFinalTranscript] = useState('');
   
@@ -101,6 +105,7 @@ const InterviewSession = () => {
   });
 
   const isListening = voiceInput.isListening;
+  const isSpeaking = voiceSynth.isSpeaking;
   const voiceAvailable = voiceInput.mode !== 'text-only';
   const [cameraAvailable, setCameraAvailable] = useState(true);
   
@@ -115,43 +120,31 @@ const InterviewSession = () => {
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
   
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoiceName, setSelectedVoiceName] = useState<string>(localStorage.getItem('confera_voice') || '');
-  const recognitionRetryCount = 0; // Keeping for reference if needed, but likely unused now
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const candidateVideoRef = useRef<HTMLVideoElement>(null);
   const shouldContinueListeningRef = useRef(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
 
-  // Voice engine initialization
-  useEffect(() => {
-    const loadVoices = () => {
-      const voices = window.speechSynthesis.getVoices()
-      const englishVoices = voices.filter(v => v.lang.startsWith('en'))
-      setAvailableVoices(englishVoices)
-      if (!selectedVoiceName && englishVoices.length > 0) {
-        const preferred = 
-          englishVoices.find(v => v.name.includes('Google US English')) ||
-          englishVoices.find(v => v.name.includes('Samantha')) ||
-          englishVoices.find(v => !v.localService) ||
-          englishVoices[0]
-        if (preferred) setSelectedVoiceName(preferred.name)
-      }
-    }
-    
-    loadVoices()
-    window.speechSynthesis.onvoiceschanged = loadVoices
-    
-    return () => {
-      window.speechSynthesis.onvoiceschanged = null
-    }
-  }, [])
+  // Voice engine initialization — handled by useVoiceSynthesis hook
+  // Just need to manage user's voice preference
+  const availableVoices = voiceSynth.getVoices();
 
   const handleVoiceChange = (voiceName: string) => {
     setSelectedVoiceName(voiceName);
     localStorage.setItem('confera_voice', voiceName);
   };
+
+  // Pre-flight check handlers
+  const handlePreFlightComplete = useCallback((report: DiagnosticReport) => {
+    setDiagnosticReport(report);
+    setPreFlightComplete(true);
+  }, []);
+
+  const handlePreFlightSkip = useCallback(() => {
+    setPreFlightComplete(true);
+  }, []);
 
   // Check for first-time user onboarding
   useEffect(() => {
@@ -176,16 +169,16 @@ const InterviewSession = () => {
 
   useEffect(() => {
     const handleBeforeUnload = () => {
-      window.speechSynthesis?.cancel();
-      isSpeakingRef.current = false;
+      voiceSynth.cancel();
       voiceInput.cleanup();
+      closeAudioContext();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.speechSynthesis?.cancel();
-      isSpeakingRef.current = false;
+      voiceSynth.cancel();
       voiceInput.cleanup();
+      closeAudioContext();
       if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
     };
   }, []);
@@ -300,56 +293,27 @@ const InterviewSession = () => {
     }
   }, [sessionId, supabase]);
 
+  // Consolidated speak function — delegates to the production-grade voiceSynth hook
+  // which handles Chrome 15s chunking, async voice loading, iOS audio unlock, and retry
   const speak = useCallback((text: string) => {
-    if (!window.speechSynthesis) return;
-    if (isSpeakingRef.current) return; // prevent double-call
-    isSpeakingRef.current = true;
-
-    // Cancel any in-progress speech first
-    window.speechSynthesis.cancel();
-
-    setTimeout(() => {
-      const utterance = new SpeechSynthesisUtterance(text);
-
-      const voices = window.speechSynthesis.getVoices();
-      const voice = voices.find(v => v.name === selectedVoiceName)
-        || voices.find(v => v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha'))
-        || voices.find(v => v.lang.startsWith('en') && !v.localService)
-        || voices.find(v => v.lang === 'en-US')
-        || voices[0];
-
-      if (voice) utterance.voice = voice;
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-
-      utterance.onstart = () => {
-        setIsSpeaking(true);
+    voiceSynth.speak(
+      text,
+      selectedVoiceName || undefined,
+      // onStart
+      () => {
         setIsAiSpeaking(true);
         shouldContinueListeningRef.current = false;
         voiceInput.stopListening();
-      };
-      utterance.onend = () => {
-        isSpeakingRef.current = false;
-        setIsSpeaking(false);
+      },
+      // onEnd
+      () => {
         setIsAiSpeaking(false);
         if (shouldContinueListeningRef.current) {
           voiceInput.startListening();
         }
-      };
-      utterance.onerror = (e) => {
-        isSpeakingRef.current = false;
-        setIsSpeaking(false);
-        setIsAiSpeaking(false);
-        // Only log if it's not an 'interrupted' error (those are expected on cancel)
-        if ((e as any).error !== 'interrupted' && (e as any).error !== 'canceled') {
-          console.warn('TTS error:', (e as any).error);
-        }
-      };
-
-      window.speechSynthesis.speak(utterance);
-    }, 150); // small delay to let cancel settle
-  }, [selectedVoiceName, voiceInput]);
+      }
+    );
+  }, [selectedVoiceName, voiceInput, voiceSynth]);
 
   const startInterviewFlow = useCallback(async (sessionData: any) => {
     if (!canStartInterview) {
@@ -471,6 +435,7 @@ const InterviewSession = () => {
 
     voiceSynth.cancel();
     voiceInput.stopListening();
+    closeAudioContext();
     setShowCompletion(true);
     
     try {
@@ -508,6 +473,16 @@ const InterviewSession = () => {
     const s = (seconds % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
   }, []);
+
+  // Show pre-flight check before interview room
+  if (!preFlightComplete) {
+    return (
+      <PreFlightCheck
+        onComplete={handlePreFlightComplete}
+        onSkip={handlePreFlightSkip}
+      />
+    );
+  }
 
   if (loading) {
     return (

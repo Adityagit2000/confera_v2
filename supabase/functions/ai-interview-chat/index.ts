@@ -3,43 +3,71 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
 import { getEmbedding } from '../_shared/embedding-service.ts'
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+import { createRequestContext, createLogger, requireEnvVars, sanitizeError, sanitizeInput, detectPromptInjection } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  console.log('--- ai-interview-chat: Function called ---');
+  const ctx = createRequestContext('ai-interview-chat')
+  const log = createLogger(ctx)
 
   try {
+    // Step 1: Validate environment
+    log.step(1, 'Validating environment')
+    const env = requireEnvVars('SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY')
+
+    // Step 2: Parse and validate request
+    log.step(2, 'Parsing request')
     const body = await req.json();
     const { sessionId, message, interviewType } = body;
-    console.log(`Processing sessionId: ${sessionId}, type: ${interviewType}, msg: ${message?.substring(0, 30)}...`);
+    
+    if (!sessionId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'sessionId is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
-    if (!sessionId) throw new Error('sessionId is required');
+    // Sanitize user message
+    const sanitizedMessage = sanitizeInput(message, 5000)
+    const sanitizedType = sanitizeInput(interviewType, 50)
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // Check for prompt injection
+    if (sanitizedMessage && detectPromptInjection(sanitizedMessage)) {
+      log.warn('Prompt injection detected', sanitizedMessage.substring(0, 100))
+      // Don't block — just log. The system prompt is strong enough to resist.
+    }
 
-    // 1. Fetch current session and transcript
+    log.info('Request', `session=${sessionId}, type=${sanitizedType}, msgLen=${sanitizedMessage?.length || 0}`)
+
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
+
+    // Step 3: Fetch session
+    log.step(3, 'Fetching session')
     const { data: session, error: sessionError } = await supabase
       .from('interview_sessions')
       .select('*')
       .eq('id', sessionId)
       .single();
 
-    if (sessionError || !session) throw new Error(`Session not found for ID: ${sessionId}`);
+    if (sessionError || !session) {
+      log.error('Session not found', sessionError)
+      return new Response(
+        JSON.stringify({ success: false, error: `Session not found: ${sessionId}` }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     const transcript = typeof session.transcript === 'string' 
       ? JSON.parse(session.transcript) 
       : (session.transcript || []);
     
-    // Count assistant messages to determine current question index
     const questionIndex = transcript.filter((m: any) => m.role === 'assistant').length;
 
-    // 2. Fetch latest resume analysis for the user
+    // Step 4: Fetch resume context
+    log.step(4, 'Fetching resume context')
     const { data: latestResume } = await supabase
       .from('resumes')
       .select('parsed_data')
@@ -52,7 +80,8 @@ Deno.serve(async (req) => {
       ? JSON.stringify(latestResume.parsed_data) 
       : "No resume analysis available. Proceed with general background questions.";
 
-    // 2.5 Fetch user skill memory
+    // Step 5: Fetch skill memory
+    log.step(5, 'Fetching skill memory')
     const { data: skillMemory } = await supabase
       .from('user_skill_memory')
       .select('communication, technical_depth, problem_solving, domain_knowledge, weak_areas')
@@ -63,18 +92,18 @@ Deno.serve(async (req) => {
       ? `Historical Performance: Communication: ${skillMemory.communication}/100, Technical: ${skillMemory.technical_depth}/100, Problem Solving: ${skillMemory.problem_solving}/100, Domain Knowledge: ${skillMemory.domain_knowledge}/100. Weak Areas to probe: ${(skillMemory.weak_areas || []).join(', ')}. Filler word rate: ${skillMemory.filler_word_rate || 0}%. Avg answer length: ${skillMemory.avg_answer_length || 0} words. Sessions completed: ${skillMemory.total_sessions || 0}.`
       : "No historical performance data. Treat as a new candidate.";
 
-    // 3. Handle First Message Case (Start of Interview)
-    if ((!message || message.trim() === '') && transcript.length === 0) {
-      console.log('Generating first message for start of interview...');
+    // Step 6: Handle first message (start of interview)
+    if ((!sanitizedMessage || sanitizedMessage.trim() === '') && transcript.length === 0) {
+      log.step(6, 'Generating opening message')
       
       const startPrompt = `
-      You are a Senior ${interviewType || 'General'} Interviewer. 
+      You are a Senior ${sanitizedType || 'General'} Interviewer. 
       Your goal is to evaluate the candidate for a ${session.job_role || 'relevant'} position.
       
       CONTEXT:
       - Candidate Resume: ${resumeJsonSummary}
       - ${skillMemoryContext}
-      - Track: ${interviewType}
+      - Track: ${sanitizedType}
       
       TASK: 
       Generate a welcoming first message. Mention your role and the track. 
@@ -82,26 +111,38 @@ Deno.serve(async (req) => {
       Keep it under 3 sentences.
       `;
 
-      const firstMsg = await callAiWithFallback({
-        systemPrompt: "You are a professional AI interviewer.",
-        userMessage: startPrompt,
-        temperature: 0.7
-      });
+      let firstMsg: string
+      try {
+        firstMsg = await callAiWithFallback({
+          systemPrompt: "You are a professional AI interviewer.",
+          userMessage: startPrompt,
+          temperature: 0.7
+        });
+      } catch (aiError) {
+        log.error('AI call failed for opening message', aiError)
+        throw new Error(`AI interviewer unavailable: ${(aiError as Error).message}`)
+      }
 
       const newHistory = [...transcript, { role: 'assistant', content: firstMsg }];
       await supabase.from('interview_sessions').update({ transcript: JSON.stringify(newHistory) }).eq('id', sessionId);
       
       // Increment interview usage counter
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('interviews_used_this_month')
-        .eq('id', session.user_id)
-        .single();
-      
-      await supabase
-        .from('profiles')
-        .update({ interviews_used_this_month: (profile?.interviews_used_this_month || 0) + 1 })
-        .eq('id', session.user_id);
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('interviews_used_this_month')
+          .eq('id', session.user_id)
+          .single();
+        
+        await supabase
+          .from('profiles')
+          .update({ interviews_used_this_month: (profile?.interviews_used_this_month || 0) + 1 })
+          .eq('id', session.user_id);
+      } catch (usageErr) {
+        log.error('Usage counter increment failed (non-fatal)', usageErr)
+      }
+
+      log.timing('Opening message generated')
 
       return new Response(JSON.stringify({ 
         success: true,
@@ -112,31 +153,32 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 4. Normal Interview Flow: Evaluate and Generate Next Question
+    // Step 7: RAG retrieval
+    log.step(7, 'RAG retrieval')
     const isFinalAnswer = questionIndex >= 10;
-
-    // 4.1 RAG Retrieval: fetch similar past answers to avoid repetition
     let pastAnswerContext = '';
     try {
-      if (message && message.trim().length > 10) {
-        const queryEmbedding = await getEmbedding(message);
+      if (sanitizedMessage && sanitizedMessage.trim().length > 10) {
+        const queryEmbedding = await getEmbedding(sanitizedMessage);
         const { data: pastAnswers, error: ragError } = await supabase
           .rpc('match_transcript_embeddings', {
             query_embedding: JSON.stringify(queryEmbedding),
             match_user_id: session.user_id,
-            match_interview_type: interviewType || session.type || 'general',
+            match_interview_type: sanitizedType || session.type || 'general',
             match_count: 5
           });
 
         if (!ragError && pastAnswers && pastAnswers.length > 0) {
           pastAnswerContext = `\n# PAST ANSWER CONTEXT (from previous sessions)\nThe candidate has answered similar questions before. DO NOT repeat or closely rephrase these:\n${pastAnswers.map((a: any) => `- Q: ${a.question}\n  A (similarity: ${(a.similarity * 100).toFixed(0)}%): ${a.answer.substring(0, 200)}`).join('\n')}\n\nIf any past answer was shallow or incomplete, probe that same TOPIC from a completely different angle.\n`;
-          console.log(`ai-interview-chat: RAG retrieved ${pastAnswers.length} past answers`);
+          log.info('RAG', `Retrieved ${pastAnswers.length} past answers`);
         }
       }
     } catch (ragErr) {
-      console.warn('ai-interview-chat: RAG retrieval failed (non-fatal):', (ragErr as any).message);
-      // Graceful degradation — continue without past context
+      log.warn('RAG retrieval failed (non-fatal)', (ragErr as any).message);
     }
+
+    // Step 8: Build prompt and call AI
+    log.step(8, 'Generating next question')
 
     // Multi-Track Persona Injection
     const trackLenses: Record<string, string> = {
@@ -151,11 +193,11 @@ Deno.serve(async (req) => {
       'hr': "Focus on behavioral questions, cultural fit, and HR screening."
     };
 
-    const currentLens = trackLenses[interviewType?.toLowerCase()] || "Focus on their overall fit and technical depth based on their resume.";
+    const currentLens = trackLenses[sanitizedType?.toLowerCase()] || "Focus on their overall fit and technical depth based on their resume.";
 
     const systemPrompt = `
 # ROLE
-You are a Senior ${interviewType?.toUpperCase() || 'General'} Interviewer. Your goal is to evaluate the candidate's fit for a ${session.job_role || 'relevant'} position, specifically focusing on ${interviewType || 'general'} competencies while grounded in their actual experience.
+You are a Senior ${sanitizedType?.toUpperCase() || 'General'} Interviewer. Your goal is to evaluate the candidate's fit for a ${session.job_role || 'relevant'} position, specifically focusing on ${sanitizedType || 'general'} competencies while grounded in their actual experience.
 
 # THE LENS (How to read the Resume)
 - ${currentLens}
@@ -163,7 +205,7 @@ You are a Senior ${interviewType?.toUpperCase() || 'General'} Interviewer. Your 
 # CONTEXT
 - Candidate Resume: ${resumeJsonSummary}
 - ${skillMemoryContext}
-- Track: ${interviewType}
+- Track: ${sanitizedType}
 ${pastAnswerContext}
 # OPERATING GUIDELINES
 1. Use the Resume as the 'Case Study'. 
@@ -189,26 +231,34 @@ ${pastAnswerContext}
     ${conversationStr}
     
     Candidate's New Answer:
-    "${message}"
+    "${sanitizedMessage}"
     
     Task: 
     1. Acknowledge their response briefly.
-    2. If not finished (current question count is ${questionIndex}), ask the next relevant question for ${interviewType} based on YOUR ROLE and THE LENS. Focus heavily on probing their 'Weak Areas to probe' if any are listed in the CONTEXT.
+    2. If not finished (current question count is ${questionIndex}), ask the next relevant question for ${sanitizedType} based on YOUR ROLE and THE LENS. Focus heavily on probing their 'Weak Areas to probe' if any are listed in the CONTEXT.
     3. If 10 or more questions have been asked, conclude the interview.
     
     Respond with ONLY the text of the interviewer's next response (concise, professional). No JSON, no markdown tags.
     `;
 
-    const nextResponseText = await callAiWithFallback({
-      systemPrompt,
-      userMessage: evaluationPrompt,
-      temperature: 0.7
-    });
+    let nextResponseText: string
+    try {
+      nextResponseText = await callAiWithFallback({
+        systemPrompt,
+        userMessage: evaluationPrompt,
+        temperature: 0.7
+      });
+    } catch (aiError) {
+      log.error('AI call failed for next question', aiError)
+      throw new Error(`AI interviewer unavailable: ${(aiError as Error).message}`)
+    }
+    log.timing('AI response generated')
     
-    // 4. Update session history
+    // Step 9: Update session history
+    log.step(9, 'Updating session transcript')
     const updatedHistory = [
       ...transcript, 
-      { role: 'user', content: message || 'User sent an empty message.' },
+      { role: 'user', content: sanitizedMessage || 'User sent an empty message.' },
       { role: 'assistant', content: nextResponseText }
     ];
 
@@ -220,28 +270,32 @@ ${pastAnswerContext}
       })
       .eq('id', sessionId);
 
-    // 5. Save to interview_answers for the report
+    // Step 10: Save to interview_answers
+    log.step(10, 'Saving answer record')
     const lastQuestion = transcript.length > 0 ? transcript.slice().reverse().find((m: any) => m.role === 'assistant')?.content : "Initial Question";
     await supabase.from('interview_answers').insert({
       session_id: sessionId,
       question: lastQuestion || "Initial Question",
-      answer_text: message || "",
-      score: null // will be evaluated in generate-feedback
+      answer_text: sanitizedMessage || "",
+      score: null
     });
 
-    // Fire-and-forget: per-answer coaching analysis
+    // Step 11: Fire-and-forget coaching analysis
+    log.step(11, 'Triggering analyze-answer')
     try {
       supabase.functions.invoke('analyze-answer', {
         body: {
           sessionId,
           question: lastQuestion || 'Initial Question',
-          answer: message || '',
-          interviewType: interviewType || session.type || 'general'
+          answer: sanitizedMessage || '',
+          interviewType: sanitizedType || session.type || 'general'
         }
-      }).catch(err => console.error('analyze-answer fire-and-forget failed:', err));
+      }).catch(err => log.error('analyze-answer fire-and-forget failed', err));
     } catch (analyzeErr) {
-      console.warn('Failed to trigger analyze-answer:', analyzeErr);
+      log.warn('Failed to trigger analyze-answer', (analyzeErr as any).message);
     }
+
+    log.timing('Total execution')
 
     return new Response(JSON.stringify({ 
       success: true,
@@ -253,12 +307,13 @@ ${pastAnswerContext}
     });
 
   } catch (error: any) {
-    console.error('FATAL ERROR in ai-interview-chat:', error.message, error.stack);
+    log.error('FATAL', error)
+    const sanitized = sanitizeError(error)
     return new Response(
       JSON.stringify({ 
         success: false,
-        error: error.message, 
-        stack: error.stack 
+        error: sanitized.error,
+        correlationId: ctx.correlationId,
       }),
       { 
         status: 500, 
