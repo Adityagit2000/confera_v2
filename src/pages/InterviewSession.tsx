@@ -717,7 +717,9 @@ const InterviewSession = () => {
                <div className="flex-1 hidden lg:block">
                   <div className="flex flex-col">
                     <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">Audio Engine</p>
-                    <p className="text-[10px] font-bold text-primary/50 uppercase">Neural Voice Fallback Active</p>
+                    <p className="text-[10px] font-bold text-primary/50 uppercase">
+                      {voiceInput.mode === 'speech-api' ? 'Real-time Web Speech' : 'Neural Voice Fallback Active'}
+                    </p>
                   </div>
                </div>
 

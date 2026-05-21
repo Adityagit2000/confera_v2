@@ -216,14 +216,22 @@ export function useVoiceInput({
       }
 
       if (errorType === 'network') {
-        onError('Network error during speech recognition. Please check your connection.')
+        console.warn('[VoiceInput] Network error on Speech API (often caused by Brave Shields or ad blockers). Falling back to media-recorder.')
+        setMode('media-recorder')
+        onError('Voice API blocked by browser shields. Falling back to alternative engine. Please tap the mic to try again.')
+        shouldContinueRef.current = false
         isStartingRef.current = false
+        setIsListening(false)
         updateStatus('error')
         return
       }
 
       // Unknown error — log it
       console.error('[VoiceInput] SpeechRecognition error:', errorType)
+      if (errorType === 'not-supported' || errorType === 'service-not-allowed') {
+        setMode('media-recorder')
+        onError('Voice API unavailable. Falling back to alternative engine. Please tap the mic to try again.')
+      }
       isStartingRef.current = false
     }
 
