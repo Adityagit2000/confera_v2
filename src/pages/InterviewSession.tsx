@@ -509,7 +509,7 @@ const InterviewSession = () => {
     <div className="min-h-screen bg-[#0a0a0f] text-white flex flex-col font-sans overflow-hidden relative">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/10 via-background to-background pointer-events-none" />
       
-      <header className="p-4 sm:p-6 flex items-center justify-between z-10 w-full relative">
+      <header className="p-4 sm:p-6 flex items-center justify-between z-50 w-full relative">
         <div className="flex items-center gap-2 sm:gap-4">
           <BackButton />
           <div className="flex flex-col">
