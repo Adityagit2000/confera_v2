@@ -1,10 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { corsHeaders } from '../_shared/cors.ts'
-import { createClient } from 'npm:@supabase/supabase-js@2'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+import { authenticateRequest } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -12,7 +9,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { resumeText, userId, jobRole = 'Software Engineer' } = await req.json()
+    // Authenticate request
+    const auth = await authenticateRequest(req, corsHeaders)
+    if ('response' in auth) return auth.response
+    const { user, supabase } = auth
+
+    const { resumeText, jobRole = 'Software Engineer' } = await req.json()
+    // Use authenticated user ID instead of client-provided userId
+    const userId = user.id
 
     if (!resumeText) {
       throw new Error('resumeText is required')
@@ -105,7 +109,6 @@ Deno.serve(async (req) => {
 
     // Increment usage counter & update resume record if userId is provided
     if (userId) {
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
       
       // Update profile usage
       const { data: profile } = await supabase

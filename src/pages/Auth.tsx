@@ -46,8 +46,18 @@ const Auth = () => {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    
+    // Password strength validation
+    if (password.length < 8) {
+      toast({ title: "Weak Password", description: "Password must be at least 8 characters long.", variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+    if (!/\d/.test(password)) {
+      toast({ title: "Weak Password", description: "Password must contain at least one number.", variant: "destructive" });
+      setLoading(false);
+      return;
+    }
+
     const { error } = await signUp(email, password, name);
     
     if (!error) {
@@ -158,7 +168,7 @@ const Auth = () => {
           </Link>
           <p className="text-muted-foreground text-lg">Master your future with AI-powered preparation</p>
         </div>
--
+
         <Card className="border-border/40 shadow-2xl bg-[#111111]/80 backdrop-blur-xl relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
           <CardHeader className="space-y-2 pb-8">
@@ -178,11 +188,16 @@ const Auth = () => {
               <div className="space-y-3 mb-6">
                 <Button 
                   className="w-full bg-white hover:bg-[#f5f5f5] border border-[#e0e0e0] hover:border-[#d0d0d0] text-[#1f1f1f] hover:text-[#1f1f1f] transition-all duration-300 h-12 text-sm font-semibold flex items-center justify-center relative overflow-hidden group shadow-sm hover:shadow-md"
-                  onClick={() => {
-                    supabase.auth.signInWithOAuth({
-                      provider: 'google',
-                      options: { redirectTo: `${window.location.origin}/` }
-                    });
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase.auth.signInWithOAuth({
+                        provider: 'google',
+                        options: { redirectTo: `${window.location.origin}/` }
+                      });
+                      if (error) throw error;
+                    } catch (err: any) {
+                      toast({ title: "OAuth Error", description: err.message || "Failed to connect to Google. Please try again.", variant: "destructive" });
+                    }
                   }}
                 >
                   <div className="absolute left-6 flex items-center justify-center">
@@ -198,11 +213,16 @@ const Auth = () => {
                 <Button 
                   variant="outline" 
                   className="w-full bg-[#24292e] hover:bg-black border-[#444] text-white transition-all duration-300 h-12 text-sm font-semibold flex items-center justify-center relative overflow-hidden group shadow-sm hover:shadow-md"
-                  onClick={() => {
-                    supabase.auth.signInWithOAuth({
-                      provider: 'github',
-                      options: { redirectTo: `${window.location.origin}/` }
-                    });
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase.auth.signInWithOAuth({
+                        provider: 'github',
+                        options: { redirectTo: `${window.location.origin}/` }
+                      });
+                      if (error) throw error;
+                    } catch (err: any) {
+                      toast({ title: "OAuth Error", description: err.message || "Failed to connect to GitHub. Please try again.", variant: "destructive" });
+                    }
                   }}
                 >
                   <div className="absolute left-6 flex items-center justify-center">

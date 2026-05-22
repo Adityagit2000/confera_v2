@@ -1,10 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+import { authenticateRequest } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -14,10 +11,14 @@ Deno.serve(async (req) => {
   console.log('--- generate-prep-plan: Function called ---');
 
   try {
-    const { userId } = await req.json();
-    if (!userId) throw new Error('userId is required');
+    // Authenticate request
+    const auth = await authenticateRequest(req, corsHeaders)
+    if ('response' in auth) return auth.response
+    const { user, supabase } = auth
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const body = await req.json();
+    // Use authenticated user ID — ignore client-provided userId for security
+    const userId = user.id;
 
     // 1. Fetch user skill memory
     const { data: skillMemory } = await supabase

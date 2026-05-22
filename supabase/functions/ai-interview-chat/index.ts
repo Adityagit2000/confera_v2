@@ -1,9 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
 import { getEmbedding } from '../_shared/embedding-service.ts'
-import { createRequestContext, createLogger, requireEnvVars, sanitizeError, sanitizeInput, detectPromptInjection } from '../_shared/request-context.ts'
+import { createRequestContext, createLogger, sanitizeError, sanitizeInput, detectPromptInjection, authenticateRequest, checkRateLimit, rateLimitResponse } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -14,9 +13,18 @@ Deno.serve(async (req) => {
   const log = createLogger(ctx)
 
   try {
-    // Step 1: Validate environment
-    log.step(1, 'Validating environment')
-    const env = requireEnvVars('SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY')
+    // Step 1: Authenticate request
+    log.step(1, 'Authenticating request')
+    const auth = await authenticateRequest(req, corsHeaders)
+    if ('response' in auth) return auth.response
+    const { user, supabase } = auth
+    ctx.userId = user.id
+
+    // Rate limit: max 30 chat messages per minute per user
+    if (!checkRateLimit(`chat:${user.id}`, 30, 60_000)) {
+      log.warn('Rate limit exceeded', user.id)
+      return rateLimitResponse(corsHeaders)
+    }
 
     // Step 2: Parse and validate request
     log.step(2, 'Parsing request')
@@ -41,8 +49,6 @@ Deno.serve(async (req) => {
     }
 
     log.info('Request', `session=${sessionId}, type=${sanitizedType}, msgLen=${sanitizedMessage?.length || 0}`)
-
-    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
 
     // Step 3: Fetch session
     log.step(3, 'Fetching session')

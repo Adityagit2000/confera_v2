@@ -136,3 +136,101 @@ export function detectPromptInjection(input: string): boolean {
   ]
   return patterns.some(p => lower.includes(p))
 }
+
+// ── Authentication ───────────────────────────────────────────────────────────
+
+import { createClient } from 'npm:@supabase/supabase-js@2'
+
+export interface AuthResult {
+  user: any
+  supabase: any
+}
+
+/**
+ * Authenticate a request by validating the JWT from the Authorization header.
+ * Returns the authenticated user and an admin supabase client, or null + a Response.
+ * 
+ * Usage:
+ *   const auth = await authenticateRequest(req, corsHeaders)
+ *   if (!auth) return auth.response  // 401
+ *   const { user, supabase } = auth
+ */
+export async function authenticateRequest(
+  req: Request,
+  headers: Record<string, string>
+): Promise<{ user: any; supabase: any; response?: never } | { user?: never; supabase?: never; response: Response }> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return {
+      response: new Response(
+        JSON.stringify({ error: 'Server configuration error' }),
+        { status: 500, headers: { ...headers, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader) {
+    return {
+      response: new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...headers, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseServiceKey)
+  const token = authHeader.replace('Bearer ', '')
+  
+  const { data: { user }, error } = await supabase.auth.getUser(token)
+  
+  if (error || !user) {
+    return {
+      response: new Response(
+        JSON.stringify({ error: 'Invalid or expired authentication token' }),
+        { status: 401, headers: { ...headers, 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
+  return { user, supabase }
+}
+
+// ── Rate Limiting (simple in-memory, per-isolate) ────────────────────────────
+
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+
+/**
+ * Simple rate limiter. Returns true if the request should be allowed.
+ * @param key - Unique key (e.g., userId + functionName)
+ * @param maxRequests - Max requests per window
+ * @param windowMs - Window size in milliseconds
+ */
+export function checkRateLimit(key: string, maxRequests: number = 10, windowMs: number = 60_000): boolean {
+  const now = Date.now()
+  const entry = rateLimitMap.get(key)
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + windowMs })
+    return true
+  }
+
+  if (entry.count >= maxRequests) {
+    return false
+  }
+
+  entry.count++
+  return true
+}
+
+/**
+ * Return a 429 response for rate-limited requests
+ */
+export function rateLimitResponse(headers: Record<string, string>): Response {
+  return new Response(
+    JSON.stringify({ error: 'Too many requests. Please wait a moment and try again.' }),
+    { status: 429, headers: { ...headers, 'Content-Type': 'application/json' } }
+  )
+}

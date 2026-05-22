@@ -12,6 +12,7 @@ import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { useVoiceSynthesis } from '@/hooks/useVoiceSynthesis';
 import { PreFlightCheck } from '@/components/PreFlightCheck';
 import { closeAudioContext, type DiagnosticReport } from '@/lib/voiceDiagnostics';
+import { useOnlineStatus, acquireInterviewLock, releaseInterviewLock } from '@/lib/networkUtils';
 import { 
   Mic, 
   MicOff, 
@@ -27,7 +28,9 @@ import {
   RefreshCcw,
   AlertCircle,
   User,
-  Volume2
+  Volume2,
+  WifiOff,
+  RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -48,6 +51,7 @@ declare global {
 
 const InterviewSession = () => {
   const { sessionId } = useParams();
+  const { isOnline, wasOffline } = useOnlineStatus();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -91,6 +95,7 @@ const InterviewSession = () => {
           const fullAnswer = prev.trim();
           if (fullAnswer.length > 10 && autoSend) {
             handleSendVoiceMessage(fullAnswer);
+          }
           return '';
         });
         setLiveTranscript('');
@@ -381,15 +386,24 @@ const InterviewSession = () => {
       }
     } catch (err) {
        setLastFailedMessage(userMsg);
+       // Remove the failed user message from chat to avoid confusion
+       setMessages(prev => prev.filter((m, i) => !(i === prev.length - 1 && m.role === 'user' && m.content === userMsg)));
        toast({ 
          title: "AI Error", 
-         description: "Failed to get response. Feel free to try again.", 
+         description: "Failed to get response. Tap 'Retry' to try again.", 
          variant: "destructive" 
        });
     } finally {
       setIsThinking(false);
     }
   }, [isThinking, isSpeaking, sessionId, session?.type, speak, toast]);
+
+  // Retry handler for failed messages
+  const retryLastMessage = useCallback(() => {
+    if (lastFailedMessage) {
+      handleSendVoiceMessage(lastFailedMessage);
+    }
+  }, [lastFailedMessage, handleSendVoiceMessage]);
 
   const handleManualSend = useCallback((e: React.FormEvent) => {
     e.preventDefault();
@@ -784,10 +798,46 @@ const InterviewSession = () => {
                    </Button>
                  )}
 
-                 <Button onClick={endInterview} className="h-14 sm:h-16 px-6 sm:px-10 rounded-[2rem] bg-white text-black hover:bg-white/90 font-black uppercase tracking-tighter shadow-xl text-sm sm:text-base">
-                    <Phone className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 rotate-[135deg] fill-current" /> End <span className="hidden sm:inline">Session</span>
-                 </Button>
-               </div>
+                  {/* Retry button for failed AI responses */}
+                  {lastFailedMessage && !isThinking && (
+                    <Button
+                      onClick={retryLastMessage}
+                      className="h-14 sm:h-16 px-6 sm:px-8 rounded-[2rem] bg-amber-600 hover:bg-amber-500 text-white font-black uppercase tracking-tighter shadow-xl text-sm sm:text-base animate-in fade-in"
+                    >
+                      <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 mr-2" /> Retry
+                    </Button>
+                  )}
+
+                  <Button onClick={endInterview} className="h-14 sm:h-16 px-6 sm:px-10 rounded-[2rem] bg-white text-black hover:bg-white/90 font-black uppercase tracking-tighter shadow-xl text-sm sm:text-base">
+                     <Phone className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 rotate-[135deg] fill-current" /> End <span className="hidden sm:inline">Session</span>
+                  </Button>
+                </div>
+
+                {/* Network offline banner */}
+                <AnimatePresence>
+                  {!isOnline && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-red-600/90 backdrop-blur-xl text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 z-50"
+                    >
+                      <WifiOff className="w-5 h-5" />
+                      <span className="font-bold text-sm">You're offline. Your answers will be sent when reconnected.</span>
+                    </motion.div>
+                  )}
+                  {wasOffline && isOnline && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 20 }}
+                      className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-emerald-600/90 backdrop-blur-xl text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 z-50"
+                    >
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="font-bold text-sm">Connection restored!</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                <div className="flex-1 hidden sm:flex justify-end">
                   <Button variant="ghost" size="icon" className="w-12 h-12 sm:w-14 sm:h-14 rounded-full text-white/20 hover:text-white hover:bg-white/5 transition-all">

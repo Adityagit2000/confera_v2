@@ -1,8 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
-import { createRequestContext, createLogger, requireEnvVars, sanitizeError } from '../_shared/request-context.ts'
+import { createRequestContext, createLogger, sanitizeError, authenticateRequest } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -13,10 +12,12 @@ Deno.serve(async (req) => {
   const log = createLogger(ctx)
 
   try {
-    // Step 1: Validate environment
-    log.step(1, 'Validating environment')
-    const env = requireEnvVars('SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY')
-    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
+    // Step 1: Authenticate request
+    log.step(1, 'Authenticating request')
+    const auth = await authenticateRequest(req, corsHeaders)
+    if ('response' in auth) return auth.response
+    const { user, supabase } = auth
+    ctx.userId = user.id
 
     // Step 2: Parse request
     log.step(2, 'Parsing request')

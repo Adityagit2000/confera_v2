@@ -32,11 +32,22 @@ const ResumeUpload = ({ onAnalysisComplete }: ResumeUploadProps) => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
   const handleFile = (selectedFile: File) => {
     if (selectedFile.type !== 'application/pdf') {
       toast({
         title: "Invalid file type",
         description: "Please upload a PDF file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      toast({
+        title: "File too large",
+        description: `Maximum file size is 10MB. Your file is ${(selectedFile.size / (1024 * 1024)).toFixed(1)}MB.`,
         variant: "destructive",
       });
       return;

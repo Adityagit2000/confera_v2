@@ -1,9 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+import { authenticateRequest } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,6 +8,11 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Authenticate request
+    const auth = await authenticateRequest(req, corsHeaders)
+    if ('response' in auth) return auth.response
+    const { user, supabase } = auth
+
     const { sessionId, job_role } = await req.json()
     
     if (!sessionId) {
@@ -18,8 +20,6 @@ Deno.serve(async (req) => {
     }
 
     console.log(`Starting interview for session: ${sessionId}${job_role ? ` with role: ${job_role}` : ''}`)
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // First check if session exists
     const { data: session, error: sessionError } = await supabase
@@ -30,6 +30,13 @@ Deno.serve(async (req) => {
 
     if (sessionError || !session) {
       throw new Error('Interview session not found')
+    }
+
+    // Verify the session belongs to the authenticated user
+    if (session.user_id !== user.id) {
+      return new Response(JSON.stringify({ error: 'Forbidden: session does not belong to this user' }), {
+        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
     }
 
     // --- PAYWALL ENFORCEMENT ---

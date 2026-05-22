@@ -1,15 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
-
-// ── Environment Variable Validation ──────────────────────────────────────────
-const supabaseUrl = Deno.env.get('SUPABASE_URL')
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('FATAL: Missing required environment variables: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY')
-}
+import { authenticateRequest } from '../_shared/request-context.ts'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,14 +58,10 @@ Deno.serve(async (req) => {
 
   console.log('--- analyze-resume: Function started ---')
 
-  // ─── Step 0: Validate environment ────────────────────────────────────────
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return makeErrorResponse(
-      'Server configuration error',
-      500,
-      'Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables'
-    )
-  }
+  // ─── Step 0: Authenticate request ────────────────────────────────────────
+  const auth = await authenticateRequest(req, corsHeaders)
+  if ('response' in auth) return auth.response
+  const { user, supabase: supabaseAdmin } = auth
 
   // ─── Step 1: Parse request body ──────────────────────────────────────────
   let resumePath: string | undefined
@@ -99,7 +87,6 @@ Deno.serve(async (req) => {
     return makeErrorResponse('resumeId is required', 400)
   }
 
-  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey)
   const safeJobRole = sanitizeJobRole(jobRole || '')
 
   // ─── Step 2: Fetch resume record ─────────────────────────────────────────
@@ -121,6 +108,11 @@ Deno.serve(async (req) => {
     }
     if (!data) {
       return makeErrorResponse('Resume record not found', 404, `No record for ID: ${resumeId}`)
+    }
+
+    // Verify ownership — user can only analyze their own resume
+    if (data.user_id !== user.id) {
+      return makeErrorResponse('Forbidden: resume does not belong to this user', 403)
     }
 
     resume = data

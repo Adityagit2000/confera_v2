@@ -173,9 +173,15 @@ const Report = () => {
     );
   }
 
-  const recommendations = typeof reportData.recommendations === 'string' 
-    ? JSON.parse(reportData.recommendations) 
-    : (reportData.recommendations || {});
+  let recommendations: any = {};
+  try {
+    recommendations = typeof reportData.recommendations === 'string' 
+      ? JSON.parse(reportData.recommendations) 
+      : (reportData.recommendations || {});
+  } catch {
+    console.warn('Failed to parse recommendations JSON, using empty fallback');
+    recommendations = {};
+  }
 
   const overallScoreColor = getScoreColor(reportData.overall_score || 0);
 

@@ -43,10 +43,12 @@ export function getCorsHeaders(requestOrigin?: string | null): Record<string, st
 
 /**
  * Static CORS headers for backward compatibility.
- * Uses wildcard origin — prefer getCorsHeaders(req) for new functions.
  * 
- * NOTE: Keeping wildcard for now to avoid breaking deployed functions.
- * TODO: Migrate all functions to getCorsHeaders(req.headers.get('origin'))
+ * ⚠️ DEPRECATED: Uses wildcard origin which allows any domain to call these functions.
+ * For new functions, use getCorsHeaders(req.headers.get('origin')) instead.
+ * 
+ * Existing functions will be migrated incrementally.
+ * See: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
  */
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

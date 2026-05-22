@@ -1,10 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { getEmbedding } from '../_shared/embedding-service.ts'
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+import { authenticateRequest } from '../_shared/request-context.ts'
 
 // Filler words to detect in answers
 const FILLER_WORDS = [
@@ -43,10 +40,13 @@ Deno.serve(async (req) => {
   console.log('--- embed-session: Function called ---');
 
   try {
+    // Authenticate request
+    const auth = await authenticateRequest(req, corsHeaders)
+    if ('response' in auth) return auth.response
+    const { supabase } = auth
+
     const { sessionId } = await req.json();
     if (!sessionId) throw new Error('sessionId is required');
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 1. Fetch session details
     const { data: session, error: sessionError } = await supabase

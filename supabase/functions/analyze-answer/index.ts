@@ -1,10 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+import { authenticateRequest } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -14,12 +11,16 @@ Deno.serve(async (req) => {
   console.log('--- analyze-answer: Function called ---');
 
   try {
+    // Authenticate request
+    const auth = await authenticateRequest(req, corsHeaders)
+    if ('response' in auth) return auth.response
+    const { supabase } = auth
+
     const { sessionId, question, answer, interviewType } = await req.json();
     if (!sessionId || !question || !answer) {
       throw new Error('sessionId, question, and answer are required');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const isBehavioral = ['hr', 'behavioral', 'behavioral_hr'].includes(interviewType?.toLowerCase() || '');
 
     const systemPrompt = `You are a senior interview coach for ${interviewType || 'general'} interviews. Be honest but constructive.`;

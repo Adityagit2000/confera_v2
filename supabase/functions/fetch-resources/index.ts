@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { corsHeaders } from '../_shared/cors.ts'
+import { authenticateRequest } from '../_shared/request-context.ts'
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
 
@@ -68,6 +69,10 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Authenticate request
+    const auth = await authenticateRequest(req, corsHeaders)
+    if ('response' in auth) return auth.response
+
     const { topics } = await req.json()
     const results: Record<string, {title: string, url: string}[]> = {}
 

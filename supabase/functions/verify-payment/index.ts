@@ -64,7 +64,10 @@ Deno.serve(async (req) => {
 
     if (expectedSignature !== razorpay_signature) {
       console.error('Signature mismatch!', { expected: expectedSignature, received: razorpay_signature });
-      throw new Error('Payment verification failed - invalid signature');
+      return new Response(
+        JSON.stringify({ error: 'Payment verification failed - invalid signature' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     console.log('Signature verified successfully. Updating database...');
