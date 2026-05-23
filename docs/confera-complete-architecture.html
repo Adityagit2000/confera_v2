@@ -1,0 +1,1359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confera — Complete System Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg-canvas: #f8f8f6;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --border-color: #e2e8f0;
+      
+      /* Color Coding */
+      --color-frontend: #7C3AED;      /* Purple */
+      --color-edge: #0F766E;          /* Teal */
+      --color-db: #1D4ED8;            /* Blue */
+      --color-ai: #D97706;            /* Amber */
+      --color-payment: #DC2626;       /* Coral */
+      --color-thirdparty: #374151;    /* Gray */
+      --color-email: #15803D;         /* Green */
+      
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* UI Layout Wrapper */
+    .app-container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      position: relative;
+    }
+
+    /* Sidebar Panel */
+    .sidebar {
+      width: 380px;
+      background: #ffffff;
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      z-index: 100;
+      box-shadow: var(--shadow-lg);
+      flex-shrink: 0;
+    }
+
+    .sidebar-header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border-color);
+      background: #fafafa;
+    }
+
+    .sidebar-title {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sidebar-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    .search-container {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-input:focus {
+      border-color: var(--color-frontend);
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+    }
+
+    .navigation-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 24px;
+    }
+
+    .nav-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin: 16px 0 8px 0;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+      transition: all 0.2s;
+      gap: 10px;
+    }
+
+    .nav-item:hover {
+      background: #f1f5f9;
+    }
+
+    .nav-item.active {
+      background: #eef2ff;
+      color: var(--color-frontend);
+    }
+
+    .nav-number {
+      font-size: 10px;
+      background: #cbd5e1;
+      color: #334155;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 800;
+    }
+
+    .nav-item.active .nav-number {
+      background: var(--color-frontend);
+      color: #ffffff;
+    }
+
+    /* Zoom / Pan Controls HUD */
+    .hud-controls {
+      position: absolute;
+      bottom: 24px;
+      left: 404px;
+      background: #ffffff;
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-md);
+      display: flex;
+      gap: 6px;
+      z-index: 90;
+    }
+
+    .hud-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: #ffffff;
+      color: var(--text-main);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      transition: all 0.2s;
+    }
+
+    .hud-btn:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .hud-zoom-level {
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      min-width: 60px;
+      justify-content: center;
+    }
+
+    /* Legend HUD */
+    .hud-legend {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      background: #ffffff;
+      padding: 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-md);
+      z-index: 90;
+      max-width: 280px;
+    }
+
+    .legend-title {
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .legend-color {
+      width: 14px;
+      height: 14px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    /* Canvas Area Container */
+    .canvas-viewport {
+      flex: 1;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+      cursor: grab;
+    }
+
+    .canvas-viewport:active {
+      cursor: grabbing;
+    }
+
+    .canvas-container {
+      position: absolute;
+      width: 3600px;
+      height: 4100px;
+      transform-origin: 0 0;
+      background-color: var(--bg-canvas);
+      background-image: 
+        radial-gradient(#e2e8f0 1.5px, transparent 1.5px), 
+        radial-gradient(#e2e8f0 1.5px, var(--bg-canvas) 1.5px);
+      background-size: 30px 30px;
+      background-position: 0 0, 15px 15px;
+      transition: transform 0.05s ease-out;
+    }
+
+    /* Flow lines overlay */
+    .svg-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* Flow Chart Elements (Cards) */
+    .node-card {
+      position: absolute;
+      width: 270px;
+      height: 130px;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      box-shadow: var(--shadow-sm);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.3s;
+      z-index: 10;
+    }
+
+    .node-card:hover {
+      box-shadow: var(--shadow-lg);
+      transform: translateY(-2px);
+    }
+
+    .node-card.highlighted {
+      box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.3), var(--shadow-lg);
+      border-color: var(--color-frontend) !important;
+      animation: pulse-border 1.5s infinite alternate;
+    }
+
+    @keyframes pulse-border {
+      0% { transform: scale(1.02); }
+      100% { transform: scale(1.04); }
+    }
+
+    .node-badge {
+      font-size: 9px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 2px 6px;
+      border-radius: 4px;
+      align-self: flex-start;
+      margin-bottom: 6px;
+    }
+
+    .node-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.25;
+      margin-bottom: 4px;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+
+    .node-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.35;
+      font-weight: 500;
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+    }
+
+    /* Color Coding Borders */
+    .node-card.frontend { border-top: 5px solid var(--color-frontend); }
+    .node-card.edge { border-top: 5px solid var(--color-edge); }
+    .node-card.db { border-top: 5px solid var(--color-db); }
+    .node-card.ai { border-top: 5px solid var(--color-ai); }
+    .node-card.payment { border-top: 5px solid var(--color-payment); }
+    .node-card.thirdparty { border-top: 5px solid var(--color-thirdparty); }
+    .node-card.email { border-top: 5px solid var(--color-email); }
+
+    .node-badge.frontend { background: rgba(124, 58, 237, 0.1); color: var(--color-frontend); }
+    .node-badge.edge { background: rgba(15, 118, 110, 0.1); color: var(--color-edge); }
+    .node-badge.db { background: rgba(29, 78, 216, 0.1); color: var(--color-db); }
+    .node-badge.ai { background: rgba(217, 119, 6, 0.1); color: var(--color-ai); }
+    .node-badge.payment { background: rgba(220, 38, 38, 0.1); color: var(--color-payment); }
+    .node-badge.thirdparty { background: rgba(55, 65, 81, 0.1); color: var(--color-thirdparty); }
+    .node-badge.email { background: rgba(21, 128, 61, 0.1); color: var(--color-email); }
+
+    /* Group Sections Outline Styling */
+    .group-boundary {
+      position: absolute;
+      border: 2px dashed #cbd5e1;
+      background: rgba(241, 245, 249, 0.35);
+      border-radius: 16px;
+      z-index: 1;
+      padding: 16px;
+    }
+
+    .group-title {
+      font-size: 14px;
+      font-weight: 900;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      position: absolute;
+      top: -24px;
+      left: 12px;
+      background: var(--bg-canvas);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* Flywheel decoration loop */
+    .flywheel-label {
+      position: absolute;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--color-frontend);
+      background: #ffffff;
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-sm);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Scroll Indicator HUD */
+    .hud-title-bar {
+      position: absolute;
+      top: 24px;
+      left: 404px;
+      background: #ffffff;
+      padding: 12px 24px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-md);
+      z-index: 90;
+    }
+
+    .hud-title {
+      font-size: 16px;
+      font-weight: 900;
+      letter-spacing: -0.025em;
+      color: #0f172a;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--color-frontend)"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          Confera Architecture
+        </div>
+        <div class="sidebar-subtitle">Complete Architecture Blueprint</div>
+      </div>
+      
+      <div class="search-container">
+        <input type="text" class="search-input" placeholder="Search components (e.g. Gemini, JWT)..." id="searchInput">
+      </div>
+      
+      <div class="navigation-panel">
+        <div class="nav-section-title">Execution Sections</div>
+        <div class="nav-item active" data-section="1" data-x="1450" data-y="350">
+          <span class="nav-number">01</span> User Entry & Auth
+        </div>
+        <div class="nav-item" data-section="2" data-x="350" data-y="600">
+          <span class="nav-number">02</span> Resume Optimization
+        </div>
+        <div class="nav-item" data-section="3" data-x="1450" data-y="1100">
+          <span class="nav-number">03</span> Interview Initialization
+        </div>
+        <div class="nav-item" data-section="4" data-x="350" data-y="1200">
+          <span class="nav-number">04</span> Pre-Flight Check
+        </div>
+        <div class="nav-item" data-section="5" data-x="1450" data-y="1800">
+          <span class="nav-number">05</span> Voice Interview Loop
+        </div>
+        <div class="nav-item" data-section="6" data-x="1450" data-y="2800">
+          <span class="nav-number">06</span> Feedback generation
+        </div>
+        <div class="nav-item" data-section="7" data-x="1450" data-y="3400">
+          <span class="nav-number">07</span> Agentic Flywheel
+        </div>
+        
+        <div class="nav-section-title">Support Layers</div>
+        <div class="nav-item" data-section="8" data-x="2450" data-y="600">
+          <span class="nav-number">08</span> Payments & Subscriptions
+        </div>
+        <div class="nav-item" data-section="9" data-x="3100" data-y="600">
+          <span class="nav-number">09</span> Security & Operations
+        </div>
+        <div class="nav-item" data-section="10" data-x="3100" data-y="1400">
+          <span class="nav-number">10</span> AI Provider Routing
+        </div>
+        <div class="nav-item" data-section="11" data-x="2450" data-y="1300">
+          <span class="nav-number">11</span> Founder & Admin
+        </div>
+      </div>
+    </aside>
+
+    <!-- Canvas HUDs -->
+    <div class="hud-title-bar">
+      <div class="hud-title">Confera — Definitive Platform Architecture Map</div>
+    </div>
+
+    <div class="hud-controls">
+      <button class="hud-btn" id="zoomOutBtn">−</button>
+      <div class="hud-zoom-level" id="zoomVal">100%</div>
+      <button class="hud-btn" id="zoomInBtn">+</button>
+      <button class="hud-btn" id="resetBtn" style="font-size: 13px; font-weight: bold; width: 60px;">Reset</button>
+    </div>
+
+    <div class="hud-legend">
+      <div class="legend-title">Component Legend</div>
+      <div class="legend-item"><span class="legend-color" style="background: var(--color-frontend)"></span> Frontend / Client UI</div>
+      <div class="legend-item"><span class="legend-color" style="background: var(--color-edge)"></span> Deno Edge Functions</div>
+      <div class="legend-item"><span class="legend-color" style="background: var(--color-db)"></span> Supabase PostgreSQL</div>
+      <div class="legend-item"><span class="legend-color" style="background: var(--color-ai)"></span> LLM Model Providers</div>
+      <div class="legend-item"><span class="legend-color" style="background: var(--color-payment)"></span> Payment Orchestration</div>
+      <div class="legend-item"><span class="legend-color" style="background: var(--color-thirdparty)"></span> Third-Party APIs</div>
+      <div class="legend-item"><span class="legend-color" style="background: var(--color-email)"></span> Email Notifications</div>
+    </div>
+
+    <!-- Interactive Canvas Viewport -->
+    <main class="canvas-viewport" id="viewport">
+      <div class="canvas-container" id="canvas">
+        
+        <!-- SVG Connections Layer -->
+        <svg class="svg-overlay">
+          <defs>
+            <!-- Marker Definitions -->
+            <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b" />
+            </marker>
+            <marker id="arrowhead-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#dc2626" />
+            </marker>
+            <marker id="arrowhead-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#7C3AED" />
+            </marker>
+          </defs>
+
+          <!-- ================= SECTION 1 PATHS ================= -->
+          <!-- User Browser to Google OAuth -->
+          <path d="M 1585 230 C 1585 260, 1385 260, 1385 300" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- User Browser to Email OTP -->
+          <path d="M 1585 230 C 1585 260, 1785 260, 1785 300" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Google OAuth to Supabase Auth -->
+          <path d="M 1385 430 C 1385 460, 1500 460, 1530 405" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Email OTP to Supabase Auth -->
+          <path d="M 1785 430 C 1785 460, 1660 460, 1640 405" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Supabase Auth to JWT -->
+          <path d="M 1585 470 L 1585 490" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- JWT to Profiles table -->
+          <path d="M 1585 620 C 1585 660, 1385 660, 1385 700" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- JWT to Referrals table -->
+          <path d="M 1585 620 C 1585 660, 1785 660, 1785 700" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Supabase Auth to send-email -->
+          <path d="M 1720 405 C 1820 405, 1920 405, 1985 490" stroke="#15803d" stroke-width="2" stroke-dasharray="4,4" fill="none" marker-end="url(#arrowhead)" />
+          <!-- send-email to Resend API -->
+          <path d="M 2120 555 L 2170 555" stroke="#15803d" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+          <!-- ================= SECTION 2 PATHS ================= -->
+          <!-- Browser to Upload UI -->
+          <path d="M 1450 165 C 1000 165, 485 200, 485 300" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          <!-- Upload UI to resumes bucket -->
+          <path d="M 485 430 C 485 460, 285 460, 285 490" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Upload UI to analyze-resume edge -->
+          <path d="M 485 430 L 485 490" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Storage resumes bucket back to analyze-resume -->
+          <path d="M 285 620 C 285 660, 420 660, 420 610" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- analyze-resume edge to Gemini 2.0 Flash -->
+          <path d="M 620 555 L 670 555" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- analyze-resume edge to resumes table -->
+          <path d="M 485 620 L 485 710" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- resumes table to ATS Dashboard -->
+          <path d="M 485 840 L 485 860" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+
+          <!-- ================= SECTION 3 PATHS ================= -->
+          <!-- Browser to Mock Selection UI -->
+          <path d="M 1585 230 L 1585 850" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Mock Selection UI to start-interview -->
+          <path d="M 1585 980 L 1585 1000" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- start-interview to sessions table -->
+          <path d="M 1450 1065 C 1385 1065, 1385 1100, 1385 1120" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- start-interview to text-embedding-004 -->
+          <path d="M 1720 1065 C 1985 1065, 1985 1100, 1985 1120" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- text-embedding-004 to match RPC -->
+          <path d="M 1985 1250 C 1985 1280, 1785 1280, 1785 1340" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- match RPC to transcript_embeddings -->
+          <path d="M 1920 1405 C 1950 1405, 1985 1400, 1985 1370" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- match RPC to Gemini 2.0 Chat -->
+          <path d="M 1785 1470 C 1785 1500, 1585 1500, 1585 1540" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- resumes table to Gemini 2.0 Chat -->
+          <path d="M 620 775 C 900 775, 1200 950, 1450 1425" stroke="#d97706" stroke-width="1.5" stroke-dasharray="3,3" fill="none" marker-end="url(#arrowhead)" />
+
+          <!-- ================= SECTION 4 PATHS ================= -->
+          <!-- Mock UI to voiceDiagnostics -->
+          <path d="M 1450 915 C 1000 915, 485 950, 485 1100" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          <!-- voiceDiagnostics to preflight pass -->
+          <path d="M 485 1230 L 485 1250" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          <!-- preflight pass to useVoiceSynthesis -->
+          <path d="M 620 1315 C 1000 1315, 1200 1315, 1450 1715" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+
+          <!-- ================= SECTION 5 PATHS ================= -->
+          <!-- Gemini 2.0 Chat to useVoiceSynthesis -->
+          <path d="M 1585 1490 L 1585 1650" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          <!-- useVoiceSynthesis to user speaks VAD -->
+          <path d="M 1585 1780 L 1585 1800" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          <!-- User speaks to Web Speech API (Path A) -->
+          <path d="M 1450 1865 C 1285 1865, 1285 1900, 1285 1950" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          <!-- Web Speech to useTurnDetection -->
+          <path d="M 1285 2080 L 1285 2100" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          <!-- User speaks to MediaRecorder (Path B) -->
+          <path d="M 1720 1865 C 1885 1865, 1885 1900, 1885 1950" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          <!-- MediaRecorder to transcribe-audio -->
+          <path d="M 1885 2080 L 1885 2100" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- transcribe-audio to Groq Whisper -->
+          <path d="M 2020 2165 L 2070 2165" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Groq Whisper to useTurnDetection -->
+          <path d="M 2205 2295 C 2205 2330, 1420 2330, 1420 2230" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- useTurnDetection to Confirming State -->
+          <path d="M 1285 2230 C 1285 2260, 1500 2260, 1520 2215" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          <!-- Confirming state to analyze-answer -->
+          <path d="M 1585 2280 C 1585 2310, 1385 2310, 1385 2400" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- analyze-answer to Gemini 2.0 Evaluator -->
+          <path d="M 1250 2465 L 1200 2465" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- analyze-answer to interview_answers table -->
+          <path d="M 1385 2530 L 1385 2550" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- loop back from interview_answers to useVoiceSynthesis (Loop Arrow) -->
+          <path d="M 1250 2615 C 1000 2615, 950 2100, 1430 1715" stroke="#7C3AED" stroke-width="1.5" stroke-dasharray="4,4" fill="none" marker-end="url(#arrowhead-purple)" />
+
+          <!-- ================= SECTION 6 PATHS ================= -->
+          <!-- interview_answers to generate-feedback -->
+          <path d="M 1385 2680 C 1385 2710, 1585 2710, 1585 2730" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- generate-feedback to Gemini 2.0 Analyst -->
+          <path d="M 1720 2795 L 1770 2795" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- generate-feedback to feedback_reports table -->
+          <path d="M 1585 2860 L 1585 2880" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- generate-feedback to post-interview email trigger -->
+          <path d="M 1450 2795 C 1385 2795, 1385 2820, 1385 2880" stroke="#15803d" stroke-width="2" stroke-dasharray="3,3" fill="none" marker-end="url(#arrowhead)" />
+          <!-- email trigger back to Resend API -->
+          <path d="M 1385 3010 C 1385 3100, 2220 700, 2220 620" stroke="#15803d" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- feedback_reports table to Report Dashboard -->
+          <path d="M 1585 3010 L 1585 3030" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+
+          <!-- ================= SECTION 7 PATHS ================= -->
+          <!-- feedback_reports to Self-Improvement Chain -->
+          <path d="M 1585 3010 L 1585 3230" stroke="#0F766E" stroke-width="2.5" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Self-Improvement Chain to embed-session Agent -->
+          <path d="M 1585 3295 C 1585 3320, 1385 3320, 1385 3380" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- embed-session Agent to Gemini text-embedding-004 -->
+          <path d="M 1250 3445 L 1200 3445" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- embed-session Agent to transcript_embeddings -->
+          <path d="M 1385 3510 L 1385 3530" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- embed-session Agent to user_skill_memory updates -->
+          <path d="M 1385 3510 C 1385 3550, 1585 3550, 1585 3530" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Self-Improvement Chain to generate-prep-plan Agent -->
+          <path d="M 1585 3295 C 1585 3320, 1785 3320, 1785 3380" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- generate-prep-plan Agent to Gemini 2.0 Study Planner -->
+          <path d="M 1920 3445 L 1970 3445" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- generate-prep-plan Agent to prep_plans table -->
+          <path d="M 1785 3510 L 1785 3530" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- prep_plans to Dashboard Auto-Refresh -->
+          <path d="M 1785 3660 C 1785 3700, 1585 3700, 1585 3680" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          <!-- user_skill_memory to Dashboard Auto-Refresh -->
+          <path d="M 1585 3660 L 1585 3680" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          
+          <!-- FLYWHEEL BIG CURVED PATH (Dashboard back to Mock Selection UI) -->
+          <path d="M 1720 3745 C 2200 3745, 2300 2400, 1720 915" stroke="#7C3AED" stroke-width="3" stroke-dasharray="6,6" fill="none" marker-end="url(#arrowhead-purple)" />
+
+          <!-- ================= SECTION 8 PATHS ================= -->
+          <!-- User Browser to Pricing / Upgrade Trigger -->
+          <path d="M 1720 165 C 2200 165, 2585 200, 2585 300" stroke="#dc2626" stroke-width="2" fill="none" marker-end="url(#arrowhead-red)" />
+          <!-- Pricing to create-order Edge Function -->
+          <path d="M 2585 430 L 2585 450" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- create-order Edge to Razorpay API -->
+          <path d="M 2720 515 L 2770 515" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Razorpay API to Checkout SDK Modal -->
+          <path d="M 2905 580 C 2905 610, 2720 610, 2720 620" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Checkout SDK Modal to verify-payment -->
+          <path d="M 2585 710 L 2585 730" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- verify-payment to subscriptions table -->
+          <path d="M 2450 795 C 2385 795, 2385 830, 2385 850" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- verify-payment to referrals check -->
+          <path d="M 2585 860 L 2585 880" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- verify-payment to referral_earnings table -->
+          <path d="M 2720 795 C 2785 795, 2785 830, 2785 850" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- verify-payment to Pro welcome email trigger -->
+          <path d="M 2720 795 C 2985 795, 2985 810, 2985 780" stroke="#15803d" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+
+          <!-- ================= SECTION 10 & 11 PATHS ================= -->
+          <!-- profiles to founder check -->
+          <path d="M 1385 830 C 1385 960, 2200 1165, 2450 1165" stroke="#1d4ed8" stroke-width="1.5" stroke-dasharray="3,3" fill="none" marker-end="url(#arrowhead)" />
+          <!-- founder check to gift_pro_access -->
+          <path d="M 2585 1230 L 2585 1250" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- gift_pro_access to Referral Dashboard -->
+          <path d="M 2585 1380 L 2585 1400" stroke="#7C3AED" stroke-width="2" fill="none" marker-end="url(#arrowhead-purple)" />
+          
+          <!-- ai-service utility to Gemini Flash -->
+          <path d="M 3235 1380 L 3235 1400" stroke="#64748b" stroke-width="2" fill="none" marker-end="url(#arrowhead)" />
+          <!-- Gemini Flash to Groq fallback line -->
+          <path d="M 3235 1530 L 3235 1550" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="2,2" fill="none" marker-end="url(#arrowhead-red)" />
+          <!-- Groq to OpenAI fallback line -->
+          <path d="M 3235 1680 L 3235 1700" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="2,2" fill="none" marker-end="url(#arrowhead-red)" />
+
+        </svg>
+
+        <!-- Flywheel loop visual indicator label -->
+        <div class="flywheel-label" style="top: 2400px; right: 900px; color: var(--color-frontend); border-color: var(--color-frontend);">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Continuous Self-Improvement Flywheel Loop
+        </div>
+
+        <!-- ================= SECTION BOUNDARIES ================= -->
+        <!-- User Entry & Auth Boundaries -->
+        <div class="group-boundary" style="top: 50px; left: 1100px; width: 1100px; height: 750px;">
+          <div class="group-title">Section 1 — User Entry & Authenticated Onboarding</div>
+        </div>
+
+        <!-- Resume Flow Boundaries -->
+        <div class="group-boundary" style="top: 250px; left: 100px; width: 900px; height: 780px;">
+          <div class="group-title">Section 2 — Resume Parsing & ATS Scoring</div>
+        </div>
+
+        <!-- Preflight Diagnostics Boundaries -->
+        <div class="group-boundary" style="top: 1050px; left: 100px; width: 900px; height: 350px;">
+          <div class="group-title">Section 4 — Preflight Environment Check</div>
+        </div>
+
+        <!-- Interview setup & questions generation -->
+        <div class="group-boundary" style="top: 820px; left: 1100px; width: 1100px; height: 700px;">
+          <div class="group-title">Section 3 — Interview Initialization & RAG Retrieval</div>
+        </div>
+
+        <!-- Voice Interview Loop -->
+        <div class="group-boundary" style="top: 1530px; left: 800px; width: 1500px; height: 1020px;">
+          <div class="group-title">Section 5 — Real-time Voice Interview Loop</div>
+        </div>
+
+        <!-- Completion and final reports -->
+        <div class="group-boundary" style="top: 2570px; left: 800px; width: 1300px; height: 480px;">
+          <div class="group-title">Section 6 — Session Completion & Performance Feedback</div>
+        </div>
+
+        <!-- Self-Improvement Flywheel -->
+        <div class="group-boundary" style="top: 3070px; left: 800px; width: 1300px; height: 700px;">
+          <div class="group-title">Section 7 — Agentic Memory & Study Planner Flywheel</div>
+        </div>
+
+        <!-- Payments and pricing limits -->
+        <div class="group-boundary" style="top: 250px; left: 2220px; width: 800px; height: 780px;">
+          <div class="group-title">Section 8 — Monetization, Billing & Referrals</div>
+        </div>
+
+        <!-- Admin dashboard actions -->
+        <div class="group-boundary" style="top: 1050px; left: 2220px; width: 800px; height: 500px;">
+          <div class="group-title">Section 11 — Founder Overrides & Admin Gifting</div>
+        </div>
+
+        <!-- Security middlewares -->
+        <div class="group-boundary" style="top: 250px; left: 3040px; width: 450px; height: 900px; background: rgba(15, 118, 110, 0.05); border-color: var(--color-edge);">
+          <div class="group-title" style="color: var(--color-edge)">Section 9 — Security & Observability Layer</div>
+        </div>
+
+        <!-- AI Routing Circuit Breakers -->
+        <div class="group-boundary" style="top: 1200px; left: 3040px; width: 450px; height: 600px; background: rgba(217, 119, 6, 0.05); border-color: var(--color-ai);">
+          <div class="group-title" style="color: var(--color-ai)">Section 10 — AI Provider Routing & Redundancy</div>
+        </div>
+
+
+        <!-- ================= CARD NODES ================= -->
+
+        <!-- Section 1 Nodes -->
+        <div class="node-card frontend" id="node-1" style="top: 100px; left: 1450px;">
+          <span class="node-badge frontend">Frontend</span>
+          <div class="node-title">User Browser UI</div>
+          <div class="node-desc">Client React SPA entry point. Manages page states and interacts with web speech API.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-2" style="top: 300px; left: 1250px;">
+          <span class="node-badge frontend">Frontend</span>
+          <div class="node-title">Google OAuth Path</div>
+          <div class="node-desc">Social authentication route. Redirects to Google consent screen for secure accounts creation.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-3" style="top: 300px; left: 1650px;">
+          <span class="node-badge frontend">Frontend</span>
+          <div class="node-title">Email OTP Path</div>
+          <div class="node-desc">Passwordless login flow. Client triggers otp verify email to authenticate.</div>
+        </div>
+
+        <div class="node-card edge" id="node-4" style="top: 340px; left: 1450px;">
+          <span class="node-badge edge">Supabase Auth</span>
+          <div class="node-title">Auth Engine (JSON Web Token)</div>
+          <div class="node-desc">Authenticates credentials, updates profiles, and issues JWT token back to candidate.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-5" style="top: 490px; left: 1450px;">
+          <span class="node-badge frontend">Client Storage</span>
+          <div class="node-title">JWT Authorization Header</div>
+          <div class="node-desc">Stores user claims. Appended as Bearer token in request context header.</div>
+        </div>
+
+        <div class="node-card db" id="node-6" style="top: 700px; left: 1250px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">profiles Table Row</div>
+          <div class="node-desc">Stores name, onboard state, and auto-generates referral_code. Checks is_founder.</div>
+        </div>
+
+        <div class="node-card db" id="node-7" style="top: 700px; left: 1650px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">referrals Table Mapping</div>
+          <div class="node-desc">If ?ref= code present, maps referrer_id and referred_id as status pending in database.</div>
+        </div>
+
+        <div class="node-card edge" id="node-8" style="top: 490px; left: 1850px;">
+          <span class="node-badge edge">Edge Function</span>
+          <div class="node-title">send-email (Welcome)</div>
+          <div class="node-desc">Deno function called on profile creation. Compiles custom HTML onboarding templates.</div>
+        </div>
+
+        <div class="node-card thirdparty" id="node-9" style="top: 490px; left: 2170px;">
+          <span class="node-badge thirdparty">Resend API</span>
+          <div class="node-title">Email Dispatch</div>
+          <div class="node-desc">Delivers welcome emails and practice triggers securely to candidates.</div>
+        </div>
+
+
+        <!-- Section 2 Nodes -->
+        <div class="node-card frontend" id="node-10" style="top: 300px; left: 350px;">
+          <span class="node-badge frontend">Frontend</span>
+          <div class="node-title">Upload Resume UI</div>
+          <div class="node-desc">Select role. pdfjs-dist extracts PDF text client-side directly in the browser (saves server load).</div>
+        </div>
+
+        <div class="node-card db" id="node-11" style="top: 490px; left: 150px;">
+          <span class="node-badge db">Supabase Storage</span>
+          <div class="node-title">resumes bucket</div>
+          <div class="node-desc">Validates PDF types and enforces a 5MB size limit. Restricts access to owner.</div>
+        </div>
+
+        <div class="node-card edge" id="node-12" style="top: 490px; left: 350px;">
+          <span class="node-badge edge">Edge Function</span>
+          <div class="node-title">analyze-resume / ats-analyzer</div>
+          <div class="node-desc">Checks is_founder and subscription caps. Downloads PDF with service role token.</div>
+        </div>
+
+        <div class="node-card ai" id="node-13" style="top: 555px; left: 670px;">
+          <span class="node-badge ai">Gemini AI</span>
+          <div class="node-title">Gemini 2.0 Flash</div>
+          <div class="node-desc">Reviews candidate text and outputs strict JSON: ats_score, keywords_missing, suggestions.</div>
+        </div>
+
+        <div class="node-card db" id="node-14" style="top: 710px; left: 350px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">resumes & resume_analysis</div>
+          <div class="node-desc">Stores parsed data, roadmaps, and computed score metrics for historical tracking.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-15" style="top: 860px; left: 350px;">
+          <span class="node-badge frontend">Frontend</span>
+          <div class="node-title">ATS Analyzer Dashboard</div>
+          <div class="node-desc">Renders score parameters, critical missing keywords, and custom actionable roadmaps.</div>
+        </div>
+
+
+        <!-- Section 3 Nodes -->
+        <div class="node-card frontend" id="node-16" style="top: 850px; left: 1450px;">
+          <span class="node-badge frontend">Frontend</span>
+          <div class="node-title">Mock Selection UI</div>
+          <div class="node-desc">Select role (DSA, McKinsey, HR, case study). Sets parameters and hits Edge Functions.</div>
+        </div>
+
+        <div class="node-card edge" id="node-17" style="top: 1000px; left: 1450px;">
+          <span class="node-badge edge">Edge Function</span>
+          <div class="node-title">start-interview</div>
+          <div class="node-desc">Validates JWT and subscription caps (2 free/month). Sets session as active.</div>
+        </div>
+
+        <div class="node-card db" id="node-18" style="top: 1120px; left: 1250px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">interview_sessions Table</div>
+          <div class="node-desc">Creates new session row holding metadata, status, and conversation history.</div>
+        </div>
+
+        <div class="node-card ai" id="node-19" style="top: 1120px; left: 1850px;">
+          <span class="node-badge ai">Gemini AI</span>
+          <div class="node-title">text-embedding-004</div>
+          <div class="node-desc">Embeds current role and topic parameters into a 768-dimensional search vector.</div>
+        </div>
+
+        <div class="node-card db" id="node-20" style="top: 1340px; left: 1650px;">
+          <span class="node-badge db">PostgreSQL RPC</span>
+          <div class="node-title">match_transcript_embeddings</div>
+          <div class="node-desc">Database RPC performing cosine similarity vector search on transcript_embeddings.</div>
+        </div>
+
+        <div class="node-card db" id="node-21" style="top: 1250px; left: 1850px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">transcript_embeddings Table</div>
+          <div class="node-desc">Vector table index holding previous questions and answers embeddings.</div>
+        </div>
+
+        <div class="node-card ai" id="node-22" style="top: 1540px; left: 1450px;">
+          <span class="node-badge ai">Gemini AI</span>
+          <div class="node-title">Gemini 2.0 Chat</div>
+          <div class="node-desc">Reads RAG context (top 5 matched Q&As) to generate a personalized question list.</div>
+        </div>
+
+
+        <!-- Section 4 Nodes -->
+        <div class="node-card frontend" id="node-23" style="top: 1100px; left: 350px;">
+          <span class="node-badge frontend">Frontend Utility</span>
+          <div class="node-title">voiceDiagnostics.ts</div>
+          <div class="node-desc">Pre-flight system checks: microphone, HTTPS domain verification, and AudioContext checks.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-24" style="top: 1250px; left: 350px;">
+          <span class="node-badge frontend">Frontend UI</span>
+          <div class="node-title">Preflight Status UI</div>
+          <div class="node-desc">Renders checkmarks for passing configurations, preventing startup audio crashes.</div>
+        </div>
+
+
+        <!-- Section 5 Nodes -->
+        <div class="node-card frontend" id="node-25" style="top: 1650px; left: 1450px;">
+          <span class="node-badge frontend">Frontend UI</span>
+          <div class="node-title">useVoiceSynthesis Engine</div>
+          <div class="node-desc">Chrome bug fix: splits sentences into chunks under 180 chars and queues them.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-26" style="top: 1800px; left: 1450px;">
+          <span class="node-badge frontend">Frontend Utility</span>
+          <div class="node-title">User Speech VAD</div>
+          <div class="node-desc">Calculates RMS audio energy from microphone input. Determines speech status.</div>
+        </div>
+
+        <!-- Path A: Chrome -->
+        <div class="node-card frontend" id="node-27" style="top: 1950px; left: 1150px;">
+          <span class="node-badge frontend">Frontend API</span>
+          <div class="node-title">Web Speech API (Path A)</div>
+          <div class="node-desc">Streaming real-time text-to-screen transcriptions for Chrome/Edge browsers.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-28" style="top: 2100px; left: 1150px;">
+          <span class="node-badge frontend">Frontend Engine</span>
+          <div class="node-title">useTurnDetection (5 Signals)</div>
+          <div class="node-desc">Evaluates word count, silence timers, acoustic phrase endings, and manual button triggers.</div>
+        </div>
+
+        <!-- Path B: iOS -->
+        <div class="node-card frontend" id="node-29" style="top: 1950px; left: 1750px;">
+          <span class="node-badge frontend">Frontend Fallback</span>
+          <div class="node-title">MediaRecorder (Path B)</div>
+          <div class="node-desc">Fallback stream recorder for iOS and Firefox. Saves audio as WebM/MP4 chunks.</div>
+        </div>
+
+        <div class="node-card edge" id="node-30" style="top: 2100px; left: 1750px;">
+          <span class="node-badge edge">Edge Function</span>
+          <div class="node-title">transcribe-audio</div>
+          <div class="node-desc">Receives binary audio blobs and coordinates remote Whisper API translations.</div>
+        </div>
+
+        <div class="node-card ai" id="node-31" style="top: 2100px; left: 2050px;">
+          <span class="node-badge ai">Groq Whisper</span>
+          <div class="node-title">Groq Whisper-large-v3</div>
+          <div class="node-desc">Converts audio chunks to text in milliseconds. Returns transcript to client.</div>
+        </div>
+
+        <!-- Loop bottom -->
+        <div class="node-card frontend" id="node-32" style="top: 2150px; left: 1450px;">
+          <span class="node-badge frontend">Frontend UI</span>
+          <div class="node-title">Confirming State Alert</div>
+          <div class="node-desc">Renders "Still Listening" amber banner at 80% silence threshold before submission.</div>
+        </div>
+
+        <div class="node-card edge" id="node-33" style="top: 2400px; left: 1250px;">
+          <span class="node-badge edge">Edge Function</span>
+          <div class="node-title">analyze-answer</div>
+          <div class="node-desc">Fire-and-forget: Evaluates response metrics immediately without blocking next question.</div>
+        </div>
+
+        <div class="node-card ai" id="node-34" style="top: 2400px; left: 930px;">
+          <span class="node-badge ai">Gemini AI</span>
+          <div class="node-title">Gemini 2.0 Evaluator</div>
+          <div class="node-desc">Grades answers, tracks filler words, and compiles STAR behavior tips.</div>
+        </div>
+
+        <div class="node-card db" id="node-35" style="top: 2550px; left: 1150px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">interview_answers Table</div>
+          <div class="node-desc">Stores raw text, scores, and evaluations tags for report formatting.</div>
+        </div>
+
+
+        <!-- Section 6 Nodes -->
+        <div class="node-card edge" id="node-36" style="top: 2730px; left: 1450px;">
+          <span class="node-badge edge">Edge Function</span>
+          <div class="node-title">generate-feedback</div>
+          <div class="node-desc">Triggered after 10th answer. Combines all metrics to generate report card scores.</div>
+        </div>
+
+        <div class="node-card ai" id="node-37" style="top: 2730px; left: 1750px;">
+          <span class="node-badge ai">Gemini AI</span>
+          <div class="node-title">Gemini 2.0 Analyst</div>
+          <div class="node-desc">Aggregates technical depth, logic, and delivery scores. Generates coaching summary.</div>
+        </div>
+
+        <div class="node-card db" id="node-38" style="top: 2880px; left: 1450px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">feedback_reports Table</div>
+          <div class="node-desc">Stores final summaries, circular metric scores, and McKinsey readiness indexes.</div>
+        </div>
+
+        <div class="node-card edge" id="node-39" style="top: 2880px; left: 1150px;">
+          <span class="node-badge edge">Edge Function</span>
+          <div class="node-title">send-email (Report Link)</div>
+          <div class="node-desc">Sends Resend template email containing overall session scores and direct dashboard links.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-40" style="top: 3030px; left: 1450px;">
+          <span class="node-badge frontend">Frontend UI</span>
+          <div class="node-title">Performance Report Page</div>
+          <div class="node-desc">Renders circular gauges, question feedback, strengths/gaps, and resource paths.</div>
+        </div>
+
+
+        <!-- Section 7 Nodes -->
+        <div class="node-card edge" id="node-41" style="top: 3230px; left: 1450px;">
+          <span class="node-badge edge">Background Runner</span>
+          <div class="node-title">Self-Improvement Chain</div>
+          <div class="node-desc">Fire-and-forget: Runs embedding and planner builders in the background.</div>
+        </div>
+
+        <div class="node-card edge" id="node-42" style="top: 3380px; left: 1250px;">
+          <span class="node-badge edge">Agent</span>
+          <div class="node-title">embed-session Agent</div>
+          <div class="node-desc">Builds text embeddings for each question/answer pair in the completed session.</div>
+        </div>
+
+        <div class="node-card ai" id="node-43" style="top: 3380px; left: 930px;">
+          <span class="node-badge ai">Gemini AI</span>
+          <div class="node-title">text-embedding-004</div>
+          <div class="node-desc">Returns 768-dimensional vectors mapping candidates' answers.</div>
+        </div>
+
+        <div class="node-card db" id="node-44" style="top: 3530px; left: 1250px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">transcript_embeddings Table</div>
+          <div class="node-desc">Stores vector rows with local HNSW index configurations for fast RAG lookups.</div>
+        </div>
+
+        <div class="node-card db" id="node-45" style="top: 3530px; left: 1450px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">user_skill_memory updates</div>
+          <div class="node-desc">Computes filler word metrics. Decays score via EMA: new = 0.7 * current + 0.3 * old.</div>
+        </div>
+
+        <div class="node-card edge" id="node-46" style="top: 3380px; left: 1650px;">
+          <span class="node-badge edge">Agent</span>
+          <div class="node-title">generate-prep-plan Agent</div>
+          <div class="node-desc">Reads skill memory and last 10 questions to compile custom weekly preparation routines.</div>
+        </div>
+
+        <div class="node-card ai" id="node-47" style="top: 3380px; left: 1970px;">
+          <span class="node-badge ai">Gemini AI</span>
+          <div class="node-title">Gemini 2.0 Planner</div>
+          <div class="node-desc">Generates daily exercises, weekly core focus notes, and target review types.</div>
+        </div>
+
+        <div class="node-card db" id="node-48" style="top: 3530px; left: 1650px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">prep_plans Table</div>
+          <div class="node-desc">Upserts 7-day study paths. Keeps historical plans to prevent question repetition.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-49" style="top: 3680px; left: 1450px;">
+          <span class="node-badge frontend">Frontend UI</span>
+          <div class="node-title">Dashboard Refresh</div>
+          <div class="node-desc">Updates practice streaks and dashboard planner widgets automatically.</div>
+        </div>
+
+
+        <!-- Section 8 Nodes -->
+        <div class="node-card frontend" id="node-50" style="top: 300px; left: 2450px;">
+          <span class="node-badge frontend">Frontend UI</span>
+          <div class="node-title">Pricing Page Trigger</div>
+          <div class="node-desc">Compare plans. Clicking upgrade initializes Razorpay.</div>
+        </div>
+
+        <div class="node-card edge" id="node-51" style="top: 430px; left: 2450px;">
+          <span class="node-badge edge">Edge Function</span>
+          <div class="node-title">create-order</div>
+          <div class="node-desc">Deno call to Razorpay APIs. Creates transaction ID for monthly or yearly billing.</div>
+        </div>
+
+        <div class="node-card thirdparty" id="node-52" style="top: 430px; left: 2750px;">
+          <span class="node-badge thirdparty">Razorpay API</span>
+          <div class="node-title">Razorpay Server</div>
+          <div class="node-desc">Registers order ID, registers amount, and registers currency limits (INR).</div>
+        </div>
+
+        <div class="node-card frontend" id="node-53" style="top: 560px; left: 2450px;">
+          <span class="node-badge frontend">Frontend SDK</span>
+          <div class="node-title">Razorpay Checkout SDK</div>
+          <div class="node-desc">Opens checkout UI. Collects credentials and returns verified transaction signatures.</div>
+        </div>
+
+        <div class="node-card edge" id="node-54" style="top: 690px; left: 2450px;">
+          <span class="node-badge edge">Edge Function</span>
+          <div class="node-title">verify-payment</div>
+          <div class="node-desc">Performs signature HMAC-SHA256 validation. Extends subscription and updates tables.</div>
+        </div>
+
+        <div class="node-card db" id="node-55" style="top: 820px; left: 2250px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">subscriptions Table</div>
+          <div class="node-desc">Upserts membership status to active 'pro' with computed expiration dates.</div>
+        </div>
+
+        <div class="node-card db" id="node-56" style="top: 820px; left: 2450px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">referrals Table update</div>
+          <div class="node-desc">Finds pending referred user. Marks mapping state as converted.</div>
+        </div>
+
+        <div class="node-card db" id="node-57" style="top: 820px; left: 2650px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">referral_earnings Table</div>
+          <div class="node-desc">Calculates 10% commission in paise and inserts earnings credit rows.</div>
+        </div>
+
+        <div class="node-card email" id="node-58" style="top: 690px; left: 2850px;">
+          <span class="node-badge email">Resend Template</span>
+          <div class="node-title">Pro Welcome Invoice</div>
+          <div class="node-desc">Sends email confirmation with invoice parameters and dashboard links.</div>
+        </div>
+
+
+        <!-- Section 9 Nodes -->
+        <div class="node-card edge" id="node-59" style="top: 300px; left: 3100px;">
+          <span class="node-badge edge">Middleware</span>
+          <div class="node-title">authenticateRequest()</div>
+          <div class="node-desc">Middleware helper verifying incoming Bearer JWT tokens. Rejects invalid requests with 401.</div>
+        </div>
+
+        <div class="node-card edge" id="node-60" style="top: 420px; left: 3100px;">
+          <span class="node-badge edge">Middleware</span>
+          <div class="node-title">getCorsHeaders() CORS</div>
+          <div class="node-desc">Origin-specific CORS middleware whitelisting local domains and conferav2.vercel.app.</div>
+        </div>
+
+        <div class="node-card edge" id="node-61" style="top: 540px; left: 3100px;">
+          <span class="node-badge edge">Middleware</span>
+          <div class="node-title">Deno Rate Limiting</div>
+          <div class="node-desc">Protects chat endpoints (30 calls/min) and whisper transcription requests (20 calls/min).</div>
+        </div>
+
+        <div class="node-card edge" id="node-62" style="top: 660px; left: 3100px;">
+          <span class="node-badge edge">Middleware</span>
+          <div class="node-title">Prompt Injection Check</div>
+          <div class="node-desc">Scans query strings for override patterns (e.g. "ignore previous instruction").</div>
+        </div>
+
+        <div class="node-card db" id="node-63" style="top: 780px; left: 3100px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">event_logs Table</div>
+          <div class="node-desc">Logs structured diagnostic entries with correlation IDs for operational audits.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-64" style="top: 900px; left: 3100px;">
+          <span class="node-badge frontend">Frontend Wrapper</span>
+          <div class="node-title">ErrorBoundary Wrapper</div>
+          <div class="node-desc">React boundary tracking client crashes. Renders error details and prompts resets.</div>
+        </div>
+
+        <div class="node-card edge" id="node-65" style="top: 1020px; left: 3100px;">
+          <span class="node-badge edge">Edge Function</span>
+          <div class="node-title">health-check</div>
+          <div class="node-desc">Deno function validating PostgreSQL, Gemini, and Groq connection latencies.</div>
+        </div>
+
+
+        <!-- Section 10 Nodes -->
+        <div class="node-card edge" id="node-66" style="top: 1250px; left: 3100px;">
+          <span class="node-badge edge">Shared Service</span>
+          <div class="node-title">ai-service.ts router</div>
+          <div class="node-desc">Fallback model manager implementing provider switching and circuit breakers.</div>
+        </div>
+
+        <div class="node-card ai" id="node-67" style="top: 1380px; left: 3100px;">
+          <span class="node-badge ai">Gemini AI</span>
+          <div class="node-title">Gemini 2.0 Flash (Primary)</div>
+          <div class="node-desc">Primary chat model. Trips circuit breaker on 3 failures, cooling down for 120s.</div>
+        </div>
+
+        <div class="node-card ai" id="node-68" style="top: 1510px; left: 3100px;">
+          <span class="node-badge ai">Groq LLaMA</span>
+          <div class="node-title">Groq LLaMA 3.3 (Secondary)</div>
+          <div class="node-desc">Backup chat model. Leveraged automatically during primary model downtime.</div>
+        </div>
+
+        <div class="node-card ai" id="node-69" style="top: 1640px; left: 3100px;">
+          <span class="node-badge ai">OpenAI GPT</span>
+          <div class="node-title">OpenAI GPT-4o-Mini (Tertiary)</div>
+          <div class="node-desc">Tertiary fallback model. High availability final fallback.</div>
+        </div>
+
+
+        <!-- Section 11 Nodes -->
+        <div class="node-card db" id="node-70" style="top: 1100px; left: 2450px;">
+          <span class="node-badge db">PostgreSQL</span>
+          <div class="node-title">is_founder check</div>
+          <div class="node-desc">Bypasses subscription paywalls. Activates premium Pro features for developer accounts.</div>
+        </div>
+
+        <div class="node-card db" id="node-71" style="top: 1230px; left: 2450px;">
+          <span class="node-badge db">PostgreSQL Function</span>
+          <div class="node-title">gift_pro_access()</div>
+          <div class="node-desc">SQL function that upserts subscription Pro records and logs admin actions.</div>
+        </div>
+
+        <div class="node-card frontend" id="node-72" style="top: 1360px; left: 2450px;">
+          <span class="node-badge frontend">Frontend UI</span>
+          <div class="node-title">Referral Dashboard</div>
+          <div class="node-desc">View referral codes, share links, converted counts, and earnings balances.</div>
+        </div>
+
+      </div>
+    </main>
+
+  </div>
+
+  <script>
+    // Zoom and Pan Logic
+    const viewport = document.getElementById('viewport');
+    const canvas = document.getElementById('canvas');
+    const zoomVal = document.getElementById('zoomVal');
+    const searchInput = document.getElementById('searchInput');
+    const navItems = document.querySelectorAll('.nav-item');
+    
+    let scale = 0.55; // Default initial scale to see more of the diagram
+    let panX = 40;
+    let panY = 40;
+    let isDragging = false;
+    let startX, startY;
+
+    // Apply transforms
+    function updateTransform() {
+      canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+      zoomVal.innerText = `${Math.round(scale * 100)}%`;
+    }
+
+    // Set initial position
+    updateTransform();
+
+    // Drag-to-Pan Event Handlers
+    viewport.addEventListener('mousedown', (e) => {
+      // Prevents panning when clicking input or buttons
+      if (e.target.tagName === 'INPUT' || e.target.closest('.hud-controls') || e.target.closest('.sidebar') || e.target.closest('.hud-legend')) {
+        return;
+      }
+      isDragging = true;
+      startX = e.clientX - panX;
+      startY = e.clientY - panY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      panX = e.clientX - startX;
+      panY = e.clientY - startY;
+      updateTransform();
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    // Zooming
+    document.getElementById('zoomInBtn').addEventListener('click', () => {
+      scale = Math.min(2.0, scale + 0.1);
+      updateTransform();
+    });
+
+    document.getElementById('zoomOutBtn').addEventListener('click', () => {
+      scale = Math.max(0.2, scale - 0.1);
+      updateTransform();
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      scale = 0.55;
+      panX = 40;
+      panY = 40;
+      updateTransform();
+    });
+
+    // Mouse Wheel Zoom
+    viewport.addEventListener('wheel', (e) => {
+      if (e.target.closest('.sidebar')) return;
+      e.preventDefault();
+      const zoomFactor = 0.05;
+      if (e.deltaY < 0) {
+        scale = Math.min(2.0, scale + zoomFactor);
+      } else {
+        scale = Math.max(0.2, scale - zoomFactor);
+      }
+      updateTransform();
+    });
+
+    // Snap focus to coordinates helper
+    function focusCoordinates(targetX, targetY) {
+      const viewportWidth = viewport.clientWidth;
+      const viewportHeight = viewport.clientHeight;
+      
+      // Center coordinates inside viewport
+      scale = 0.8; // Set zoom to 80% to read details clearly
+      panX = (viewportWidth / 2) - (targetX * scale);
+      panY = (viewportHeight / 2) - (targetY * scale);
+      
+      updateTransform();
+    }
+
+    // Sidebar navigation click actions
+    navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        navItems.forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        
+        const tx = parseInt(item.getAttribute('data-x'));
+        const ty = parseInt(item.getAttribute('data-y'));
+        focusCoordinates(tx, ty);
+      });
+    });
+
+    // Component Search logic
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+      const cards = document.querySelectorAll('.node-card');
+      
+      if (!query) {
+        cards.forEach(c => c.classList.remove('highlighted'));
+        return;
+      }
+      
+      let matchedCard = null;
+      
+      cards.forEach(card => {
+        const title = card.querySelector('.node-title').innerText.toLowerCase();
+        const desc = card.querySelector('.node-desc').innerText.toLowerCase();
+        
+        if (title.includes(query) || desc.includes(query)) {
+          card.classList.add('highlighted');
+          if (!matchedCard) matchedCard = card;
+        } else {
+          card.classList.remove('highlighted');
+        }
+      });
+
+      // Pan to first matching card if found
+      if (matchedCard) {
+        const cx = parseFloat(matchedCard.style.left);
+        const cy = parseFloat(matchedCard.style.top);
+        focusCoordinates(cx, cy);
+      }
+    });
+  </script>
+</body>
+</html>
