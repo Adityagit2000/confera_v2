@@ -37,7 +37,7 @@ async function ensureReferralCodeAndLink(userId: string) {
     // Check if user already has a referral code
     const { data: profile } = await supabase
       .from('profiles')
-      .select('referral_code')
+      .select('referral_code, created_at, email, name')
       .eq('id', userId)
       .single();
 
@@ -58,6 +58,27 @@ async function ensureReferralCodeAndLink(userId: string) {
         if (error.code === '23505') continue;
         console.error('[Referral] Error setting referral code:', error);
         break;
+      }
+    }
+
+    // Trigger welcome email for newly created profiles (created in the last 2 minutes)
+    if (profile?.created_at && profile.email) {
+      const isNewProfile = new Date(profile.created_at).getTime() > Date.now() - 120 * 1000;
+      const welcomeSentKey = `confera_welcome_sent_${userId}`;
+      
+      if (isNewProfile && !localStorage.getItem(welcomeSentKey)) {
+        localStorage.setItem(welcomeSentKey, 'true');
+        console.log(`[Email] Triggering welcome email for new user: ${profile.email}`);
+        
+        supabase.functions.invoke('send-email', {
+          body: {
+            to: profile.email,
+            template: 'welcome',
+            data: {
+              userName: profile.name || 'there'
+            }
+          }
+        }).catch(err => console.error('[Email] Failed to send welcome email:', err));
       }
     }
 

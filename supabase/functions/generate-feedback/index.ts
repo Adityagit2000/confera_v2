@@ -278,6 +278,42 @@ Deno.serve(async (req) => {
       log.error('Failed to trigger embed-session (non-fatal)', embedErr);
     }
 
+    // Step 14: Send email notification
+    log.step(14, 'Sending post-interview email')
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', session.user_id)
+        .single()
+
+      const recipientEmail = profile?.email || user.email
+      if (recipientEmail) {
+        await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`
+          },
+          body: JSON.stringify({
+            to: recipientEmail,
+            template: 'post-interview',
+            data: {
+              userName: profile?.name || 'Candidate',
+              jobRole: session.job_role,
+              score: reportData.overall_score,
+              sessionId
+            }
+          })
+        })
+        log.info('Post-interview email sent', recipientEmail)
+      }
+    } catch (emailErr) {
+      log.error('Failed to send post-interview email (non-fatal)', emailErr)
+    }
+
     log.timing('Total execution')
     log.info('Success', `Report ID: ${report.id}, Score: ${reportData.overall_score}`)
 

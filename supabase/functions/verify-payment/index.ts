@@ -162,10 +162,78 @@ Deno.serve(async (req) => {
           .eq('id', referralRow.id);
 
         console.log('Referral earnings credited and status updated to converted.');
+
+        // Send referral payout email to the referrer
+        try {
+          const { data: referrerProfile } = await supabase
+            .from('profiles')
+            .select('name, email')
+            .eq('id', referralRow.referrer_id)
+            .single();
+
+          const { data: referredProfile } = await supabase
+            .from('profiles')
+            .select('name')
+            .eq('id', userId)
+            .single();
+
+          const referrerEmail = referrerProfile?.email;
+          if (referrerEmail) {
+            console.log(`Sending referral payout email to referrer: ${referrerEmail}`);
+            await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`
+              },
+              body: JSON.stringify({
+                to: referrerEmail,
+                template: 'referral-payout',
+                data: {
+                  userName: referrerProfile?.name || 'Partner',
+                  referredName: referredProfile?.name || 'Your friend',
+                  rewardAmount: `INR ${(earningsAmountPaise / 100).toFixed(2)}`
+                }
+              })
+            });
+          }
+        } catch (emailErr: any) {
+          console.error('Error triggering referral payout email (non-fatal):', emailErr.message);
+        }
       }
     } catch (refErr: any) {
       // Non-fatal — log but don't fail the payment verification
       console.error('Referral earnings processing error (non-fatal):', refErr.message);
+    }
+
+    // Send Pro Upgrade email to the user
+    try {
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('name, email')
+        .eq('id', userId)
+        .single();
+
+      const targetEmail = userProfile?.email || user.email;
+      if (targetEmail) {
+        console.log(`Sending pro upgrade email to user: ${targetEmail}`);
+        await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`
+          },
+          body: JSON.stringify({
+            to: targetEmail,
+            template: 'pro-upgrade',
+            data: {
+              userName: userProfile?.name || 'Customer'
+            }
+          })
+        });
+      }
+    } catch (upgradeEmailErr: any) {
+      console.error('Error triggering pro upgrade email (non-fatal):', upgradeEmailErr.message);
     }
     // ─────────────────────────────────────────────────────────────────────
 
