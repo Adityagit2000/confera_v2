@@ -5,9 +5,28 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { AnimatePresence } from "framer-motion";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import PageTransition from "./components/PageTransition";
 import ErrorBoundary from "./components/ErrorBoundary";
+
+/**
+ * Capture referral code from URL query param (?ref=ABC123)
+ * and persist in localStorage for use during signup.
+ */
+function useReferralCapture() {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const refCode = params.get('ref');
+    if (refCode && /^[A-Z0-9]{8}$/i.test(refCode)) {
+      localStorage.setItem('confera_referral_code', refCode.toUpperCase());
+      // Clean URL without losing other params
+      params.delete('ref');
+      const newSearch = params.toString();
+      const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : '') + window.location.hash;
+      window.history.replaceState(null, '', newUrl);
+    }
+  }, []);
+}
 
 // Lazy load pages for performance
 const Index = lazy(() => import("./pages/Index"));
@@ -52,6 +71,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const AppRoutes = () => {
   const { user, loading } = useAuth();
   const location = useLocation();
+  useReferralCapture();
   
   if (loading) {
     return (

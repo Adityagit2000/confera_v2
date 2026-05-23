@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     // --- PAYWALL ENFORCEMENT ---
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('plan, plan_expires_at, interviews_used_this_month')
+      .select('plan, plan_expires_at, interviews_used_this_month, is_founder')
       .eq('id', session.user_id)
       .single()
 
@@ -51,8 +51,10 @@ Deno.serve(async (req) => {
       throw new Error('Failed to verify subscription status')
     }
 
-    const isPro = profile.plan === 'pro' && 
-      (profile.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false)
+    // Founders get unlimited access — skip all limits
+    const isFounder = profile.is_founder === true
+    const isPro = isFounder || (profile.plan === 'pro' && 
+      (profile.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false))
     
     if (!isPro && (profile.interviews_used_this_month || 0) >= 2) {
       return new Response(JSON.stringify({ 

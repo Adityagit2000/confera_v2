@@ -38,7 +38,8 @@ import { InterviewSelectionModal } from '@/components/InterviewSelectionModal';
 import { motion } from 'framer-motion';
 import { useSubscription } from '@/hooks/useSubscription';
 import { UpgradeModal } from '@/components/UpgradeModal';
-import { CreditCard } from 'lucide-react';
+import { ReferralSection } from '@/components/dashboard/ReferralSection';
+import { CreditCard, Gift } from 'lucide-react';
 
 interface DashboardStats {
   totalSessions: number;
@@ -66,7 +67,7 @@ const Dashboard = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState("");
   const { toast } = useToast();
-  const { isPro, canStartInterview, canAnalyzeResume, profile, refetch: refetchSubscription } = useSubscription();
+  const { isPro, isFounder, canStartInterview, canAnalyzeResume, profile, refetch: refetchSubscription } = useSubscription();
   const [prepPlan, setPrepPlan] = useState<any>(null);
   const [prepPlanLoading, setPrepPlanLoading] = useState(false);
 
@@ -415,6 +416,9 @@ const Dashboard = () => {
           <button onClick={() => window.location.href = '/pricing'} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
             <CreditCard className="w-5 h-5 group-hover:text-primary transition-colors" /> Pricing & Plan
           </button>
+          <button onClick={() => document.getElementById('referral-section')?.scrollIntoView({ behavior: 'smooth' })} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
+            <Gift className="w-5 h-5 group-hover:text-green-400 transition-colors" /> Referrals
+          </button>
           <button onClick={() => handleNavClick('settings')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
             <Settings className="w-5 h-5 group-hover:text-primary transition-colors" /> Settings
           </button>
@@ -488,6 +492,9 @@ const Dashboard = () => {
                 <button onClick={() => { window.location.href = '/pricing'; }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
                   <CreditCard className="w-5 h-5 group-hover:text-primary transition-colors" /> Pricing & Plan
                 </button>
+                <button onClick={() => { document.getElementById('referral-section')?.scrollIntoView({ behavior: 'smooth' }); setMobileSidebarOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
+                  <Gift className="w-5 h-5 group-hover:text-green-400 transition-colors" /> Referrals
+                </button>
                 <button onClick={() => { handleNavClick('settings'); setMobileSidebarOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
                   <Settings className="w-5 h-5 group-hover:text-primary transition-colors" /> Settings
                 </button>
@@ -552,7 +559,7 @@ const Dashboard = () => {
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold text-foreground mb-1">{stats.totalSessions}</div>
                   <p className="text-muted-foreground text-sm font-medium">Total Interviews</p>
-                  {!isPro && (
+                  {!isPro && !isFounder && (
                     <div className="mt-2 space-y-0.5">
                       <p className="text-xs text-muted-foreground">
                         {profile?.interviews_used_this_month || 0}/2 free used this month
@@ -728,6 +735,11 @@ const Dashboard = () => {
                 </div>
               </motion.div>
             )}
+          </div>
+
+          {/* Referral Section */}
+          <div id="referral-section" className="mb-12">
+            <ReferralSection />
           </div>
 
           {/* Recent Sessions Table */}

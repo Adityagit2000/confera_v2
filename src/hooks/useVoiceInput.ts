@@ -5,7 +5,14 @@
  * 1. speech-api: Web Speech API (Chrome/Edge/Safari desktop)
  * 2. media-recorder: MediaRecorder → Whisper transcription (iOS, Firefox, fallback)
  * 
- * Improvements over previous version:
+ * v2 — Intelligent Turn Detection Integration:
+ * - AnalyserNode VAD for real-time audio energy monitoring
+ * - Exports audioEnergy (0-1) for waveform visualization
+ * - Exports isSpeechDetected boolean for turn detection
+ * - Removed fixed silence timer — turn detection hook handles timing
+ * - MediaRecorder uses VAD-driven variable-length recording
+ * 
+ * Preserved from v1:
  * - AudioContext resume before recognition start
  * - Retry with exponential backoff on start failures
  * - Browser-specific workarounds (Safari continuous=false, Firefox fallback)
@@ -32,9 +39,18 @@ interface UseVoiceInputOptions {
   onTranscript: (text: string, isFinal: boolean) => void
   onError: (error: string) => void
   onStatusChange?: (status: 'idle' | 'starting' | 'listening' | 'stopping' | 'error') => void
-  autoSend: boolean
-  silenceDelay?: number
 }
+
+// ── VAD Constants ────────────────────────────────────────────────────────────
+
+/** RMS threshold below which we consider it "silence" (0-1 scale, ~-50dB) */
+const VAD_SILENCE_THRESHOLD = 0.01
+/** Minimum consecutive silent frames before declaring silence (debounce) */
+const VAD_SILENCE_DEBOUNCE_FRAMES = 8
+/** FFT size for AnalyserNode */
+const VAD_FFT_SIZE = 256
+
+// ── Recognition Constants ────────────────────────────────────────────────────
 
 const MAX_RETRIES = 3
 const RETRY_BACKOFF_MS = 200
@@ -44,27 +60,21 @@ export function useVoiceInput({
   onTranscript,
   onError,
   onStatusChange,
-  autoSend,
-  silenceDelay = 2000,
 }: UseVoiceInputOptions) {
   const browserRef = useRef<BrowserInfo>(detectBrowser())
   const [isListening, setIsListening] = useState(false)
   const [status, setStatus] = useState<'idle' | 'starting' | 'listening' | 'stopping' | 'error'>('idle')
   const [mode, setMode] = useState<VoiceInputMode>(() => {
     const browser = browserRef.current
-    // iOS: always media-recorder (Web Speech API not supported)
     if (browser.isIOS) return 'media-recorder'
-    // Firefox: SpeechRecognition is unreliable — use media-recorder
     if (browser.name === 'Firefox') return 'media-recorder'
-    // Check for SpeechRecognition API
     const hasSpeechAPI = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
     return hasSpeechAPI ? 'speech-api' : 'media-recorder'
   })
 
   // ── Shared refs ──
   const shouldContinueRef = useRef(false)
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const allStreamsRef = useRef<Set<MediaStream>>(new Set()) // Track all streams for cleanup
+  const allStreamsRef = useRef<Set<MediaStream>>(new Set())
 
   // ── Speech API refs ──
   const recognitionRef = useRef<any>(null)
@@ -77,6 +87,17 @@ export function useVoiceInput({
   const audioChunksRef = useRef<Blob[]>([])
   const streamRef = useRef<MediaStream | null>(null)
   const recordingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── VAD (Voice Activity Detection) refs ──
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const sourceNodeRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const vadAnimFrameRef = useRef<number | null>(null)
+  const silentFrameCountRef = useRef(0)
+
+  // ── VAD state (exported for UI and turn detection) ──
+  const [audioEnergy, setAudioEnergy] = useState(0)
+  const [isSpeechDetected, setIsSpeechDetected] = useState(false)
 
   // ── Status management ──
   const updateStatus = useCallback((newStatus: typeof status) => {
@@ -101,6 +122,82 @@ export function useVoiceInput({
     allStreamsRef.current.clear()
   }, [])
 
+  // ── VAD Engine ────────────────────────────────────────────────────────────
+
+  const startVAD = useCallback((stream: MediaStream) => {
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext
+      if (!AudioCtx) return
+
+      const ctx = new AudioCtx()
+      audioContextRef.current = ctx
+
+      const source = ctx.createMediaStreamSource(stream)
+      sourceNodeRef.current = source
+
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = VAD_FFT_SIZE
+      analyser.smoothingTimeConstant = 0.5
+      source.connect(analyser)
+      analyserRef.current = analyser
+
+      const dataArray = new Float32Array(analyser.fftSize)
+
+      const vadLoop = () => {
+        if (!analyserRef.current) return
+
+        analyser.getFloatTimeDomainData(dataArray)
+
+        // Calculate RMS (root mean square) energy
+        let sumOfSquares = 0
+        for (let i = 0; i < dataArray.length; i++) {
+          sumOfSquares += dataArray[i] * dataArray[i]
+        }
+        const rms = Math.sqrt(sumOfSquares / dataArray.length)
+
+        // Clamp to 0-1 range (RMS for speech is typically 0.001 to 0.3)
+        const normalizedEnergy = Math.min(rms * 5, 1) // Scale up for better visualization
+        setAudioEnergy(normalizedEnergy)
+
+        // Speech detection with debounce
+        if (rms > VAD_SILENCE_THRESHOLD) {
+          silentFrameCountRef.current = 0
+          setIsSpeechDetected(true)
+        } else {
+          silentFrameCountRef.current++
+          if (silentFrameCountRef.current >= VAD_SILENCE_DEBOUNCE_FRAMES) {
+            setIsSpeechDetected(false)
+          }
+        }
+
+        vadAnimFrameRef.current = requestAnimationFrame(vadLoop)
+      }
+
+      vadAnimFrameRef.current = requestAnimationFrame(vadLoop)
+    } catch (e) {
+      console.warn('[VoiceInput] VAD initialization failed (non-fatal):', e)
+    }
+  }, [])
+
+  const stopVAD = useCallback(() => {
+    if (vadAnimFrameRef.current) {
+      cancelAnimationFrame(vadAnimFrameRef.current)
+      vadAnimFrameRef.current = null
+    }
+    if (sourceNodeRef.current) {
+      try { sourceNodeRef.current.disconnect() } catch (_) {}
+      sourceNodeRef.current = null
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close().catch(() => {})
+      audioContextRef.current = null
+    }
+    analyserRef.current = null
+    silentFrameCountRef.current = 0
+    setAudioEnergy(0)
+    setIsSpeechDetected(false)
+  }, [])
+
   // ── Speech API mode ──────────────────────────────────────────────────────
 
   const startSpeechAPI = useCallback(async (): Promise<boolean> => {
@@ -122,12 +219,23 @@ export function useVoiceInput({
       return false
     }
 
+    // Get mic stream for VAD (Speech API doesn't give us audio data)
+    let vadStream: MediaStream | null = null
+    try {
+      vadStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true }
+      })
+      trackStream(vadStream)
+      startVAD(vadStream)
+    } catch (e) {
+      console.warn('[VoiceInput] VAD mic stream failed (non-fatal):', e)
+    }
+
     const browser = browserRef.current
     const recognition = new SpeechRecognition()
 
     // Browser-specific configuration
     if (browser.name === 'Safari' && !browser.isIOS) {
-      // Safari desktop: continuous mode is buggy, use single-result mode with auto-restart
       recognition.continuous = false
       recognition.interimResults = false
     } else {
@@ -158,15 +266,8 @@ export function useVoiceInput({
         else interim += t
       }
       if (interim) onTranscript(interim, false)
-      if (final) {
-        onTranscript(final, true)
-        if (autoSend) {
-          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
-          silenceTimerRef.current = setTimeout(() => {
-            stopSpeechAPI()
-          }, silenceDelay)
-        }
-      }
+      if (final) onTranscript(final, true)
+      // No silence timer — turn detection hook handles this
     }
 
     recognition.onend = () => {
@@ -179,7 +280,6 @@ export function useVoiceInput({
       // Auto-restart if we should continue AND this wasn't an intentional stop
       if (shouldContinueRef.current && !isStartingRef.current) {
         isStartingRef.current = true
-        // Longer delay for Safari (it needs more time between restarts)
         const delay = browser.name === 'Safari' ? 800 : 500
         setTimeout(() => {
           try {
@@ -209,13 +309,12 @@ export function useVoiceInput({
       }
 
       if (errorType === 'no-speech' || errorType === 'aborted') {
-        // Expected errors — onend will handle restart if shouldContinueRef is true
         isStartingRef.current = false
         return
       }
 
       if (errorType === 'network') {
-        console.warn('[VoiceInput] Network error on Speech API (often caused by Brave Shields or ad blockers). Falling back to media-recorder.')
+        console.warn('[VoiceInput] Network error on Speech API. Falling back to media-recorder.')
         setMode('media-recorder')
         onError('Voice API blocked by browser shields. Falling back to alternative engine. Please tap the mic to try again.')
         shouldContinueRef.current = false
@@ -225,7 +324,6 @@ export function useVoiceInput({
         return
       }
 
-      // Unknown error — log it
       console.error('[VoiceInput] SpeechRecognition error:', errorType)
       if (errorType === 'not-supported' || errorType === 'service-not-allowed') {
         setMode('media-recorder')
@@ -244,7 +342,6 @@ export function useVoiceInput({
       try {
         recognition.start()
 
-        // Safety timeout: if onstart doesn't fire within 5s, abort and retry
         startTimeoutRef.current = setTimeout(() => {
           if (isStartingRef.current && attempt < MAX_RETRIES) {
             console.warn(`[VoiceInput] Start timeout (attempt ${attempt + 1}/${MAX_RETRIES}), retrying...`)
@@ -258,7 +355,6 @@ export function useVoiceInput({
               }
             }, RETRY_BACKOFF_MS * Math.pow(2, attempt))
           } else if (isStartingRef.current) {
-            // All retries exhausted
             isStartingRef.current = false
             shouldContinueRef.current = false
             setIsListening(false)
@@ -278,7 +374,7 @@ export function useVoiceInput({
               attemptStart(attempt + 1)
             }
           }, RETRY_BACKOFF_MS * Math.pow(2, attempt))
-          return true // Will retry
+          return true
         }
 
         updateStatus('error')
@@ -287,13 +383,12 @@ export function useVoiceInput({
     }
 
     return attemptStart(0)
-  }, [autoSend, silenceDelay, onTranscript, onError, updateStatus])
+  }, [onTranscript, onError, updateStatus, trackStream, startVAD])
 
   const stopSpeechAPI = useCallback(() => {
     shouldContinueRef.current = false
     isStartingRef.current = false
     retryCountRef.current = 0
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
     if (startTimeoutRef.current) {
       clearTimeout(startTimeoutRef.current)
       startTimeoutRef.current = null
@@ -301,9 +396,10 @@ export function useVoiceInput({
     if (recognitionRef.current) {
       try { recognitionRef.current.abort() } catch (_) {}
     }
+    stopVAD()
     setIsListening(false)
     updateStatus('idle')
-  }, [updateStatus])
+  }, [updateStatus, stopVAD])
 
   // ── MediaRecorder mode ────────────────────────────────────────────────────
 
@@ -320,6 +416,9 @@ export function useVoiceInput({
       })
       streamRef.current = stream
       trackStream(stream)
+
+      // Start VAD on the same stream
+      startVAD(stream)
 
       const mimeType = MediaRecorder.isTypeSupported('audio/webm')
         ? 'audio/webm'
@@ -389,7 +488,7 @@ export function useVoiceInput({
       }
       return false
     }
-  }, [onTranscript, onError, updateStatus, trackStream])
+  }, [onTranscript, onError, updateStatus, trackStream, startVAD])
 
   const startNewChunk = useCallback(() => {
     if (!mediaRecorderRef.current || !shouldContinueRef.current) return
@@ -401,13 +500,20 @@ export function useVoiceInput({
         audioChunksRef.current = []
         try {
           mediaRecorderRef.current.start()
-          // We removed the 6-second chunking timer here. It records indefinitely
-          // until the user manually stops listening to prevent premature chunking boundaries.
+          // Records indefinitely — turn detection handles when to stop
         } catch (e) {
           console.error('[VoiceInput] Failed to start new recording chunk:', e)
         }
       }
     }, 100)
+  }, [])
+
+  /** Stop recording and send the current chunk for transcription */
+  const sendCurrentChunk = useCallback(() => {
+    if (mediaRecorderRef.current?.state === 'recording') {
+      try { mediaRecorderRef.current.stop() } catch (_) {}
+      // onstop handler will process and transcribe the chunk
+    }
   }, [])
 
   const stopMediaRecorder = useCallback(() => {
@@ -420,29 +526,25 @@ export function useVoiceInput({
       releaseStream(streamRef.current)
       streamRef.current = null
     }
+    stopVAD()
     setIsListening(false)
     updateStatus('idle')
-  }, [updateStatus, releaseStream])
+  }, [updateStatus, releaseStream, stopVAD])
 
   // ── Background tab handling ───────────────────────────────────────────────
 
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && isListening) {
-        // Tab went to background — pause recognition to prevent resource waste
-        // (Browsers throttle background tabs heavily, causing errors)
         console.log('[VoiceInput] Tab hidden — pausing recognition')
         if (mode === 'speech-api' && recognitionRef.current) {
           try { recognitionRef.current.abort() } catch (_) {}
         }
-        // Don't set shouldContinueRef to false — we want to resume on return
       } else if (document.visibilityState === 'visible' && shouldContinueRef.current && !isListening) {
-        // Tab returned to foreground — resume
         console.log('[VoiceInput] Tab visible — resuming recognition')
         if (mode === 'speech-api') {
           startSpeechAPI()
         }
-        // MediaRecorder handles its own lifecycle via chunks
       }
     }
 
@@ -461,7 +563,6 @@ export function useVoiceInput({
         const audioInputs = devices.filter(d => d.kind === 'audioinput')
 
         if (audioInputs.length === 0) {
-          // All mics disconnected
           console.warn('[VoiceInput] All microphones disconnected')
           onError('Microphone disconnected. Please reconnect and try again.')
           stopListening()
@@ -498,11 +599,11 @@ export function useVoiceInput({
     stopSpeechAPI()
     stopMediaRecorder()
     releaseAllStreams()
+    stopVAD()
     window.speechSynthesis?.cancel()
-    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
     if (startTimeoutRef.current) clearTimeout(startTimeoutRef.current)
     if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current)
-  }, [stopSpeechAPI, stopMediaRecorder, releaseAllStreams])
+  }, [stopSpeechAPI, stopMediaRecorder, releaseAllStreams, stopVAD])
 
   // ── Cleanup on unmount ────────────────────────────────────────────────────
 
@@ -519,8 +620,12 @@ export function useVoiceInput({
     mode,
     startListening,
     stopListening,
+    sendCurrentChunk,
     cleanup,
     isIOS: browserRef.current.isIOS,
     browser: browserRef.current,
+    // VAD signals for turn detection and UI
+    audioEnergy,
+    isSpeechDetected,
   }
 }

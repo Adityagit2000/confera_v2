@@ -128,6 +128,47 @@ Deno.serve(async (req) => {
       throw subError;
     }
 
+    // ─── Referral Earnings: credit 10% to referrer if applicable ────────
+    try {
+      const { data: referralRow } = await supabase
+        .from('referrals')
+        .select('id, referrer_id')
+        .eq('referred_id', userId)
+        .eq('status', 'pending')
+        .limit(1)
+        .single();
+
+      if (referralRow) {
+        const earningsAmountPaise = Math.round((expectedAmount || amount) * 0.10);
+        console.log(`Referral found: ${referralRow.id}. Crediting ${earningsAmountPaise} paise to referrer ${referralRow.referrer_id}`);
+
+        // Insert earnings record
+        await supabase
+          .from('referral_earnings')
+          .insert({
+            user_id: referralRow.referrer_id,
+            referral_id: referralRow.id,
+            amount_paise: earningsAmountPaise,
+            payment_id: razorpay_payment_id,
+          });
+
+        // Mark referral as converted
+        await supabase
+          .from('referrals')
+          .update({
+            status: 'converted',
+            converted_at: new Date().toISOString(),
+          })
+          .eq('id', referralRow.id);
+
+        console.log('Referral earnings credited and status updated to converted.');
+      }
+    } catch (refErr: any) {
+      // Non-fatal — log but don't fail the payment verification
+      console.error('Referral earnings processing error (non-fatal):', refErr.message);
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     console.log('Payment verification and database update complete.');
 
     return new Response(

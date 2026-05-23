@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { useVoiceSynthesis } from '@/hooks/useVoiceSynthesis';
+import { useTurnDetection, type TurnState } from '@/hooks/useTurnDetection';
 import { PreFlightCheck } from '@/components/PreFlightCheck';
 import { closeAudioContext, type DiagnosticReport } from '@/lib/voiceDiagnostics';
 import { useOnlineStatus, acquireInterviewLock, releaseInterviewLock } from '@/lib/networkUtils';
@@ -71,8 +72,12 @@ const InterviewSession = () => {
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [autoSend, setAutoSend] = useState(true);
-  const submitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [finalTranscript, setFinalTranscript] = useState('');
+  const [hasFinalResult, setHasFinalResult] = useState(false);
+  const [lastFinalText, setLastFinalText] = useState('');
+  const speakingStartRef = useRef<number | null>(null);
+  const [speakingStart, setSpeakingStart] = useState<number | null>(null);
+  const [gotItFlash, setGotItFlash] = useState(false);
   
   const voiceSynth = useVoiceSynthesis();
 
@@ -83,35 +88,65 @@ const InterviewSession = () => {
         return;
       }
 
+      // Track speaking start time
+      if (!speakingStartRef.current) {
+        speakingStartRef.current = Date.now();
+        setSpeakingStart(Date.now());
+      }
+
       // Accumulate final transcripts
       setFinalTranscript(prev => prev + text + ' ');
       setLiveTranscript('');
-
-      // DEBOUNCE: reset timer every time new speech comes in
-      // Only submit after 3 seconds of REAL silence
-      if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
-      submitTimerRef.current = setTimeout(() => {
-        setFinalTranscript(prev => {
-          const fullAnswer = prev.trim();
-          if (fullAnswer.length > 10 && autoSend) {
-            handleSendVoiceMessage(fullAnswer);
-          }
-          return '';
-        });
-        setLiveTranscript('');
-      }, voiceInput.mode === 'media-recorder' ? 0 : 3000); // 3 seconds for Web Speech, instant for fallback
+      setHasFinalResult(true);
+      setLastFinalText(text);
     },
     onError: (error) => {
       toast({ title: "Microphone issue", description: error, variant: "destructive" });
     },
-    autoSend,
-    silenceDelay: 6000, // increased — debounce in component handles it now
   });
 
   const isListening = voiceInput.isListening;
   const isSpeaking = voiceSynth.isSpeaking;
   const voiceAvailable = voiceInput.mode !== 'text-only';
   const [cameraAvailable, setCameraAvailable] = useState(true);
+
+  // ── Intelligent Turn Detection ──────────────────────────────────────────
+  const wordCount = (finalTranscript + ' ' + liveTranscript).trim().split(/\s+/).filter(Boolean).length;
+
+  const turnDetection = useTurnDetection({
+    isListening,
+    wordCount,
+    hasFinalResult,
+    lastFinalTranscript: lastFinalText,
+    audioEnergyBelowThreshold: voiceInput.audioEnergy < 0.02,
+    isSpeechDetected: voiceInput.isSpeechDetected,
+    speakingStartTimestamp: speakingStart,
+  });
+
+  // When turn detection says the answer is complete, auto-submit
+  useEffect(() => {
+    if (turnDetection.turnState === 'complete' && autoSend) {
+      const fullAnswer = (finalTranscript + liveTranscript).trim();
+      if (fullAnswer.length > 10) {
+        // Show brief "Got it" flash
+        setGotItFlash(true);
+        setTimeout(() => {
+          setGotItFlash(false);
+          handleSendVoiceMessage(fullAnswer);
+          setFinalTranscript('');
+          setLiveTranscript('');
+          setHasFinalResult(false);
+          setLastFinalText('');
+          speakingStartRef.current = null;
+          setSpeakingStart(null);
+          turnDetection.reset();
+        }, 600);
+      } else {
+        // Answer too short — keep listening
+        turnDetection.reset();
+      }
+    }
+  }, [turnDetection.turnState]);
   
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
@@ -183,7 +218,6 @@ const InterviewSession = () => {
       voiceSynth.cancel();
       voiceInput.cleanup();
       closeAudioContext();
-      if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
     };
   }, []);
 
@@ -643,10 +677,54 @@ const InterviewSession = () => {
                   AI Interviewer
                 </span>
 
-                {/* Status text */}
-                <span style={{ color: '#555', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.15em' }}>
-                  {isSpeaking ? 'Speaking' : isThinking ? 'Thinking...' : isListening ? 'Listening' : 'Ready'}
-                </span>
+                {/* Intelligent voice state indicator */}
+                {(() => {
+                  const ts = turnDetection.turnState;
+                  if (isSpeaking) return (
+                    <span style={{ color: '#4ade80', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.15em' }}>Speaking</span>
+                  );
+                  if (isThinking) return (
+                    <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.15em' }}>Thinking...</span>
+                  );
+                  if (gotItFlash) return (
+                    <span style={{ color: '#4ade80', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.15em' }}>✓ Got it</span>
+                  );
+                  if (ts === 'active_speech') return (
+                    <span style={{ color: '#4ade80', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.15em' }}>Listening</span>
+                  );
+                  if (ts === 'waiting' || ts === 'confirming') return (
+                    <span style={{ color: '#f59e0b', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.12em' }}>Still listening, take your time...</span>
+                  );
+                  if (isListening) return (
+                    <span style={{ color: '#4ade80', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.15em' }}>Listening</span>
+                  );
+                  return (
+                    <span style={{ color: '#555', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.15em' }}>Ready</span>
+                  );
+                })()}
+
+                {/* Silence progress bar — subtle thin line (only in waiting/confirming) */}
+                {isListening && (turnDetection.turnState === 'waiting' || turnDetection.turnState === 'confirming') && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '24px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '120px',
+                    height: '2px',
+                    backgroundColor: 'rgba(255,255,255,0.08)',
+                    borderRadius: '2px',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${turnDetection.silenceProgress * 100}%`,
+                      backgroundColor: turnDetection.turnState === 'confirming' ? '#f59e0b' : 'rgba(245,158,11,0.5)',
+                      borderRadius: '2px',
+                      transition: 'width 0.3s ease-out',
+                    }} />
+                  </div>
+                )}
 
                 {/* Speaking indicator — animated dots */}
                 {isAiSpeaking && (
@@ -742,32 +820,55 @@ const InterviewSession = () => {
                     whileTap={voiceAvailable ? { scale: 0.9 } : {}} 
                     onClick={voiceAvailable ? () => { toggleMic(); completeStep(1); } : undefined} 
                     style={{
-                      backgroundColor: isListening ? '#ef4444' : voiceAvailable ? '#22c55e' : 'rgba(255,255,255,0.05)',
-                      boxShadow: isListening ? '0 0 0 4px rgba(239,68,68,0.3)' : 'none',
+                      backgroundColor: isListening
+                        ? (turnDetection.turnState === 'waiting' || turnDetection.turnState === 'confirming')
+                          ? '#f59e0b'
+                          : '#ef4444'
+                        : voiceAvailable ? '#22c55e' : 'rgba(255,255,255,0.05)',
+                      boxShadow: isListening ? '0 0 0 4px rgba(239,68,68,0.2)' : 'none',
                     }}
                     className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full flex flex-col items-center justify-center transition-all shadow-2xl relative ${
                       !voiceAvailable ? 'opacity-30 cursor-not-allowed' : ''
                     } ${onboardingStep === 1 ? 'ring-4 ring-primary/20' : ''}`}
                     title={!voiceAvailable ? "Voice recognition unavailable" : ""}
                    >
+                     {/* Real-time audio energy waveform (5 bars) */}
                      {isListening && (
-                       <span style={{
-                         width: '8px',
-                         height: '8px',
-                         borderRadius: '50%',
-                         backgroundColor: 'white',
-                         display: 'inline-block',
-                         animation: 'pulse 1s ease-in-out infinite',
+                       <div style={{
                          position: 'absolute',
-                         top: '8px',
-                         right: '8px',
-                       }} />
+                         top: '-28px',
+                         display: 'flex',
+                         gap: '3px',
+                         alignItems: 'flex-end',
+                         height: '20px',
+                       }}>
+                         {[0.7, 1.0, 0.8, 1.0, 0.6].map((scale, i) => {
+                           const barHeight = Math.max(3, voiceInput.audioEnergy * 20 * scale);
+                           const barColor = (turnDetection.turnState === 'waiting' || turnDetection.turnState === 'confirming')
+                             ? '#f59e0b'
+                             : '#4ade80';
+                           return (
+                             <div key={i} style={{
+                               width: '3px',
+                               height: `${barHeight}px`,
+                               backgroundColor: barColor,
+                               borderRadius: '2px',
+                               transition: 'height 0.08s ease-out, background-color 0.3s',
+                             }} />
+                           );
+                         })}
+                       </div>
                      )}
                      {isListening ? <Mic className="w-6 h-6 sm:w-8 sm:h-8 text-white" /> : <MicOff className="w-6 h-6 sm:w-8 sm:h-8 text-white" />}
                      <span className="text-[8px] font-black mt-1 uppercase tracking-tighter text-white">
-                        {isListening ? '🎤 Listening...' : voiceAvailable ? '🎤 Start' : 'Off'}
+                        {isListening
+                          ? (turnDetection.turnState === 'waiting' || turnDetection.turnState === 'confirming')
+                            ? '⏳ Waiting...'
+                            : '🎤 Listening...'
+                          : voiceAvailable ? '🎤 Start' : 'Off'
+                        }
                      </span>
-                     {isListening && (
+                     {isListening && turnDetection.turnState !== 'waiting' && turnDetection.turnState !== 'confirming' && (
                         <motion.div className="absolute inset-0 rounded-full border-4 border-red-400" animate={{ scale: [1, 1.4], opacity: [0.6, 0] }} transition={{ duration: 1.2, repeat: Infinity }} />
                      )}
                    </motion.button>
@@ -780,16 +881,39 @@ const InterviewSession = () => {
                    )}
                  </div>
 
+                 {/* Keep Listening escape hatch — appears during confirming state */}
+                 <AnimatePresence>
+                   {isListening && turnDetection.turnState === 'confirming' && (
+                     <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
+                       <Button
+                         onClick={() => turnDetection.keepListening()}
+                         className="h-14 sm:h-16 px-6 sm:px-8 rounded-[2rem] bg-amber-600 hover:bg-amber-500 text-white font-black uppercase tracking-tighter shadow-xl text-sm sm:text-base animate-pulse"
+                       >
+                         🖐️ Keep Listening
+                       </Button>
+                     </motion.div>
+                   )}
+                 </AnimatePresence>
+
                  {/* Done Answering manual submit button */}
-                 {isListening && (finalTranscript.trim().length > 0 || liveTranscript.trim().length > 0) && (
+                 {isListening && (finalTranscript.trim().length > 0 || liveTranscript.trim().length > 0) && turnDetection.turnState !== 'confirming' && (
                    <Button
                      onClick={() => {
-                       if (submitTimerRef.current) clearTimeout(submitTimerRef.current);
+                       turnDetection.forceDone();
                        const answer = (finalTranscript + liveTranscript).trim();
                        if (answer.length > 0) {
-                         handleSendVoiceMessage(answer);
-                         setFinalTranscript('');
-                         setLiveTranscript('');
+                         setGotItFlash(true);
+                         setTimeout(() => {
+                           setGotItFlash(false);
+                           handleSendVoiceMessage(answer);
+                           setFinalTranscript('');
+                           setLiveTranscript('');
+                           setHasFinalResult(false);
+                           setLastFinalText('');
+                           speakingStartRef.current = null;
+                           setSpeakingStart(null);
+                           turnDetection.reset();
+                         }, 400);
                        }
                      }}
                      className="h-14 sm:h-16 px-6 sm:px-8 rounded-[2rem] bg-emerald-600 hover:bg-emerald-500 text-white font-black uppercase tracking-tighter shadow-xl text-sm sm:text-base"

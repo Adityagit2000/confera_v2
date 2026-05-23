@@ -19,7 +19,7 @@ export function useSubscription() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('name, plan, plan_expires_at, interviews_used_this_month, resume_analyses_used_this_month')
+        .select('name, plan, plan_expires_at, interviews_used_this_month, resume_analyses_used_this_month, is_founder, referral_code')
         .eq('id', user!.id)
         .single();
       
@@ -32,14 +32,19 @@ export function useSubscription() {
     }
   };
 
-  const isPro = profile?.plan === 'pro' && 
-    (profile?.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false);
+  const isFounder = profile?.is_founder === true;
+
+  const isPro = isFounder || (
+    profile?.plan === 'pro' && 
+    (profile?.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false)
+  );
 
   const canStartInterview = isPro || (profile?.interviews_used_this_month || 0) < 2;
   const canAnalyzeResume = isPro || (profile?.resume_analyses_used_this_month || 0) < 2;
 
   return { 
     isPro, 
+    isFounder,
     canStartInterview, 
     canAnalyzeResume, 
     profile, 

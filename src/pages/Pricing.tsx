@@ -54,8 +54,14 @@ const Pricing = () => {
         throw new Error('Razorpay SDK failed to load. Check your internet connection.');
       }
 
+      // Warn if running with test keys
+      const razorpayKey = import.meta.env.VITE_RAZORPAY_KEY_ID;
+      if (razorpayKey?.startsWith('rzp_test_')) {
+        console.warn('[Confera] ⚠️ Razorpay is running in TEST mode. Payments are not real.');
+      }
+
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        key: razorpayKey,
         amount: orderData.amount,
         currency: 'INR',
         name: 'Confera',

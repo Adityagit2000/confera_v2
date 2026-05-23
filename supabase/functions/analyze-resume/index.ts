@@ -132,7 +132,7 @@ Deno.serve(async (req) => {
     console.log('[Step 3] Checking subscription status...')
     const { data: profileData, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('plan, plan_expires_at, resume_analyses_used_this_month')
+      .select('plan, plan_expires_at, resume_analyses_used_this_month, is_founder')
       .eq('id', resume.user_id)
       .single()
 
@@ -145,8 +145,10 @@ Deno.serve(async (req) => {
     }
 
     profile = profileData
-    isPro = profile.plan === 'pro' &&
-      (profile.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false)
+    // Founders get unlimited access — skip all limits
+    const isFounder = profile.is_founder === true
+    isPro = isFounder || (profile.plan === 'pro' &&
+      (profile.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false))
 
     console.log(`[Step 3] Plan: ${profile.plan}, isPro: ${isPro}, analyses used: ${profile.resume_analyses_used_this_month || 0}`)
 

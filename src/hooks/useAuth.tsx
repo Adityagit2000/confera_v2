@@ -17,6 +17,93 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/** Generate a random 8-character uppercase alphanumeric referral code */
+function generateReferralCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+/**
+ * After a user signs in, ensure they have a referral code.
+ * If they don't have one, generate and save it.
+ * Also process any pending referral link from localStorage.
+ */
+async function ensureReferralCodeAndLink(userId: string) {
+  try {
+    // Check if user already has a referral code
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('referral_code')
+      .eq('id', userId)
+      .single();
+
+    if (!profile?.referral_code) {
+      // Generate and set referral code (retry up to 3 times for uniqueness collisions)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const code = generateReferralCode();
+        const { error } = await supabase
+          .from('profiles')
+          .update({ referral_code: code })
+          .eq('id', userId);
+
+        if (!error) {
+          console.log(`[Referral] Generated referral code: ${code}`);
+          break;
+        }
+        // If error is unique constraint violation, retry with a new code
+        if (error.code === '23505') continue;
+        console.error('[Referral] Error setting referral code:', error);
+        break;
+      }
+    }
+
+    // Check if there's a referral code in localStorage from a referral link
+    const storedRefCode = localStorage.getItem('confera_referral_code');
+    if (storedRefCode) {
+      // Look up the referrer by their referral code
+      const { data: referrer } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('referral_code', storedRefCode)
+        .single();
+
+      if (referrer && referrer.id !== userId) {
+        // Check if this referral link hasn't already been processed
+        const { data: existingReferral } = await supabase
+          .from('referrals')
+          .select('id')
+          .eq('referred_id', userId)
+          .limit(1);
+
+        if (!existingReferral || existingReferral.length === 0) {
+          // Insert the referral record
+          const { error: refError } = await supabase
+            .from('referrals')
+            .insert({
+              referrer_id: referrer.id,
+              referred_id: userId,
+              status: 'pending',
+            });
+
+          if (!refError) {
+            console.log(`[Referral] Linked user ${userId} to referrer ${referrer.id}`);
+          } else {
+            console.error('[Referral] Error creating referral link:', refError);
+          }
+        }
+      }
+      // Always clear after processing (even if referrer not found)
+      localStorage.removeItem('confera_referral_code');
+    }
+  } catch (error) {
+    console.error('[Referral] Error in ensureReferralCodeAndLink:', error);
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -51,6 +138,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               console.error('Error fetching user profile:', error);
             }
           }, 0);
+
+          // Ensure referral code exists and process any referral link
+          if (event === 'SIGNED_IN') {
+            setTimeout(() => {
+              ensureReferralCodeAndLink(session.user.id);
+            }, 500);
+          }
         } else {
           setIsAdmin(false);
         }
