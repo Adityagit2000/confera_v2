@@ -95,6 +95,7 @@ const InterviewSession = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const candidateVideoRef = useRef<HTMLVideoElement>(null);
   const shouldContinueListeningRef = useRef(false);
+  const isSubmittingRef = useRef(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [cameraAvailable, setCameraAvailable] = useState(true);
   
@@ -389,9 +390,10 @@ const InterviewSession = () => {
   }, [canStartInterview, sessionId, speak]);
 
   const handleSendVoiceMessage = useCallback(async (transcript: string) => {
-    if (!transcript.trim() || isThinking || isSpeaking) return;
+    if (!transcript.trim() || isThinking || isSpeaking || isSubmittingRef.current) return;
     
     const userMsg = transcript.trim();
+    isSubmittingRef.current = true;
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setLiveTranscript('');
     setInputMsg('');
@@ -429,6 +431,7 @@ const InterviewSession = () => {
        });
     } finally {
       setIsThinking(false);
+      isSubmittingRef.current = false;
     }
   }, [isThinking, isSpeaking, sessionId, session?.type, speak, toast]);
 
@@ -899,7 +902,8 @@ const InterviewSession = () => {
                  {isListening && (finalTranscript.trim().length > 0 || liveTranscript.trim().length > 0) && turnDetection.turnState !== 'confirming' && (
                    <Button
                      onClick={() => {
-                       turnDetection.forceDone();
+                       shouldContinueListeningRef.current = false;
+                       voiceInput.stopListening();
                        const answer = (finalTranscript + liveTranscript).trim();
                        if (answer.length > 0) {
                          setGotItFlash(true);

@@ -82,8 +82,23 @@ Deno.serve(async (req) => {
       .limit(1)
       .single();
 
-    const resumeJsonSummary = latestResume?.parsed_data 
-      ? JSON.stringify(latestResume.parsed_data) 
+    // Extract only the candidate's actual resume content (exclude ATS improvements, suggestions, strengths/weaknesses suggestions, etc.)
+    const cleanResumeData = latestResume?.parsed_data 
+      ? {
+          candidate_name: latestResume.parsed_data.candidate_name || latestResume.parsed_data.contact?.name || null,
+          summary: latestResume.parsed_data.summary || null,
+          total_experience_years: latestResume.parsed_data.total_experience_years || null,
+          skills: latestResume.parsed_data.technical_skills || latestResume.parsed_data.skills || [],
+          soft_skills: latestResume.parsed_data.soft_skills || [],
+          experience: latestResume.parsed_data.experience || [],
+          education: latestResume.parsed_data.education || [],
+          projects: latestResume.parsed_data.projects || [],
+          achievements: latestResume.parsed_data.key_achievements || latestResume.parsed_data.strengths || []
+        }
+      : null;
+
+    const resumeJsonSummary = cleanResumeData 
+      ? JSON.stringify(cleanResumeData) 
       : "No resume analysis available. Proceed with general background questions.";
 
     // Step 5: Fetch skill memory
