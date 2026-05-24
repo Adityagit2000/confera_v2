@@ -79,6 +79,25 @@ const InterviewSession = () => {
   const [speakingStart, setSpeakingStart] = useState<number | null>(null);
   const [gotItFlash, setGotItFlash] = useState(false);
   
+  // Chat state
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputMsg, setInputMsg] = useState('');
+  const [isTextChatOpen, setIsTextChatOpen] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
+  const [questionCount, setQuestionCount] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [answeredQuestionsCount, setAnsweredQuestionsCount] = useState(0);
+  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
+  
+  const [selectedVoiceName, setSelectedVoiceName] = useState<string>(localStorage.getItem('confera_voice') || '');
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const candidateVideoRef = useRef<HTMLVideoElement>(null);
+  const shouldContinueListeningRef = useRef(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [cameraAvailable, setCameraAvailable] = useState(true);
+  
   const voiceSynth = useVoiceSynthesis();
 
   const voiceInput = useVoiceInput({
@@ -108,7 +127,6 @@ const InterviewSession = () => {
   const isListening = voiceInput.isListening;
   const isSpeaking = voiceSynth.isSpeaking;
   const voiceAvailable = voiceInput.mode !== 'text-only';
-  const [cameraAvailable, setCameraAvailable] = useState(true);
 
   // ── Intelligent Turn Detection ──────────────────────────────────────────
   const wordCount = (finalTranscript + ' ' + liveTranscript).trim().split(/\s+/).filter(Boolean).length;
@@ -147,24 +165,6 @@ const InterviewSession = () => {
       }
     }
   }, [turnDetection.turnState]);
-  
-  // Chat state
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputMsg, setInputMsg] = useState('');
-  const [isTextChatOpen, setIsTextChatOpen] = useState(false);
-  const [liveTranscript, setLiveTranscript] = useState('');
-  const [questionCount, setQuestionCount] = useState(0);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [answeredQuestionsCount, setAnsweredQuestionsCount] = useState(0);
-  const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
-  const textInputRef = useRef<HTMLInputElement>(null);
-  
-  const [selectedVoiceName, setSelectedVoiceName] = useState<string>(localStorage.getItem('confera_voice') || '');
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const candidateVideoRef = useRef<HTMLVideoElement>(null);
-  const shouldContinueListeningRef = useRef(false);
-  const [onboardingStep, setOnboardingStep] = useState(0);
 
   // Voice engine initialization — handled by useVoiceSynthesis hook
   // Just need to manage user's voice preference
