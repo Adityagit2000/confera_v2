@@ -75,6 +75,7 @@ export function useVoiceInput({
   // ── Shared refs ──
   const shouldContinueRef = useRef(false)
   const allStreamsRef = useRef<Set<MediaStream>>(new Set())
+  const hasSpeechInCurrentChunkRef = useRef(false)
 
   // ── Speech API refs ──
   const recognitionRef = useRef<any>(null)
@@ -475,6 +476,7 @@ export function useVoiceInput({
       setIsListening(true)
       shouldContinueRef.current = true
       updateStatus('listening')
+      hasSpeechInCurrentChunkRef.current = false
       startNewChunk()
       return true
     } catch (e: any) {
@@ -500,6 +502,7 @@ export function useVoiceInput({
         audioChunksRef.current = []
         try {
           mediaRecorderRef.current.start()
+          hasSpeechInCurrentChunkRef.current = false
           // Records indefinitely — turn detection handles when to stop
         } catch (e) {
           console.error('[VoiceInput] Failed to start new recording chunk:', e)
@@ -604,6 +607,30 @@ export function useVoiceInput({
     if (startTimeoutRef.current) clearTimeout(startTimeoutRef.current)
     if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current)
   }, [stopSpeechAPI, stopMediaRecorder, releaseAllStreams, stopVAD])
+
+  // ── MediaRecorder VAD-driven chunking ──────────────────────────────────────
+
+  useEffect(() => {
+    if (mode !== 'media-recorder' || !isListening) return
+
+    let timer: ReturnType<typeof setTimeout>
+
+    if (!isSpeechDetected) {
+      if (hasSpeechInCurrentChunkRef.current) {
+        timer = setTimeout(() => {
+          console.log('[VoiceInput] Silence detected in media-recorder, sending chunk')
+          hasSpeechInCurrentChunkRef.current = false
+          sendCurrentChunk()
+        }, 2000)
+      }
+    } else {
+      hasSpeechInCurrentChunkRef.current = true
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer)
+    }
+  }, [isSpeechDetected, mode, isListening, sendCurrentChunk])
 
   // ── Cleanup on unmount ────────────────────────────────────────────────────
 
