@@ -40,6 +40,8 @@ const MockInterview = lazy(() => import("./pages/MockInterview"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const AssessmentSetup = lazy(() => import("./pages/AssessmentSetup"));
+const AssessmentRoom = lazy(() => import("./pages/AssessmentRoom"));
 
 
 const queryClient = new QueryClient();
@@ -142,6 +144,20 @@ const AppRoutes = () => {
         } />
         <Route path="/terms" element={
           <PageTransition><TermsOfService /></PageTransition>
+        } />
+        <Route path="/assessment-setup" element={
+          <ProtectedRoute>
+            <ErrorBoundary>
+              <PageTransition><AssessmentSetup /></PageTransition>
+            </ErrorBoundary>
+          </ProtectedRoute>
+        } />
+        <Route path="/assessment-room/:id" element={
+          <ProtectedRoute>
+            <ErrorBoundary>
+              <PageTransition><AssessmentRoom /></PageTransition>
+            </ErrorBoundary>
+          </ProtectedRoute>
         } />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />

@@ -5,7 +5,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Check, X, Zap, Crown, Star, ArrowRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Check, X, Zap, Crown, Star, ArrowRight, Tag } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { motion } from 'framer-motion';
 
@@ -14,6 +15,9 @@ const Pricing = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
   const handlePayment = async (billingCycle: 'monthly' | 'yearly') => {
     if (!user) {
@@ -25,9 +29,9 @@ const Pricing = () => {
     setLoading(billingCycle);
     try {
       // Create order via edge function
-      console.log('Calling create-order with:', { plan: 'pro', billingCycle, userId: user.id });
+      console.log('Calling create-order with:', { plan: 'pro', billingCycle, userId: user.id, couponCode: appliedCoupon?.code });
       const { data: orderData, error: orderError } = await supabase.functions.invoke('create-order', {
-        body: { plan: 'pro', billingCycle, userId: user.id }
+        body: { plan: 'pro', billingCycle, userId: user.id, couponCode: appliedCoupon?.code }
       });
 
       if (orderError) {
@@ -123,6 +127,39 @@ const Pricing = () => {
     }
   };
 
+  const applyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setIsApplyingCoupon(true);
+    try {
+      const { data: coupon, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponCode.toUpperCase().trim())
+        .eq('is_active', true)
+        .single();
+        
+      if (error || !coupon) {
+        toast({ title: 'Invalid Coupon', description: 'This coupon code is invalid or expired.', variant: 'destructive' });
+        setAppliedCoupon(null);
+      } else {
+        setAppliedCoupon({ code: coupon.code, discount: coupon.discount_percentage });
+        toast({ title: 'Coupon Applied!', description: `You got ${coupon.discount_percentage}% off!`, className: 'bg-emerald-500 text-white' });
+      }
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to verify coupon.', variant: 'destructive' });
+    }
+    setIsApplyingCoupon(false);
+  };
+
+  const calculatePrice = (base: number) => {
+    if (!appliedCoupon) return { current: base, original: null };
+    const discounted = Math.round(base * (1 - appliedCoupon.discount / 100));
+    return { current: discounted, original: base };
+  };
+
+  const monthlyPrices = calculatePrice(1999);
+  const yearlyPrices = calculatePrice(19999);
+
   const plans = [
     {
       name: 'Free',
@@ -145,9 +182,9 @@ const Pricing = () => {
     },
     {
       name: 'Pro Monthly',
-      price: '₹799',
-      originalPrice: '₹1,999',
-      discount: '60% OFF',
+      price: `₹${monthlyPrices.current}`,
+      originalPrice: monthlyPrices.original ? `₹${monthlyPrices.original}` : null,
+      discount: appliedCoupon ? `${appliedCoupon.discount}% OFF` : null,
       interval: '/month',
       description: 'For serious candidates',
       features: [
@@ -165,10 +202,11 @@ const Pricing = () => {
     },
     {
       name: 'Pro Yearly',
-      price: '₹4,999',
-      originalPrice: '₹19,999',
+      price: `₹${yearlyPrices.current}`,
+      originalPrice: yearlyPrices.original ? `₹${yearlyPrices.original}` : null,
       interval: '/year',
-      badge: 'Massive Savings (Save 75%)',
+      badge: 'Best Value',
+      discount: appliedCoupon ? `${appliedCoupon.discount}% OFF` : null,
       description: 'Long-term career success',
       features: [
         'All Pro Monthly features',
@@ -205,6 +243,26 @@ const Pricing = () => {
           </motion.p>
         </div>
 
+        <div className="max-w-md mx-auto mb-12 flex gap-2 items-center">
+          <Tag className="w-5 h-5 text-muted-foreground" />
+          <Input 
+            placeholder="Enter Coupon Code" 
+            value={couponCode} 
+            onChange={e => setCouponCode(e.target.value)}
+            disabled={isApplyingCoupon || !!appliedCoupon}
+            className="flex-1"
+          />
+          {appliedCoupon ? (
+            <Button variant="outline" onClick={() => { setAppliedCoupon(null); setCouponCode(''); }}>
+              Remove
+            </Button>
+          ) : (
+            <Button onClick={applyCoupon} disabled={isApplyingCoupon || !couponCode.trim()}>
+              {isApplyingCoupon ? 'Applying...' : 'Apply'}
+            </Button>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-20 items-stretch">
           {plans.map((plan, index) => (
             <motion.div
@@ -228,10 +286,12 @@ const Pricing = () => {
                   </div>
                   <div className="flex flex-col justify-center min-h-[110px] mt-2 mb-4">
                     <div className="flex items-baseline gap-2">
-                      <span className="text-4xl md:text-5xl font-extrabold tracking-tight">{plan.price}</span>
+                      <span className={`text-4xl md:text-5xl font-extrabold tracking-tight ${appliedCoupon && plan.originalPrice ? 'text-emerald-500' : ''}`}>
+                        {plan.price}
+                      </span>
                       {plan.interval && <span className="text-muted-foreground font-medium">{plan.interval}</span>}
                       {plan.discount && (
-                        <span className="text-[10px] font-bold bg-success/10 text-success px-1.5 py-0.5 rounded-md uppercase tracking-wider">
+                        <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded-md uppercase tracking-wider">
                           {plan.discount}
                         </span>
                       )}

@@ -32,9 +32,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { plan, billingCycle, userId } = body;
+    const { plan, billingCycle, userId, couponCode } = body;
     if (user.id !== userId) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
-    console.log(`Order request - Plan: ${plan}, Cycle: ${billingCycle}, User: ${userId}`);
+    console.log(`Order request - Plan: ${plan}, Cycle: ${billingCycle}, User: ${userId}, Coupon: ${couponCode}`);
     
     if (!plan || !billingCycle || !userId) {
       console.error('Missing required fields:', { plan, billingCycle, userId });
@@ -45,15 +45,14 @@ Deno.serve(async (req) => {
     }
 
     const amounts: Record<string, number> = {
-      pro_monthly: 79900,  // ₹799 in paise
-      pro_yearly: 499900   // ₹4,999 in paise
+      pro_monthly: 1999,
+      pro_yearly: 19999
     };
 
     const amountKey = `${plan}_${billingCycle}`;
-    console.log('Amount key:', amountKey);
-    const amount = amounts[amountKey];
+    let baseAmount = amounts[amountKey];
 
-    if (!amount) {
+    if (!baseAmount) {
       console.error(`Invalid plan or billing cycle: ${amountKey}`);
       return new Response(
         JSON.stringify({ error: `Invalid plan or billing cycle: ${amountKey}` }),
@@ -61,9 +60,34 @@ Deno.serve(async (req) => {
       );
     }
 
+    let appliedDiscount = 0;
+    if (couponCode) {
+      const { data: coupon, error: couponError } = await supabaseAuth
+        .from('coupons')
+        .select('*')
+        .eq('code', couponCode.toUpperCase())
+        .eq('is_active', true)
+        .single();
+      
+      if (coupon && !couponError) {
+        appliedDiscount = coupon.discount_percentage;
+        baseAmount = baseAmount * (1 - appliedDiscount / 100);
+      }
+    }
+
+    // Convert to paise (round to ensure no decimals)
+    const amount = Math.round(baseAmount * 100);
+    console.log('Final amount (paise):', amount);
+
     const keyId = Deno.env.get('RAZORPAY_KEY_ID');
     const keySecret = Deno.env.get('RAZORPAY_KEY_SECRET');
     
+    if (keyId?.startsWith('rzp_test_')) {
+      console.error('CRITICAL ERROR: Razorpay is running with TEST keys in a live environment.');
+      // If we want to strictly fail, uncomment the next line:
+      // throw new Error('Test transactions are disabled.');
+    }
+
     console.log('Key ID present:', !!keyId);
     console.log('Key ID value (truncated):', keyId?.substring(0, 15));
     console.log('Key Secret present:', !!keySecret);
@@ -112,7 +136,7 @@ Deno.serve(async (req) => {
     const order = JSON.parse(responseText);
     console.log(`Order created successfully: ${order.id}`);
 
-    return new Response(JSON.stringify({ orderId: order.id, amount, currency: 'INR' }), {
+    return new Response(JSON.stringify({ orderId: order.id, amount, currency: 'INR', appliedDiscount }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 

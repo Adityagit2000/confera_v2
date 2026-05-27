@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     // Step 2: Parse and validate request
     log.step(2, 'Parsing request')
     const body = await req.json();
-    const { sessionId, message, interviewType } = body;
+    const { sessionId, message, interviewType, currentQuestionIndex } = body;
     
     if (!sessionId) {
       return new Response(
@@ -274,9 +274,45 @@ ${pastAnswerContext}
       throw new Error(`AI interviewer unavailable: ${(aiError as Error).message}`)
     }
     log.timing('AI response generated')
-    
-    // Step 9: Update session history
-    log.step(9, 'Updating session transcript')
+
+    // Step 9: Save to interview_answers
+    log.step(9, 'Saving answer record')
+    const assistantMessages = transcript.filter((m: any) => m.role === 'assistant');
+    let activeQuestion = "Initial Question";
+    if (currentQuestionIndex !== undefined && currentQuestionIndex !== null) {
+      if (currentQuestionIndex >= 0 && currentQuestionIndex < assistantMessages.length) {
+        activeQuestion = assistantMessages[currentQuestionIndex].content;
+      } else {
+        activeQuestion = assistantMessages[assistantMessages.length - 1]?.content || "Initial Question";
+      }
+    } else {
+      activeQuestion = transcript.length > 0 ? transcript.slice().reverse().find((m: any) => m.role === 'assistant')?.content : "Initial Question";
+    }
+
+    await supabase.from('interview_answers').insert({
+      session_id: sessionId,
+      question: activeQuestion,
+      answer_text: sanitizedMessage || "",
+      score: null
+    });
+
+    // Step 10: Coaching analysis (Awaiting to finalize and lock the answer)
+    log.step(10, 'Triggering analyze-answer')
+    try {
+      await supabase.functions.invoke('analyze-answer', {
+        body: {
+          sessionId,
+          question: activeQuestion,
+          answer: sanitizedMessage || '',
+          interviewType: sanitizedType || session.type || 'general'
+        }
+      });
+    } catch (analyzeErr) {
+      log.warn('Failed to finalize analyze-answer', (analyzeErr as any).message);
+    }
+
+    // Step 11: Update session transcript
+    log.step(11, 'Updating session transcript')
     const updatedHistory = [
       ...transcript, 
       { role: 'user', content: sanitizedMessage || 'User sent an empty message.' },
@@ -290,31 +326,6 @@ ${pastAnswerContext}
         status: isFinalAnswer ? 'completed' : 'in_progress'
       })
       .eq('id', sessionId);
-
-    // Step 10: Save to interview_answers
-    log.step(10, 'Saving answer record')
-    const lastQuestion = transcript.length > 0 ? transcript.slice().reverse().find((m: any) => m.role === 'assistant')?.content : "Initial Question";
-    await supabase.from('interview_answers').insert({
-      session_id: sessionId,
-      question: lastQuestion || "Initial Question",
-      answer_text: sanitizedMessage || "",
-      score: null
-    });
-
-    // Step 11: Fire-and-forget coaching analysis
-    log.step(11, 'Triggering analyze-answer')
-    try {
-      supabase.functions.invoke('analyze-answer', {
-        body: {
-          sessionId,
-          question: lastQuestion || 'Initial Question',
-          answer: sanitizedMessage || '',
-          interviewType: sanitizedType || session.type || 'general'
-        }
-      }).catch(err => log.error('analyze-answer fire-and-forget failed', err));
-    } catch (analyzeErr) {
-      log.warn('Failed to trigger analyze-answer', (analyzeErr as any).message);
-    }
 
     log.timing('Total execution')
 

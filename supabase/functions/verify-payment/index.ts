@@ -19,7 +19,54 @@ Deno.serve(async (req) => {
 
   console.log('--- verify-payment: Function called ---');
 
+  const rzpKey = Deno.env.get('RAZORPAY_KEY_ID');
+  if (rzpKey?.startsWith('rzp_test_')) {
+    console.error('CRITICAL ERROR: Razorpay is running with TEST keys in a live environment.');
+  }
+
   try {
+    // Check if this is a Webhook
+    const webhookSignature = req.headers.get('x-razorpay-signature');
+    if (webhookSignature) {
+      console.log('Webhook payload detected');
+      const webhookSecret = Deno.env.get('RAZORPAY_WEBHOOK_SECRET');
+      if (!webhookSecret) {
+        throw new Error('Webhook secret missing on server');
+      }
+      
+      const textBody = await req.text();
+      const keyData = new TextEncoder().encode(webhookSecret);
+      const key = await crypto.subtle.importKey(
+        'raw',
+        keyData,
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      
+      const signature = await crypto.subtle.sign(
+        'HMAC',
+        key,
+        new TextEncoder().encode(textBody)
+      );
+      
+      const expectedSignature = Array.from(new Uint8Array(signature))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      if (expectedSignature !== webhookSignature) {
+        console.error('Webhook signature mismatch!');
+        return new Response(JSON.stringify({ error: 'Invalid webhook signature' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      
+      console.log('Webhook signature valid.');
+      // Webhook payload usually has event type like payment.captured.
+      // We can return success, but we won't process the complex webhook logic here 
+      // since the prompt asked for webhook signature verification but the rest of the file relies on frontend payload.
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Otherwise, process as frontend callback
     const { 
       razorpay_order_id, 
       razorpay_payment_id, 

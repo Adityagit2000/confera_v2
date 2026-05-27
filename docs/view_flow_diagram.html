@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confera — System Flow Diagram Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Mermaid JS -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --panel-bg: #111827;
+      --border-color: #1f2937;
+      --text-color: #f9fafb;
+      --text-muted: #9ca3af;
+      --primary-color: #8b5cf6;
+      --primary-hover: #7c3aed;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 50;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      color: var(--primary-color);
+      display: flex;
+      align-items: center;
+    }
+
+    .title-group h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .title-group p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .controls-hud {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      background: #1f2937;
+      border: 1px solid var(--border-color);
+      color: var(--text-color);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      background: var(--primary-color);
+      border-color: var(--primary-hover);
+      box-shadow: 0 0 15px rgba(139, 92, 246, 0.4);
+    }
+
+    .btn-active {
+      background: var(--primary-color);
+      border-color: var(--primary-hover);
+    }
+
+    /* Main Diagram Container */
+    main {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px;
+      cursor: grab;
+    }
+
+    main:active {
+      cursor: grabbing;
+    }
+
+    /* Diagram Canvas Wrapper */
+    #diagram-wrapper {
+      transform-origin: top center;
+      transition: transform 0.15s ease-out;
+      background: rgba(17, 24, 39, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
+      min-width: 90%;
+    }
+
+    /* Legend Overlay */
+    .legend-overlay {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(17, 24, 39, 0.85);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    .legend-title {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .legend-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 20px;
+      list-style: none;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+  </style>
+
+  <script>
+    // Initialize Mermaid with Dark Mode config
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      securityLevel: 'loose',
+      themeVariables: {
+        background: '#111827',
+        primaryColor: '#1f2937',
+        primaryTextColor: '#f9fafb',
+        lineColor: '#4b5563',
+        secondaryColor: '#111827',
+        tertiaryColor: '#111827'
+      }
+    });
+
+    let zoomScale = 1.0;
+
+    function adjustZoom(amount) {
+      zoomScale += amount;
+      if (zoomScale < 0.2) zoomScale = 0.2;
+      if (zoomScale > 2.0) zoomScale = 2.0;
+      updateZoom();
+    }
+
+    function resetZoom() {
+      zoomScale = 0.85;
+      updateZoom();
+    }
+
+    function updateZoom() {
+      const wrapper = document.getElementById('diagram-wrapper');
+      wrapper.style.transform = `scale(${zoomScale})`;
+      document.getElementById('zoom-percentage').innerText = `${Math.round(zoomScale * 100)}%`;
+    }
+
+    // Drag-to-Scroll Functionality
+    document.addEventListener('DOMContentLoaded', () => {
+      const mainEl = document.querySelector('main');
+      let isDown = false;
+      let startX;
+      let startY;
+      let scrollLeft;
+      let scrollTop;
+
+      mainEl.addEventListener('mousedown', (e) => {
+        if (e.target.closest('#diagram-wrapper svg')) return; // Allow interaction with diagram paths if any
+        isDown = true;
+        startX = e.pageX - mainEl.offsetLeft;
+        startY = e.pageY - mainEl.offsetTop;
+        scrollLeft = mainEl.scrollLeft;
+        scrollTop = mainEl.scrollTop;
+      });
+
+      mainEl.addEventListener('mouseleave', () => {
+        isDown = false;
+      });
+
+      mainEl.addEventListener('mouseup', () => {
+        isDown = false;
+      });
+
+      mainEl.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        e.preventDefault();
+        const x = e.pageX - mainEl.offsetLeft;
+        const y = e.pageY - mainEl.offsetTop;
+        const walkX = (x - startX) * 1.5;
+        const walkY = (y - startY) * 1.5;
+        mainEl.scrollLeft = scrollLeft - walkX;
+        mainEl.scrollTop = scrollTop - walkY;
+      });
+      
+      // Initialize with default nice scale
+      setTimeout(resetZoom, 200);
+    });
+  </script>
+</head>
+<body>
+
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <div class="title-group">
+        <h1>Confera System Flow</h1>
+        <p>End-to-End User Experience & Backend Architecture</p>
+      </div>
+    </div>
+
+    <div class="controls-hud">
+      <button class="btn" onclick="adjustZoom(-0.1)">−</button>
+      <div class="btn" style="cursor: default;" id="zoom-percentage">85%</div>
+      <button class="btn" onclick="adjustZoom(0.1)">+</button>
+      <button class="btn" onclick="resetZoom()">Reset</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="diagram-wrapper">
+      <div class="mermaid">
+flowchart TB
+    %% Styling and Themes
+    classDef frontend fill:#3b0764,stroke:#a855f7,stroke-width:2px,color:#f3e8ff;
+    classDef edge fill:#115e59,stroke:#14b8a6,stroke-width:2px,color:#ccfbf1;
+    classDef db fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#dbeafe;
+    classDef ai fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fef3c7;
+    classDef payment fill:#7f1d1d,stroke:#ef4444,stroke-width:2px,color:#fee2e2;
+    classDef thirdparty fill:#374151,stroke:#9ca3af,stroke-width:2px,color:#f9fafb;
+
+    %% ------------------ STAGE 1: AUTHENTICATION ------------------
+    subgraph AuthStage ["1. Authentication & Onboarding"]
+        A_UI["/auth Page (Email Input)"]:::frontend
+        A_OAuth["Google OAuth Portal"]:::thirdparty
+        A_OTP["Passwordless OTP (Resend Email)"]:::thirdparty
+        A_Auth["Supabase Auth Engine"]:::edge
+        A_JWT["JWT Session Token (Local Storage)"]:::frontend
+        A_Profiles["profiles Table<br>(Name, Plan = 'free', Referral Code)"]:::db
+    end
+
+    A_UI -->|Option A| A_OAuth
+    A_UI -->|Option B| A_OTP
+    A_OAuth --> A_Auth
+    A_OTP --> A_Auth
+    A_Auth -->|Generate Claims| A_JWT
+    A_Auth -->|Trigger Row Creation| A_Profiles
+
+    %% ------------------ STAGE 2: RESUME SCAN & ATS ------------------
+    subgraph ResumeStage ["2. Resume Parsing & ATS Analysis"]
+        R_UI["/ats UI (Upload PDF)"]:::frontend
+        R_PDFJS["pdfjs-dist (Client-side Text Extraction)"]:::frontend
+        R_Bucket["Supabase Storage<br>('resumes' Bucket)"]:::db
+        R_Edge["analyze-resume / ats-analyzer<br>(Edge Function)"]:::edge
+        R_LLM["Gemini 2.0 Flash<br>(Groq LLaMA 3.3 Fallback)"]:::ai
+        R_Table["resumes Table<br>(ATS Score, Parsed JSON, Roadmap)"]:::db
+        R_Dash["/dashboard (Study Plan Unlocked)"]:::frontend
+    end
+
+    A_JWT -->|Attach Bearer Token| R_UI
+    R_UI -->|1. Parse Text| R_PDFJS
+    R_UI -->|2. Store File| R_Bucket
+    R_PDFJS -->|3. Extracted Text payload| R_Edge
+    R_Edge -->|4. Analyze prompt| R_LLM
+    R_LLM -->|5. Structured JSON output| R_Edge
+    R_Edge -->|6. Save record| R_Table
+    R_Table -->|7. Auto-refresh| R_Dash
+
+    %% ------------------ STAGE 3: INTERVIEW INITIALIZATION ------------------
+    subgraph InterviewInitStage ["3. Interview Room & Diagnostics"]
+        I_Check["Pre-Flight Diagnostics<br>(Mic, Latency & TTS Check)"]:::frontend
+        I_UI["/interview/:sessionId UI<br>(Select Role & Session Type)"]:::frontend
+        I_StartEdge["start-interview (Edge Function)"]:::edge
+        I_SessionsTable["interview_sessions Table<br>(Status = 'active')"]:::db
+        I_RAG["RAG Search (match_transcript_embeddings)"]:::db
+    end
+
+    R_Dash --> I_Check
+    I_Check -->|Pass| I_UI
+    I_UI -->|Init Call| I_StartEdge
+    I_StartEdge -->|1. Validate Quota & Create Session| I_SessionsTable
+    I_StartEdge -->|2. Query past skill memory| I_RAG
+
+    %% ------------------ STAGE 4: STATEFUL INTERVIEW LOOP ------------------
+    subgraph InterviewLoopStage ["4. Real-time Turn-based Voice Loop"]
+        L_SpeechSynthesis["HTML5 SpeechSynthesis<br>(Speak AI Question)"]:::frontend
+        L_VAD["useVoiceInput (VAD / RMS Web Audio)"]:::frontend
+        
+        L_WebSpeech["Web Speech API Mode<br>(Chrome/Edge Streaming)"]:::frontend
+        L_MediaRec["MediaRecorder Fallback<br>(iOS/Safari Blobs)"]:::frontend
+        L_Transcribe["transcribe-audio (Edge Function)"]:::edge
+        L_Whisper["Groq Whisper API"]:::ai
+        
+        L_Turn["useTurnDetection State Machine<br>(Acoustic, Words & Silence Timer)"]:::frontend
+        L_AnsEdge["analyze-answer / ai-interview-chat<br>(Edge Function)"]:::edge
+        L_Evaluator["Gemini 2.0 Evaluator"]:::ai
+        L_AnswersTable["interview_answers Table<br>(Q&A, Score, Filler Words)"]:::db
+    end
+
+    I_SessionsTable --> L_SpeechSynthesis
+    L_SpeechSynthesis --> L_VAD
+    
+    L_VAD -->|Web Speech API supported| L_WebSpeech
+    L_VAD -->|Web Speech unsupported| L_MediaRec
+    
+    L_WebSpeech --> L_Turn
+    L_MediaRec -->|Send WebM Blob| L_Transcribe
+    L_Transcribe --> L_Whisper
+    L_Whisper -->|Transcribed Text| L_Turn
+    
+    L_Turn -->|Turn Completed (Silence/Done)| L_AnsEdge
+    L_AnsEdge -->|Evaluate answer| L_Evaluator
+    L_Evaluator -->|Coaching metrics| L_AnsEdge
+    L_AnsEdge -->|Save turn details| L_AnswersTable
+    L_AnswersTable -->|Loop Next Question| L_SpeechSynthesis
+
+    %% ------------------ STAGE 5: FEEDBACK & REPORTS ------------------
+    subgraph FeedbackStage ["5. Ending the Interview & Feedback"]
+        F_FeedEdge["generate-feedback (Edge Function)"]:::edge
+        F_FeedbackTable["feedback_reports Table<br>(Overall, Tech, Comm, Behavior Scores)"]:::db
+        F_Resend["Resend Email API"]:::thirdparty
+        F_ReportUI["/report/:sessionId (Scorecard UI)"]:::frontend
+    end
+
+    L_Turn -->|Session Question Limit Met| F_FeedEdge
+    F_FeedEdge -->|Save Final Metrics| F_FeedbackTable
+    F_FeedEdge -->|Send Report Link| F_Resend
+    F_FeedbackTable -->|Render visual details| F_ReportUI
+
+    %% ------------------ STAGE 6: STUDY PLANNER FLYWHEEL ------------------
+    subgraph FlywheelStage ["6. Agentic Self-Improvement Flywheel"]
+        FW_EmbedEdge["embed-session (Edge Function)"]:::edge
+        FW_GeminiEmbed["Gemini text-embedding-004"]:::ai
+        FW_VectorsTable["transcript_embeddings Table<br>(768d vectors)"]:::db
+        FW_EMA["Exponential Moving Average (EMA)<br>Skill Score Updates"]:::db
+        FW_PlanEdge["generate-prep-plan (Edge Function)"]:::edge
+        FW_PrepTable["prep_plans Table<br>(Dynamic 7-Day Plan)"]:::db
+    end
+
+    F_FeedbackTable --> FW_EmbedEdge
+    FW_EmbedEdge -->|Vectorize transcript| FW_GeminiEmbed
+    FW_GeminiEmbed -->|Store vector| FW_VectorsTable
+    FW_EmbedEdge -->|Update profile skill matrix| FW_EMA
+    FW_EMA --> FW_PlanEdge
+    FW_PlanEdge -->|Store new focus roadmap| FW_PrepTable
+    FW_PrepTable -->|Updates dashboard content| R_Dash
+
+    %% ------------------ STAGE 7: BILLING & PAYMENTS ------------------
+    subgraph BillingStage ["7. Monetization, Subscriptions & Referrals"]
+        B_UI["/pricing UI (Select Plan)"]:::frontend
+        B_OrderEdge["create-order (Edge Function)"]:::edge
+        B_RazorpayAPI["Razorpay Payment APIs"]:::thirdparty
+        B_VerifyEdge["verify-payment (Edge Function)"]:::edge
+        B_SubTable["subscriptions Table<br>(Status = 'active')"]:::db
+        B_Ref["referral_earnings Table<br>(10% Referrer Commission)"]:::db
+    end
+
+    R_Dash -->|Quota warning / Upgrade request| B_UI
+    B_UI --> B_OrderEdge
+    B_OrderEdge -->|Create Order ID| B_RazorpayAPI
+    B_RazorpayAPI -->|User completes payment| B_VerifyEdge
+    B_VerifyEdge -->|Signature verified (HMAC-SHA256)| B_SubTable
+    B_VerifyEdge -->|Check referral code| B_Ref
+    B_SubTable -->|Upgrade User| A_Profiles
+    B_Ref -->|Send Commission Email| F_Resend
+      </div>
+    </div>
+  </main>
+
+  <div class="legend-overlay">
+    <div class="legend-title">System Components</div>
+    <ul class="legend-list">
+      <li class="legend-item"><span class="legend-color" style="background-color: #a855f7;"></span> Frontend UI Pages</li>
+      <li class="legend-item"><span class="legend-color" style="background-color: #14b8a6;"></span> Deno Edge Functions</li>
+      <li class="legend-item"><span class="legend-color" style="background-color: #3b82f6;"></span> Supabase PostgreSQL</li>
+      <li class="legend-item"><span class="legend-color" style="background-color: #f59e0b;"></span> AI Models (Gemini/Groq)</li>
+      <li class="legend-item"><span class="legend-color" style="background-color: #ef4444;"></span> Razorpay Gateways</li>
+      <li class="legend-item"><span class="legend-color" style="background-color: #9ca3af;"></span> Third Party APIs</li>
+    </ul>
+  </div>
+
+</body>
+</html>
