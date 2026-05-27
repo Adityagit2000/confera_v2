@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   Mic, BrainCircuit, Smartphone, FileText, 
   CheckCircle2, ChevronRight, Play, Upload, MessageSquare, 
-  Target, BarChart3, Clock, Lock
+  Target, BarChart3, Clock, Lock, LineChart
 } from "lucide-react";
 
 import Header from "@/components/Header";
