@@ -42,6 +42,9 @@ const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const AssessmentSetup = lazy(() => import("./pages/AssessmentSetup"));
 const AssessmentRoom = lazy(() => import("./pages/AssessmentRoom"));
+const PracticeTests = lazy(() => import("./pages/PracticeTests"));
+const PracticeTestRoom = lazy(() => import("./pages/PracticeTestRoom"));
+const PracticeTestResults = lazy(() => import("./pages/PracticeTestResults"));
 const Certificate = lazy(() => import("./pages/Certificate"));
 
 
