@@ -56,10 +56,10 @@ Deno.serve(async (req) => {
     const isPro = isFounder || (profile.plan === 'pro' && 
       (profile.plan_expires_at ? new Date(profile.plan_expires_at) > new Date() : false))
     
-    if (!isPro && (profile.interviews_used_this_month || 0) >= 2) {
+    if (!isPro && (profile.interviews_used_this_month || 0) >= 5) {
       return new Response(JSON.stringify({ 
         error: 'Interview limit reached', 
-        details: 'You have used your 2 free interviews for this month. Upgrade to Pro for unlimited access.' 
+        details: 'You have used your 5 free interviews for this month. Upgrade to Pro for unlimited access.' 
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 403,

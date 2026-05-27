@@ -9,7 +9,8 @@ import {
   Settings, 
   LogOut,
   HelpCircle,
-  LayoutDashboard
+  LayoutDashboard,
+  ClipboardList
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ const Sidebar = () => {
     { label: 'Overview', icon: LayoutDashboard, path: '/dashboard' },
     { label: 'Resume Analysis', icon: FileText, path: '/ats' },
     { label: 'Mock Interview', icon: Mic, path: '/mock-interview' },
+    { label: 'Practice Tests', icon: ClipboardList, path: '/practice-tests' },
     { label: 'Past Sessions', icon: FolderClock, path: '/sessions' }, // Placeholder path
     { label: 'Analytics', icon: BarChart3, path: '/analytics' }, // Placeholder path
     { label: 'Pricing', icon: CreditCard, path: '/pricing' },

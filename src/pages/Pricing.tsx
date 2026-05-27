@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import BackButton from '@/components/BackButton';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,6 +18,23 @@ const Pricing = () => {
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [interviewsToday, setInterviewsToday] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchInterviewsToday = async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const { count, error } = await supabase
+        .from('interview_sessions')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', today.toISOString());
+      
+      if (!error && count !== null) {
+        setInterviewsToday(count);
+      }
+    };
+    fetchInterviewsToday();
+  }, []);
 
   const handlePayment = async (billingCycle: 'monthly' | 'yearly') => {
     if (!user) {
@@ -166,7 +183,7 @@ const Pricing = () => {
       price: '₹0',
       description: 'Perfect for getting started',
       features: [
-        '2 mock interviews per month',
+        '5 mock interviews per month',
         '2 resume analysis per month',
         'Basic feedback report',
         'No credit card required'
@@ -237,10 +254,21 @@ const Pricing = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-xl text-muted-foreground max-w-2xl mx-auto"
+            className="text-xl text-muted-foreground max-w-2xl mx-auto mb-4"
           >
-            Choose the plan that fits your preparation needs. Master your interviews with AI-powered feedback.
+            Placement season is here. Lock in your preparation now. Choose the plan that fits your preparation needs. Master your interviews with AI-powered feedback.
           </motion.p>
+          {interviewsToday !== null && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full font-medium shadow-[0_0_20px_rgba(var(--primary),0.1)] border border-primary/20"
+            >
+              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              {interviewsToday} interviews completed today
+            </motion.div>
+          )}
         </div>
 
         <div className="max-w-md mx-auto mb-12 flex gap-2 items-center">
@@ -367,7 +395,7 @@ const Pricing = () => {
               </thead>
               <tbody className="divide-y divide-border/30">
                 {[
-                  { name: 'Mock Interviews', free: '2 / month', pro: 'Unlimited' },
+                  { name: 'Mock Interviews', free: '5 / month', pro: 'Unlimited' },
                   { name: 'Resume Analysis', free: '2 / month', pro: 'Unlimited' },
                   { name: 'Job-Specific Roles', free: 'Basic Roles', pro: '200+ Specialized Roles' },
                   { name: 'Advanced AI Career Advice', free: <X className="w-5 h-5 mx-auto text-destructive/40" />, pro: <Check className="w-5 h-5 mx-auto text-success" /> },

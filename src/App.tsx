@@ -42,6 +42,7 @@ const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
 const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const AssessmentSetup = lazy(() => import("./pages/AssessmentSetup"));
 const AssessmentRoom = lazy(() => import("./pages/AssessmentRoom"));
+const Certificate = lazy(() => import("./pages/Certificate"));
 
 
 const queryClient = new QueryClient();
@@ -158,6 +159,30 @@ const AppRoutes = () => {
               <PageTransition><AssessmentRoom /></PageTransition>
             </ErrorBoundary>
           </ProtectedRoute>
+        } />
+        <Route path="/practice-tests" element={
+          <ProtectedRoute>
+            <ErrorBoundary>
+              <PageTransition><PracticeTests /></PageTransition>
+            </ErrorBoundary>
+          </ProtectedRoute>
+        } />
+        <Route path="/practice-tests/room" element={
+          <ProtectedRoute>
+            <ErrorBoundary>
+              <PageTransition><PracticeTestRoom /></PageTransition>
+            </ErrorBoundary>
+          </ProtectedRoute>
+        } />
+        <Route path="/practice-tests/results/:id" element={
+          <ProtectedRoute>
+            <ErrorBoundary>
+              <PageTransition><PracticeTestResults /></PageTransition>
+            </ErrorBoundary>
+          </ProtectedRoute>
+        } />
+        <Route path="/certificate/:userId" element={
+          <PageTransition><Certificate /></PageTransition>
         } />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />

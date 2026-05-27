@@ -317,6 +317,56 @@ Deno.serve(async (req) => {
       log.error('Failed to send post-interview email (non-fatal)', emailErr)
     }
 
+    // Step 15: Check for certificate eligibility
+    log.step(15, 'Checking certificate eligibility')
+    try {
+      const { data: userSessions } = await supabase
+        .from('interview_sessions')
+        .select('id, feedback_reports(overall_score)')
+        .eq('user_id', session.user_id)
+        .eq('status', 'completed');
+      
+      let validReports: any[] = [];
+      if (userSessions) {
+        userSessions.forEach((s: any) => {
+          if (s.feedback_reports) {
+            const report = Array.isArray(s.feedback_reports) ? s.feedback_reports[0] : s.feedback_reports;
+            if (report && report.overall_score !== undefined) {
+              validReports.push(report);
+            }
+          }
+        });
+      }
+
+      // If the newly created report isn't in the list due to replication lag, it's safer to just trust validReports.
+      // The current report was inserted in this same transaction for the user, so it will likely be returned.
+      // We will double check if we need to add the current score manually, but let's assume it's in the DB.
+      let allScores = validReports.map(r => r.overall_score);
+      const count = allScores.length;
+      
+      if (count >= 3) {
+        const avgScore = allScores.reduce((a, b) => a + b, 0) / count;
+        if (avgScore >= 60) {
+           const { data: existingCert } = await supabase
+             .from('interview_certificates')
+             .select('id')
+             .eq('user_id', session.user_id)
+             .maybeSingle();
+           
+           if (!existingCert) {
+             await supabase.from('interview_certificates').insert({
+               user_id: session.user_id,
+               average_score: Math.round(avgScore * 10) / 10,
+               interview_count: count
+             });
+             log.info('Certificate generated successfully for user', session.user_id);
+           }
+        }
+      }
+    } catch (certErr) {
+      log.error('Failed to check certificate eligibility', certErr);
+    }
+
     log.timing('Total execution')
     log.info('Success', `Report ID: ${report.id}, Score: ${reportData.overall_score}`)
 

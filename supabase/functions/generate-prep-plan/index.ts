@@ -47,59 +47,96 @@ Deno.serve(async (req) => {
       };
     }
 
-    // 2. Fetch last 10 questions asked
-    const { data: recentAnswers } = await dbClient
-      .from('interview_answers')
-      .select('question, session_id')
+    // 2a. Fetch user profile and target role
+    const { data: profile } = await dbClient
+      .from('profiles')
+      .select('name')
+      .eq('id', userId)
+      .single();
+    
+    const { data: resume } = await dbClient
+      .from('resumes')
+      .select('parsed_data')
+      .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(1)
+      .single();
+      
+    const userName = profile?.name?.split(' ')[0] || 'Candidate';
+    const targetRole = resume?.parsed_data?.target_role || resume?.parsed_data?.job_title || resume?.parsed_data?.role || 'Software Engineer';
 
-    // Filter to only this user's answers via sessions
-    const { data: userSessions } = await dbClient
+    // 2b. Fetch last 3 sessions to find poorly answered questions
+    const { data: last3Sessions } = await dbClient
       .from('interview_sessions')
       .select('id')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(3);
+      
+    const last3SessionIds = last3Sessions?.map((s: any) => s.id) || [];
+    let poorAnswersText = 'No recently poorly answered questions.';
+    if (last3SessionIds.length > 0) {
+      const { data: poorAnswers } = await dbClient
+        .from('interview_answers')
+        .select('question, score')
+        .in('session_id', last3SessionIds)
+        .lt('score', 6)
+        .order('score', { ascending: true })
+        .limit(10);
+        
+      if (poorAnswers && poorAnswers.length > 0) {
+        poorAnswersText = poorAnswers.map((a: any) => `- ${a.question} (Score: ${a.score}/10)`).join('\n');
+      }
+    }
 
-    const userSessionIds = new Set((userSessions || []).map(s => s.id));
-    const userRecentQuestions = (recentAnswers || [])
-      .filter(a => userSessionIds.has(a.session_id))
-      .map(a => a.question);
-
-    const recentQuestionsText = userRecentQuestions.length > 0
-      ? userRecentQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')
-      : 'No recent questions found.';
+    // 2c. Fetch recent transcript embeddings to find repeating topics
+    const { data: recentTranscripts } = await dbClient
+      .from('transcript_embeddings')
+      .select('question, interview_type')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(20);
+      
+    const recentQuestionsText = (recentTranscripts || [])
+      .map((t: any) => t.question)
+      .join('\n') || 'No recent transcript data.';
 
     // 3. Build prompt
-    const systemPrompt = `You are a senior interview preparation coach. Create highly personalized, actionable study plans based on real performance data.`;
+    const systemPrompt = `You are a brutal, highly analytical, and deeply personal senior interview coach. You don't sugarcoat. You create highly specific, actionable study plans based on exact data.`;
 
-    const userMessage = `Based on this candidate's performance profile, generate a 7-day preparation plan.
+    const userMessage = `Create a brutally specific, highly personalized 7-day preparation plan for ${userName}.
+Target Role: ${targetRole}
 
-SKILL PROFILE:
-- Communication: ${memory.communication}/100
-- Technical Depth: ${memory.technical_depth}/100
-- Problem Solving: ${memory.problem_solving}/100
-- Domain Knowledge: ${memory.domain_knowledge}/100
+SKILL PROFILE (Exact Scores out of 100):
+- Communication: ${memory.communication}
+- Technical Depth: ${memory.technical_depth}
+- Problem Solving: ${memory.problem_solving}
+- Domain Knowledge: ${memory.domain_knowledge}
 - Weak Areas: ${(memory.weak_areas || []).join(', ') || 'None identified yet'}
 - Filler Word Rate: ${memory.filler_word_rate || 0}%
 - Average Answer Length: ${memory.avg_answer_length || 0} words
-- Total Sessions Completed: ${memory.total_sessions || 0}
 
-RECENTLY COVERED TOPICS (avoid repeating):
+SPECIFIC QUESTIONS ANSWERED POORLY (Score < 6/10 in last 3 sessions):
+${poorAnswersText}
+
+RECENT QUESTIONS ASKED ACROSS SESSIONS (Analyze these to find repeating topics they keep facing):
 ${recentQuestionsText}
+
+INSTRUCTIONS:
+1. NO GENERIC ADVICE. Do NOT say "improve technical depth" or "study databases".
+2. Name specific topics by name (e.g., "Practice SQL window functions - you've been asked this 3 times and scored poorly").
+3. Give specific resources (e.g., "Read Designing Data-Intensive Applications Chapter 5" or "Practice LeetCode #146 LRU Cache").
+4. The coaching note must feel like a human coach wrote it directly to ${userName}. Example: "${userName}, in your last session you struggled with database sharding. Focus on that today. Your filler word rate is also too high at ${memory.filler_word_rate || 0}%."
+5. Set specific daily targets with exact time durations.
 
 Return JSON only:
 {
-  "weekly_focus": "one clear sentence describing the week's focus",
-  "coaching_note": "2-3 sentences of personal coaching advice referencing their specific weak areas by name",
+  "weekly_focus": "One clear sentence describing the week's brutally specific focus.",
+  "coaching_note": "2-3 sentences of personal, direct coaching advice starting with their name (${userName}), referencing their exact weak questions and scores.",
   "priority_interview_type": "dsa|system_design|hr|behavioral|consulting|mckinsey_de",
   "daily_tasks": [
-    {"day": 1, "topic": "Topic Name", "task": "Specific task description", "duration_minutes": 30},
-    {"day": 2, "topic": "...", "task": "...", "duration_minutes": 45},
-    {"day": 3, "topic": "...", "task": "...", "duration_minutes": 30},
-    {"day": 4, "topic": "...", "task": "...", "duration_minutes": 60},
-    {"day": 5, "topic": "...", "task": "...", "duration_minutes": 30},
-    {"day": 6, "topic": "...", "task": "...", "duration_minutes": 45},
-    {"day": 7, "topic": "...", "task": "...", "duration_minutes": 30}
+    {"day": 1, "topic": "Specific Topic (e.g., SQL Window Functions)", "task": "Specific task and specific resource", "duration_minutes": 30},
+    // ... 7 days
   ]
 }`;
 

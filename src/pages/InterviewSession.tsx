@@ -67,6 +67,9 @@ const InterviewSession = () => {
   const [loading, setLoading] = useState(true);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
   const [showCompletion, setShowCompletion] = useState(false);
+  const [showInterstitial, setShowInterstitial] = useState(false);
+  const [sessionScore, setSessionScore] = useState<number | null>(null);
+  const [skipDisabled, setSkipDisabled] = useState(true);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const { isPro, canStartInterview, profile } = useSubscription();
@@ -448,11 +451,21 @@ const InterviewSession = () => {
       attempts++
       const { data, error } = await supabase
         .from('feedback_reports')
-        .select('id')
+        .select('id, overall_score')
         .eq('session_id', sessionId)
         .single()
       if (data && !error) {
-        navigate(`/report/${sessionId}`)
+        if (!isPro && !isFounder) {
+          setSessionScore(data.overall_score || 0);
+          setShowCompletion(false);
+          setShowInterstitial(true);
+          setSkipDisabled(true);
+          setTimeout(() => {
+            setSkipDisabled(false);
+          }, 3000);
+        } else {
+          navigate(`/report/${sessionId}`)
+        }
         return
       }
       if (attempts >= maxAttempts) {
@@ -607,12 +620,12 @@ const InterviewSession = () => {
   };
 
   return (
-    <div className="h-screen bg-[#0a0a0f] text-white flex flex-col font-sans overflow-hidden relative">
+    <div className="h-screen bg-[#09090b] text-white flex flex-col font-sans overflow-hidden relative">
       {/* Background gradients */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/5 via-background to-background pointer-events-none" />
 
       {/* Brand Header */}
-      <header className="p-4 sm:p-6 flex items-center justify-between z-50 w-full relative border-b border-white/[0.05] bg-[#0a0a0f]/80 backdrop-blur-md flex-shrink-0">
+      <header className="px-6 py-4 flex items-center justify-between z-50 w-full relative border-b border-white/[0.04] bg-[#09090b]/80 backdrop-blur-xl flex-shrink-0">
         <div className="flex items-center gap-2 cursor-pointer" onClick={handleExitClick}>
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-glow">
             <Sparkles className="w-4 h-4 text-black font-bold" />
@@ -662,12 +675,12 @@ const InterviewSession = () => {
         )}
       </AnimatePresence>
 
-      <main className="flex-1 flex flex-col md:flex-row p-4 sm:p-6 gap-6 relative z-10 overflow-hidden max-w-7xl mx-auto w-full min-h-0">
-        {/* Left Panel (65%) */}
-        <div className="w-full md:w-[65%] flex flex-col gap-4 min-h-0 overflow-hidden">
+      <main className="flex-1 flex flex-col lg:flex-row p-6 gap-6 relative z-10 overflow-hidden w-full h-full">
+        {/* Left Panel (60%) */}
+        <div className="w-full lg:w-[60%] flex flex-col gap-4 min-h-0 overflow-hidden">
           
           {/* Conversation History Card */}
-          <div className="flex-1 bg-[#131316] border border-white/[0.05] rounded-3xl p-6 flex flex-col overflow-hidden backdrop-blur-sm relative min-h-0">
+          <div className="flex-1 bg-[#121214] border border-white/[0.04] rounded-2xl p-6 flex flex-col overflow-hidden backdrop-blur-sm relative min-h-0">
             
             {/* Section Header */}
             <div className="flex items-center justify-between border-b border-white/[0.05] pb-4 mb-4 flex-shrink-0">
@@ -680,29 +693,30 @@ const InterviewSession = () => {
             </div>
 
             {/* Scrollable messages area */}
-            <div className="flex-1 overflow-y-auto pr-2 space-y-4 scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
+            <div className="flex-1 overflow-y-auto pr-2 space-y-6 scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
               {messages.map((msg, idx) => {
                 const isAi = msg.role === 'assistant';
                 return (
                   <motion.div
                     key={idx}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ opacity: 0, x: isAi ? -20 : 20, y: 10 }}
+                    animate={{ opacity: 1, x: 0, y: 0 }}
+                    transition={{ type: "spring", stiffness: 260, damping: 20 }}
                     className={`flex gap-3 max-w-[85%] ${isAi ? 'self-start' : 'self-end flex-row-reverse ml-auto'}`}
                   >
                     {isAi ? (
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-1">
                         <Sparkles className="w-4 h-4 text-primary" />
                       </div>
                     ) : (
-                      <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0 mt-1">
                         <User className="w-4 h-4 text-white/60" />
                       </div>
                     )}
-                    <div className={`p-4 rounded-2xl text-sm leading-relaxed ${
+                    <div className={`p-4 text-[15px] leading-relaxed shadow-sm ${
                       isAi 
-                        ? 'bg-[#18181c] border border-white/[0.03] text-white/90' 
-                        : 'bg-[#222228] border border-white/[0.03] text-white/90'
+                        ? 'bg-[#18181b] border-l-2 border-l-indigo-500 border-y border-r border-white/[0.02] text-white/90 rounded-2xl rounded-tl-sm' 
+                        : 'bg-[#1c1c1f] border border-white/[0.04] text-white/90 rounded-2xl rounded-tr-sm'
                     }`}>
                       {msg.content}
                     </div>
@@ -749,12 +763,12 @@ const InterviewSession = () => {
           </div>
 
           {/* Voice Input & Waveform Panel */}
-          <div className="bg-[#131316] border border-white/[0.05] rounded-3xl p-5 flex flex-col relative flex-shrink-0">
+          <div className="bg-[#121214] border border-white/[0.04] rounded-2xl p-5 flex flex-col relative flex-shrink-0 backdrop-blur-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isListening ? 'bg-red-500 animate-pulse' : 'bg-white/20'}`} />
+                <div className={`w-2 h-2 rounded-full ${isListening ? 'bg-indigo-500 animate-pulse' : 'bg-white/20'}`} />
                 <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-                  {isListening ? 'Voice Input Active' : 'Voice Input Inactive'}
+                  {isListening ? 'Listening Active' : 'Voice Input Inactive'}
                 </span>
               </div>
 
@@ -769,13 +783,13 @@ const InterviewSession = () => {
                   }} 
                 />
                 {onboardingStep === 2 && (
-                  <div className="absolute bottom-full mb-3 right-0 w-52 p-4 bg-primary text-black rounded-2xl shadow-2xl z-[60] text-xs font-bold leading-snug animate-in fade-in slide-in-from-bottom-2">
-                    <div className="absolute -bottom-2 right-6 w-4 h-4 bg-primary rotate-45" />
+                  <div className="absolute bottom-full mb-3 right-0 w-52 p-4 bg-indigo-500 text-white rounded-2xl shadow-2xl z-[60] text-xs font-bold leading-snug animate-in fade-in slide-in-from-bottom-2">
+                    <div className="absolute -bottom-2 right-6 w-4 h-4 bg-indigo-500 rotate-45" />
                     Enable Auto-submit for a hands-free conversation.
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className="mt-2 h-7 px-2 text-[10px] hover:bg-black/10 font-black p-0 border border-black/20 rounded-md w-full justify-center" 
+                      className="mt-2 h-7 px-2 text-[10px] hover:bg-black/20 font-black p-0 border border-white/20 rounded-md w-full justify-center" 
                       onClick={() => completeStep(2)}
                     >
                       FINISH GUIDE
@@ -786,22 +800,22 @@ const InterviewSession = () => {
             </div>
 
             {/* Waveform Visualization */}
-            <div className="flex items-end justify-center gap-[3px] h-14 w-full my-3 px-8 bg-black/20 rounded-2xl border border-white/[0.02]">
-              {Array.from({ length: 24 }).map((_, i) => {
-                const centerDist = Math.abs(i - 11.5);
-                const scale = Math.max(0.15, 1 - centerDist / 12);
+            <div className="flex items-center justify-center gap-[2px] h-14 w-full my-3 px-6 bg-black/40 rounded-xl border border-white/[0.03]">
+              {Array.from({ length: 48 }).map((_, i) => {
+                const centerDist = Math.abs(i - 23.5);
+                const scale = Math.max(0.1, 1 - centerDist / 24);
                 const height = isListening
-                  ? Math.max(4, Math.round(voiceInput.audioEnergy * 80 * scale * (0.6 + Math.random() * 0.4)))
+                  ? Math.max(4, Math.round(voiceInput.audioEnergy * 80 * scale * (0.8 + Math.random() * 0.4)))
                   : 4;
                 const barColor = turnDetection.turnState === 'confirming'
-                  ? 'from-amber-500/60 to-amber-500'
-                  : 'from-primary/40 to-primary';
+                  ? 'bg-amber-500/80'
+                  : 'bg-indigo-500/80';
                 return (
                   <motion.div
                     key={i}
                     animate={{ height }}
-                    transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                    className={`w-1.5 rounded-full bg-gradient-to-t ${barColor}`}
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                    className={`w-1 rounded-full ${barColor}`}
                   />
                 );
               })}
@@ -815,20 +829,20 @@ const InterviewSession = () => {
                   <Button
                     onClick={() => { toggleMic(); completeStep(1); }}
                     disabled={!voiceAvailable}
-                    className={`w-11 h-11 rounded-full flex items-center justify-center ${
-                      isListening ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-primary hover:bg-primary/90 text-black shadow-glow'
-                    } ${onboardingStep === 1 ? 'ring-4 ring-primary/20 scale-105 z-50' : ''}`}
+                    className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
+                      isListening ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-glow'
+                    } ${onboardingStep === 1 ? 'ring-4 ring-indigo-500/20 scale-105 z-50' : ''}`}
                   >
                     {isListening ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
                   </Button>
                   {onboardingStep === 1 && (
-                    <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-52 p-4 bg-primary text-black rounded-2xl shadow-2xl z-[60] text-xs font-bold leading-snug animate-in fade-in slide-in-from-bottom-2 text-center">
-                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-primary rotate-45" />
+                    <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-52 p-4 bg-indigo-500 text-white rounded-2xl shadow-2xl z-[60] text-xs font-bold leading-snug animate-in fade-in slide-in-from-bottom-2 text-center">
+                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-indigo-500 rotate-45" />
                       Tap to start speaking. Speak clearly into your microphone.
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        className="mt-2 h-7 px-2 text-[10px] hover:bg-black/10 font-black p-0 border border-black/20 rounded-md w-full justify-center" 
+                        className="mt-2 h-7 px-2 text-[10px] hover:bg-black/20 font-black p-0 border border-white/20 rounded-md w-full justify-center" 
                         onClick={() => completeStep(1)}
                       >
                         GOT IT
@@ -864,7 +878,7 @@ const InterviewSession = () => {
               {isListening && (finalTranscript.trim().length > 0 || liveTranscript.trim().length > 0) && (
                 <Button
                   onClick={handleDoneAnswering}
-                  className="rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 h-10 text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-emerald-950/20"
+                  className="rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-5 h-10 text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-indigo-950/20"
                 >
                   <CheckCircle className="w-3.5 h-3.5" /> Done Answering
                 </Button>
@@ -896,10 +910,10 @@ const InterviewSession = () => {
           </div>
         </div>
 
-        {/* Right Panel (35%) */}
-        <div className="w-full md:w-[35%] flex flex-col gap-4 min-h-0 overflow-hidden">
-          {/* Camera Card (60% equivalent aspect) */}
-          <div className="bg-[#131316] border border-white/[0.05] rounded-3xl overflow-hidden w-full relative flex flex-col shadow-lg shadow-black/45 flex-shrink-0" style={{ height: '40%' }}>
+        {/* Right Panel (40%) */}
+        <div className="w-full lg:w-[40%] flex flex-col gap-4 min-h-0 overflow-hidden">
+          {/* Camera Card (45% equivalent aspect) */}
+          <div className="bg-[#121214] border border-white/[0.04] rounded-3xl overflow-hidden w-full relative flex flex-col shadow-lg flex-shrink-0 backdrop-blur-sm" style={{ height: '45%' }}>
             <video
               ref={candidateVideoRef}
               autoPlay
@@ -926,7 +940,7 @@ const InterviewSession = () => {
           </div>
 
           {/* Voice Energy & Details Panel */}
-          <div className="bg-[#131316] border border-white/[0.05] rounded-3xl p-6 flex flex-col gap-4 justify-between flex-1 min-h-0 overflow-hidden">
+          <div className="bg-[#121214] border border-white/[0.04] rounded-2xl p-6 flex flex-col gap-4 justify-between flex-1 min-h-0 overflow-hidden backdrop-blur-sm">
             {/* Concentric Pulsing Voice Energy Rings */}
             <div className="flex flex-col items-center justify-center py-4">
               <div className="relative w-36 h-36 flex items-center justify-center">
@@ -937,7 +951,7 @@ const InterviewSession = () => {
                     opacity: isListening ? Math.max(0.05, 0.3 - voiceInput.audioEnergy) : 0.05,
                   }}
                   transition={{ type: 'spring', stiffness: 220, damping: 18 }}
-                  className="absolute inset-0 rounded-full border border-primary/20 bg-primary/2"
+                  className="absolute inset-0 rounded-full border border-indigo-500/20 bg-indigo-500/5"
                 />
                 {/* Inner Ring */}
                 <motion.div
@@ -946,7 +960,7 @@ const InterviewSession = () => {
                     opacity: isListening ? Math.max(0.1, 0.5 - voiceInput.audioEnergy * 0.6) : 0.1,
                   }}
                   transition={{ type: 'spring', stiffness: 220, damping: 18 }}
-                  className="absolute w-24 h-24 rounded-full border border-primary/40 bg-primary/5"
+                  className="absolute w-24 h-24 rounded-full border border-indigo-500/40 bg-indigo-500/10"
                 />
                 {/* Center Pulse Orb */}
                 <motion.div
@@ -955,11 +969,11 @@ const InterviewSession = () => {
                   }}
                   className={`w-14 h-14 rounded-full flex items-center justify-center z-10 transition-all ${
                     isListening 
-                      ? 'bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.3)]' 
-                      : 'bg-primary text-black shadow-glow'
+                      ? 'bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)]' 
+                      : 'bg-white/10 text-white/50'
                   }`}
                 >
-                  {isListening ? <Mic className="w-5 h-5 animate-pulse" /> : <MicOff className="w-5 h-5 text-black/60" />}
+                  {isListening ? <Mic className="w-5 h-5 animate-pulse" /> : <MicOff className="w-5 h-5" />}
                 </motion.div>
               </div>
               <span className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-4">
@@ -983,18 +997,21 @@ const InterviewSession = () => {
                 </span>
               </div>
 
-              {/* Progress bar out of 10 */}
-              <div className="space-y-2 pt-2">
+              {/* Progress dots out of 10 */}
+              <div className="space-y-3 pt-2">
                 <div className="flex justify-between text-xs font-semibold text-white/40">
                   <span>Questions Completed</span>
                   <span>{Math.max(1, questionCount)} / 10</span>
                 </div>
-                <div className="w-full h-1.5 bg-black/40 border border-white/5 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min((Math.max(1, questionCount) / 10) * 100, 100)}%` }}
-                    className="h-full bg-gradient-to-r from-primary to-secondary"
-                  />
+                <div className="flex items-center gap-1.5 w-full">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div 
+                      key={i} 
+                      className={`flex-1 h-1.5 rounded-full transition-colors duration-500 ${
+                        i < questionCount ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]' : 'bg-white/10'
+                      }`}
+                    />
+                  ))}
                 </div>
               </div>
             </div>
@@ -1015,7 +1032,7 @@ const InterviewSession = () => {
               initial={{ scale: 0.95, y: 10, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.95, y: 10, opacity: 0 }}
-              className="w-full max-w-sm bg-[#131316] border border-white/[0.08] rounded-3xl p-6 shadow-2xl relative overflow-hidden"
+              className="w-full max-w-sm bg-[#121214] border border-white/[0.04] rounded-2xl p-6 shadow-2xl relative overflow-hidden"
             >
               <div className="absolute top-4 right-4">
                 <Button
@@ -1028,10 +1045,10 @@ const InterviewSession = () => {
                 </Button>
               </div>
               <div className="flex flex-col items-center text-center mt-2">
-                <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 mb-4">
-                  <AlertCircle className="w-6 h-6 text-amber-500" />
+                <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/20 mb-4">
+                  <AlertCircle className="w-6 h-6 text-red-500" />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Exit Interview?</h3>
+                <h3 className="text-xl font-bold text-white mb-2">Exit Session?</h3>
                 <p className="text-sm text-white/50 mb-6 leading-relaxed">
                   Are you sure you want to exit the session? You can end the interview now to generate a report based on your responses, or exit to the dashboard immediately.
                 </p>
@@ -1042,7 +1059,7 @@ const InterviewSession = () => {
                     setShowExitModal(false);
                     endInterview();
                   }}
-                  className="w-full h-11 bg-primary text-black font-semibold hover:bg-primary/90 rounded-xl"
+                  className="w-full h-11 bg-indigo-500 text-white font-semibold hover:bg-indigo-400 rounded-xl"
                 >
                   End & Generate Report
                 </Button>
@@ -1071,16 +1088,63 @@ const InterviewSession = () => {
 
       <AnimatePresence>
         {showCompletion && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-50 bg-[#0a0a0f]/95 backdrop-blur-2xl flex flex-col items-center justify-center p-8">
-            <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-24 h-24 bg-success/20 rounded-full flex items-center justify-center mb-12">
-              <CheckCircle className="w-12 h-12 text-success" />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-50 bg-[#09090b]/95 backdrop-blur-2xl flex flex-col items-center justify-center p-8">
+            <motion.div initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center mb-12">
+              <CheckCircle className="w-12 h-12 text-emerald-500" />
             </motion.div>
-            <h2 className="text-5xl font-black mb-4 tracking-tighter">Interview Complete</h2>
+            <h2 className="text-5xl font-black mb-4 tracking-tighter">Session Complete</h2>
             <p className="text-white/50 text-xl font-medium mb-12 max-w-md text-center">Finalizing insights and generating your report...</p>
-            <div className="flex items-center gap-3 text-primary font-bold">
+            <div className="flex items-center gap-3 text-indigo-400 font-bold">
               <Loader2 className="w-6 h-6 animate-spin" />
               <span>Analyzing Responses</span>
             </div>
+          </motion.div>
+        )}
+        
+        {showInterstitial && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 z-[60] bg-[#0a0a0f]/98 backdrop-blur-3xl flex flex-col items-center justify-center p-8 text-center">
+            <motion.div 
+              initial={{ scale: 0.8, y: 20 }} 
+              animate={{ scale: 1, y: 0 }} 
+              transition={{ type: "spring", damping: 20 }}
+              className="max-w-2xl mx-auto flex flex-col items-center"
+            >
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(var(--primary),0.3)]">
+                <Sparkles className="w-10 h-10 text-primary" />
+              </div>
+              <h2 className="text-6xl font-black text-white mb-2 tracking-tighter">
+                Score: <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">{sessionScore}%</span>
+              </h2>
+              <p className="text-2xl font-medium text-white/90 mb-8 max-w-xl leading-snug">
+                Pro users improve their score by an average of 24 points in 2 weeks.
+              </p>
+              
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-10 w-full max-w-md">
+                <h3 className="font-bold text-lg mb-4 text-white">Unlock Pro to get:</h3>
+                <ul className="space-y-3 text-left">
+                  <li className="flex items-center gap-3 text-white/80 font-medium"><CheckCircle className="w-5 h-5 text-primary" /> Unlimited mock interviews</li>
+                  <li className="flex items-center gap-3 text-white/80 font-medium"><CheckCircle className="w-5 h-5 text-primary" /> All 200+ company tracks</li>
+                  <li className="flex items-center gap-3 text-white/80 font-medium"><CheckCircle className="w-5 h-5 text-primary" /> Priority AI feedback</li>
+                </ul>
+              </div>
+
+              <div className="flex flex-col items-center gap-4 w-full max-w-md">
+                <Button 
+                  onClick={() => navigate('/pricing')}
+                  className="w-full h-14 text-lg font-bold bg-primary text-black hover:bg-primary/90 shadow-[0_0_20px_rgba(var(--primary),0.4)] rounded-xl"
+                >
+                  Upgrade to Pro
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  disabled={skipDisabled}
+                  onClick={() => navigate(`/report/${sessionId}`)}
+                  className="text-white/50 hover:text-white/80 font-semibold"
+                >
+                  {skipDisabled ? 'Please wait...' : 'View my report'}
+                </Button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

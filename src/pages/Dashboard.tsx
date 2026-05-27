@@ -560,7 +560,7 @@ const Dashboard = () => {
                   {!isPro && !isFounder && (
                     <div className="mt-2 space-y-0.5">
                       <p className="text-xs text-muted-foreground">
-                        {profile?.interviews_used_this_month || 0}/2 free used this month
+                        {profile?.interviews_used_this_month || 0}/5 free used this month
                       </p>
                       <p className="text-xs text-muted-foreground/60">
                         Resets {resetDateLabel}
@@ -687,8 +687,14 @@ const Dashboard = () => {
                       <span className="text-xs font-bold text-primary uppercase tracking-widest">Weekly Focus</span>
                     </div>
                     <p className="text-foreground font-semibold text-lg mb-3">{prepPlan.weekly_focus}</p>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{prepPlan.coaching_note}</p>
-                    <div className="mt-4">
+                    <div className="bg-background/40 p-4 rounded-xl border border-primary/10 mb-4">
+                      <p className="text-sm font-semibold text-foreground/80 mb-1 flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4 text-primary" />
+                        Coach's Note
+                      </p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{prepPlan.coaching_note}</p>
+                    </div>
+                    <div className="mt-2">
                       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
                         prepPlan.priority_interview_type === 'dsa' ? 'bg-blue-500/10 text-blue-400 border-blue-500/30' :
                         prepPlan.priority_interview_type === 'system_design' ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' :
