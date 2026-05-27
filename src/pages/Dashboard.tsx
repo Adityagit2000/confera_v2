@@ -254,13 +254,11 @@ const Dashboard = () => {
       const { data, error } = await supabase.functions.invoke('generate-prep-plan', {
         body: { userId: user.id }
       });
-      if (error) throw error;
-      if (data?.skipped) {
-        toast({ title: "No Data Yet", description: "Complete at least one interview session first so we can analyze your skills.", variant: "destructive" });
-      } else {
-        toast({ title: "Prep Plan Generated", description: "Your personalized 7-day plan is ready!" });
-        await fetchPrepPlan();
-      }
+      if (error) throw new Error(error.message || 'Error from server');
+      if (data?.error) throw new Error(data.error);
+      
+      toast({ title: "Prep Plan Generated", description: "Your personalized 7-day plan is ready!" });
+      await fetchPrepPlan();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to generate prep plan", variant: "destructive" });
     } finally {

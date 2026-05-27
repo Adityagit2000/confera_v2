@@ -11,39 +11,51 @@ Deno.serve(async (req) => {
   console.log('--- generate-prep-plan: Function called ---');
 
   try {
-    // Authenticate request
-    const auth = await authenticateRequest(req, corsHeaders)
-    if ('response' in auth) return auth.response
-    const { user, supabase } = auth
-
+    let userId: string;
+    let dbClient: any;
     const body = await req.json();
-    // Use authenticated user ID — ignore client-provided userId for security
-    const userId = user.id;
+    
+    // Allow admin bypass with Service Role Key
+    const authHeader = req.headers.get('Authorization');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (authHeader === `Bearer ${serviceKey}`) {
+      userId = body.userId;
+      if (!userId) throw new Error('userId required for admin bypass');
+      const { createClient } = await import('npm:@supabase/supabase-js@2');
+      dbClient = createClient(Deno.env.get('SUPABASE_URL')!, serviceKey!);
+    } else {
+      // Standard authentication
+      const auth = await authenticateRequest(req, corsHeaders)
+      if ('response' in auth) return auth.response
+      userId = auth.user.id;
+      dbClient = auth.supabase;
+    }
 
     // 1. Fetch user skill memory
-    const { data: skillMemory } = await supabase
+    const { data: skillMemory } = await dbClient
       .from('user_skill_memory')
       .select('*')
       .eq('user_id', userId)
       .single();
 
-    if (!skillMemory) {
-      console.log('generate-prep-plan: No skill memory found, skipping.');
-      return new Response(JSON.stringify({ success: true, skipped: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      });
+    let memory = skillMemory;
+    if (!memory) {
+      console.log('generate-prep-plan: No skill memory found, using defaults.');
+      memory = {
+        communication: 50, technical_depth: 50, problem_solving: 50, domain_knowledge: 50,
+        weak_areas: ['General Interview Strategy'], filler_word_rate: 0, avg_answer_length: 0, total_sessions: 0
+      };
     }
 
     // 2. Fetch last 10 questions asked
-    const { data: recentAnswers } = await supabase
+    const { data: recentAnswers } = await dbClient
       .from('interview_answers')
       .select('question, session_id')
       .order('created_at', { ascending: false })
       .limit(10);
 
     // Filter to only this user's answers via sessions
-    const { data: userSessions } = await supabase
+    const { data: userSessions } = await dbClient
       .from('interview_sessions')
       .select('id')
       .eq('user_id', userId);
@@ -63,14 +75,14 @@ Deno.serve(async (req) => {
     const userMessage = `Based on this candidate's performance profile, generate a 7-day preparation plan.
 
 SKILL PROFILE:
-- Communication: ${skillMemory.communication}/100
-- Technical Depth: ${skillMemory.technical_depth}/100
-- Problem Solving: ${skillMemory.problem_solving}/100
-- Domain Knowledge: ${skillMemory.domain_knowledge}/100
-- Weak Areas: ${(skillMemory.weak_areas || []).join(', ') || 'None identified yet'}
-- Filler Word Rate: ${skillMemory.filler_word_rate || 0}%
-- Average Answer Length: ${skillMemory.avg_answer_length || 0} words
-- Total Sessions Completed: ${skillMemory.total_sessions || 0}
+- Communication: ${memory.communication}/100
+- Technical Depth: ${memory.technical_depth}/100
+- Problem Solving: ${memory.problem_solving}/100
+- Domain Knowledge: ${memory.domain_knowledge}/100
+- Weak Areas: ${(memory.weak_areas || []).join(', ') || 'None identified yet'}
+- Filler Word Rate: ${memory.filler_word_rate || 0}%
+- Average Answer Length: ${memory.avg_answer_length || 0} words
+- Total Sessions Completed: ${memory.total_sessions || 0}
 
 RECENTLY COVERED TOPICS (avoid repeating):
 ${recentQuestionsText}
@@ -114,7 +126,7 @@ Return JSON only:
     }
 
     // 4. Insert the plan
-    const { error: insertError } = await supabase
+    const { error: insertError } = await dbClient
       .from('prep_plans')
       .insert({
         user_id: userId,

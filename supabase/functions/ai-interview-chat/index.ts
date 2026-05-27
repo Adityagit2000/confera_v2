@@ -216,6 +216,12 @@ Deno.serve(async (req) => {
 
     const currentLens = trackLenses[sanitizedType?.toLowerCase()] || "Focus on their overall fit and technical depth based on their resume.";
 
+    const assistantMessages = transcript.filter((m: any) => m.role === 'assistant');
+    const alreadyAskedQuestions = assistantMessages.map((m: any) => m.content);
+    const alreadyAskedContext = alreadyAskedQuestions.length > 0 
+      ? `\n# ALREADY ASKED QUESTIONS IN THIS SESSION:\nThese questions have already been asked in this session, DO NOT ask them again or ask anything similar:\n${alreadyAskedQuestions.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n')}` 
+      : '';
+
     const systemPrompt = `
 # ROLE
 You are a Senior ${sanitizedType?.toUpperCase() || 'General'} Interviewer. Your goal is to evaluate the candidate's fit for a ${session.job_role || 'relevant'} position, specifically focusing on ${sanitizedType || 'general'} competencies while grounded in their actual experience.
@@ -228,11 +234,13 @@ You are a Senior ${sanitizedType?.toUpperCase() || 'General'} Interviewer. Your 
 - ${skillMemoryContext}
 - Track: ${sanitizedType}
 ${pastAnswerContext}
+${alreadyAskedContext}
+
 # OPERATING GUIDELINES
 1. Use the Resume as the 'Case Study'. 
 2. Ask 3-step deep questions: (1) The specific project task -> (2) The technical/business hurdle -> (3) The theoretical scaling/optimization.
 3. Keep responses under 3 sentences.
-4. NEVER repeat or closely rephrase a question from PAST ANSWER CONTEXT above.
+4. NEVER repeat or closely rephrase a question from PAST ANSWER CONTEXT or ALREADY ASKED QUESTIONS above.
 `;
     
     const windowedTranscript = (() => {
@@ -277,13 +285,13 @@ ${pastAnswerContext}
 
     // Step 9: Save to interview_answers
     log.step(9, 'Saving answer record')
-    const assistantMessages = transcript.filter((m: any) => m.role === 'assistant');
+    const assistantMessagesForActive = transcript.filter((m: any) => m.role === 'assistant');
     let activeQuestion = "Initial Question";
     if (currentQuestionIndex !== undefined && currentQuestionIndex !== null) {
-      if (currentQuestionIndex >= 0 && currentQuestionIndex < assistantMessages.length) {
-        activeQuestion = assistantMessages[currentQuestionIndex].content;
+      if (currentQuestionIndex >= 0 && currentQuestionIndex < assistantMessagesForActive.length) {
+        activeQuestion = assistantMessagesForActive[currentQuestionIndex].content;
       } else {
-        activeQuestion = assistantMessages[assistantMessages.length - 1]?.content || "Initial Question";
+        activeQuestion = assistantMessagesForActive[assistantMessagesForActive.length - 1]?.content || "Initial Question";
       }
     } else {
       activeQuestion = transcript.length > 0 ? transcript.slice().reverse().find((m: any) => m.role === 'assistant')?.content : "Initial Question";

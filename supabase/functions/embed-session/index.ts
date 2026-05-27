@@ -171,7 +171,10 @@ Deno.serve(async (req) => {
     // 6. Chain: trigger prep plan generation (fire-and-forget)
     try {
       supabase.functions.invoke('generate-prep-plan', {
-        body: { userId }
+        body: { userId },
+        headers: { Authorization: req.headers.get('Authorization')! }
+      }).then(({ error }) => {
+        if (error) console.error('embed-session: generate-prep-plan chain returned error:', error);
       }).catch(err => console.error('embed-session: generate-prep-plan chain failed:', err));
     } catch (chainErr) {
       console.error('embed-session: Failed to trigger generate-prep-plan:', chainErr);

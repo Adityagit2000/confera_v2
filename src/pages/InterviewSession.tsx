@@ -100,8 +100,13 @@ const InterviewSession = () => {
   const candidateVideoRef = useRef<HTMLVideoElement>(null);
   const shouldContinueListeningRef = useRef(false);
   const isSubmittingRef = useRef(false);
+  const currentQuestionIndexRef = useRef(currentQuestionIndex);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [cameraAvailable, setCameraAvailable] = useState(true);
+  
+  useEffect(() => {
+    currentQuestionIndexRef.current = currentQuestionIndex;
+  }, [currentQuestionIndex]);
   
   const voiceSynth = useVoiceSynthesis();
 
@@ -192,9 +197,18 @@ const InterviewSession = () => {
 
   // Check for first-time user onboarding
   useEffect(() => {
-    const isFirstTime = !localStorage.getItem('confera_onboarded');
-    if (isFirstTime && !loading && messages.length > 0) {
-      setOnboardingStep(1);
+    if (!loading && messages.length > 0) {
+      const seenSpeakHint = localStorage.getItem('confera_seen_speak_hint');
+      if (!seenSpeakHint) {
+        setOnboardingStep(1);
+        localStorage.setItem('confera_seen_speak_hint', 'true');
+      } else {
+        const seenAutocompleteHint = localStorage.getItem('confera_seen_autocomplete_hint');
+        if (!seenAutocompleteHint) {
+          setOnboardingStep(2);
+          localStorage.setItem('confera_seen_autocomplete_hint', 'true');
+        }
+      }
     }
   }, [loading, messages.length]);
 
@@ -354,7 +368,11 @@ const InterviewSession = () => {
       () => {
         setIsAiSpeaking(false);
         if (shouldContinueListeningRef.current) {
-          voiceInput.startListening();
+          setTimeout(() => {
+            if (shouldContinueListeningRef.current && !voiceInput.isListening) {
+              voiceInput.startListening();
+            }
+          }, 2000);
         }
       }
     );
@@ -465,7 +483,7 @@ const InterviewSession = () => {
           sessionId, 
           message: userMsg,
           interviewType: session?.type || 'hr',
-          currentQuestionIndex: currentQuestionIndex
+          currentQuestionIndex: currentQuestionIndexRef.current
         }
       });
       

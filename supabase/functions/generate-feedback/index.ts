@@ -272,7 +272,10 @@ Deno.serve(async (req) => {
     log.step(13, 'Triggering embed-session pipeline')
     try {
       supabase.functions.invoke('embed-session', {
-        body: { sessionId }
+        body: { sessionId },
+        headers: { Authorization: req.headers.get('Authorization')! }
+      }).then(({ error }) => {
+        if (error) log.error('embed-session background call returned error', error);
       }).catch(err => log.error('embed-session background call failed', err));
     } catch (embedErr) {
       log.error('Failed to trigger embed-session (non-fatal)', embedErr);
