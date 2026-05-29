@@ -18,6 +18,23 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // Rate limiting: max 3 requests per 10 minutes per email
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString()
+    const { count: recentAttempts, error: countError } = await supabaseAdmin
+      .from('otp_codes')
+      .select('id', { count: 'exact', head: true })
+      .eq('email', email)
+      .gte('created_at', tenMinutesAgo)
+      
+    if (countError) throw countError
+    
+    if (recentAttempts !== null && recentAttempts >= 3) {
+      return new Response(JSON.stringify({ error: 'Too many attempts, please try again later' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
     // Generate 6 digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString()
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes
