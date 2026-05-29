@@ -14,13 +14,15 @@ type AuthStep = 'signin' | 'verify-otp';
 
 const Auth = () => {
   const [step, setStep] = useState<AuthStep>('signin');
+  const [loginMethod, setLoginMethod] = useState<'otp' | 'password'>('otp');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
   const [resendTimer, setResendTimer] = useState(0);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   
-  const { sendOtp, verifyOtp, resendOtp, user } = useAuth();
+  const { sendOtp, verifyOtp, resendOtp, signIn, user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -53,6 +55,18 @@ const Auth = () => {
         title: "Code sent!", 
         description: `Check ${email} for your 6-digit code` 
       });
+    }
+    setLoading(false);
+  };
+
+  const handlePasswordSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    const { error } = await signIn(email, password);
+    
+    if (!error) {
+      navigate('/');
     }
     setLoading(false);
   };
@@ -171,7 +185,7 @@ const Auth = () => {
               </div>
             )}
 
-            {step === 'signin' && (
+            {step === 'signin' && loginMethod === 'otp' && (
               <form onSubmit={handleSendOtp} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email address</Label>
@@ -194,7 +208,67 @@ const Auth = () => {
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Send OTP
                 </Button>
-                <div className="text-center mt-4">
+                <div className="text-center mt-4 space-y-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setLoginMethod('password')} 
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Use password instead
+                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    By continuing, you agree to our{' '}
+                    <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>
+                    {' '}and{' '}
+                    <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+                  </p>
+                </div>
+              </form>
+            )}
+
+            {step === 'signin' && loginMethod === 'password' && (
+              <form onSubmit={handlePasswordSignIn} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="password-email">Email address</Label>
+                  <Input
+                    id="password-email"
+                    type="email"
+                    placeholder="name@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-background/50 border-border/50 focus:border-primary/50 transition-colors"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password-input">Password</Label>
+                  <Input
+                    id="password-input"
+                    type="password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-background/50 border-border/50 focus:border-primary/50 transition-colors"
+                    required
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full py-6 text-base" 
+                  disabled={loading || !email || !password}
+                  variant="hero"
+                >
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Sign In
+                </Button>
+                <div className="text-center mt-4 space-y-2">
+                  <button 
+                    type="button" 
+                    onClick={() => setLoginMethod('otp')} 
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Use OTP instead
+                  </button>
                   <p className="text-xs text-muted-foreground">
                     By continuing, you agree to our{' '}
                     <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>
