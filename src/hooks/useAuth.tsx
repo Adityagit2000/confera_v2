@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, name?: string) => Promise<{ data: any, error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
+  sendOtp: (email: string) => Promise<{ error: any }>;
   verifyOtp: (email: string, token: string) => Promise<{ error: any }>;
   resendOtp: (email: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -198,48 +199,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { data, error };
   };
 
-  const verifyOtp = async (email: string, token: string) => {
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'signup'
+  const sendOtp = async (email: string) => {
+    const { error } = await supabase.functions.invoke('send-otp', {
+      body: { email }
     });
-
+    
     if (error) {
       toast({
-        title: "Verification Error",
-        description: error.message,
+        title: "Error Sending Code",
+        description: error.message || "Failed to send verification code.",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Account Verified",
-        description: "Your account has been successfully verified Welcome to Confera!",
-      });
     }
-
     return { error };
   };
 
-  const resendOtp = async (email: string) => {
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email,
+  const verifyOtp = async (email: string, token: string) => {
+    const { data, error } = await supabase.functions.invoke('verify-otp', {
+      body: { email, code: token }
     });
 
-    if (error) {
+    if (error || data?.error) {
       toast({
-        title: "Resend Error",
-        description: error.message,
+        title: "Verification Error",
+        description: data?.error || error?.message || "Invalid or expired code.",
         variant: "destructive",
       });
-    } else {
+      return { error: data?.error || error };
+    }
+
+    if (data?.session) {
+      await supabase.auth.setSession(data.session);
+      toast({
+        title: "Account Verified",
+        description: "Your account has been successfully verified. Welcome to Confera!",
+      });
+    }
+
+    return { error: null };
+  };
+
+  const resendOtp = async (email: string) => {
+    const { error } = await sendOtp(email);
+    if (!error) {
       toast({
         title: "OTP Resent",
         description: "A new verification code has been sent to your email.",
       });
     }
-
     return { error };
   };
 
@@ -287,6 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       signUp,
       signIn,
+      sendOtp,
       verifyOtp,
       resendOtp,
       signOut,
