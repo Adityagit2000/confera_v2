@@ -214,8 +214,12 @@ const Certifications = () => {
           ) : certificates.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {certificates.map((cert) => (
-                <Card key={cert.id} className="glass-card border-border/50 shadow-lg relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-8 -mt-8" />
+                <Card 
+                  key={cert.id} 
+                  className="glass-card border-border/50 shadow-lg relative overflow-hidden cursor-pointer transition-all duration-300 hover:scale-[1.02] hover:ring-2 hover:ring-emerald-500 hover:shadow-emerald-500/20"
+                  onClick={() => navigate(`/certificate/${cert.certificate_hash}`)}
+                >
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl -mr-8 -mt-8 pointer-events-none" />
                   <CardHeader>
                     <CardTitle className="text-lg text-emerald-400">Certified Professional</CardTitle>
                     <CardDescription className="font-bold text-foreground text-base pt-1">
