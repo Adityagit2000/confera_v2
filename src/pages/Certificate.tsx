@@ -2,204 +2,223 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, Share2, Download, Linkedin } from "lucide-react";
+import { Loader2, Share2, Download, Award } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
 interface CertificateData {
   id: string;
-  test_type: string;
-  score: number;
-  completed_at: string;
-  subjects_covered: string;
-  user: {
+  certificate_hash: string;
+  job_role: string;
+  issued_at: string;
+  profiles: {
     name: string;
-  };
-  questions: any[];
-  answers: Record<string, number>;
+  } | null;
+  assessments: {
+    score_percentage: number;
+    completed_at: string;
+  } | null;
 }
 
-export default function Certificate() {
+const THEMES: Record<string, { text: string, border: string, bgPattern: string, bgSize: string, iconColor: string }> = {
+  "Data Engineering & Analytics": {
+    text: "text-blue-700",
+    border: "border-blue-700",
+    bgPattern: "radial-gradient(#cbd5e1 1.5px, transparent 1.5px)",
+    bgSize: "32px 32px",
+    iconColor: "text-blue-600",
+  },
+  "Generative AI & Machine Learning": {
+    text: "text-purple-700",
+    border: "border-purple-700",
+    bgPattern: "linear-gradient(to right, #e2e8f0 1px, transparent 1px), linear-gradient(to bottom, #e2e8f0 1px, transparent 1px)",
+    bgSize: "40px 40px",
+    iconColor: "text-purple-600",
+  },
+  "Advanced Full-Stack & System Design": {
+    text: "text-emerald-700",
+    border: "border-emerald-700",
+    bgPattern: "repeating-linear-gradient(45deg, #e2e8f0 0, #e2e8f0 1px, transparent 0, transparent 50%)",
+    bgSize: "20px 20px",
+    iconColor: "text-emerald-600",
+  },
+  "fallback": {
+    text: "text-gray-800",
+    border: "border-gray-800",
+    bgPattern: "none",
+    bgSize: "auto",
+    iconColor: "text-gray-500",
+  }
+};
+
+export default function CertificateViewer() {
   const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [certificate, setCertificate] = useState<CertificateData | null>(null);
 
   useEffect(() => {
-    async function loadCertificateData() {
+    async function loadCertificate() {
       if (!id) return;
       try {
         setLoading(true);
-
-        const { data: sessionData, error } = await supabase
-          .from("test_sessions")
+        // id from URL is the certificate_hash
+        const { data, error } = await supabase
+          .from("certificates")
           .select(`
             id,
-            test_type,
-            score,
-            completed_at,
-            subjects_covered,
-            questions,
-            answers,
-            user_id
+            certificate_hash,
+            job_role,
+            issued_at,
+            profiles ( name ),
+            assessments ( score_percentage, completed_at )
           `)
-          .eq("id", id)
+          .eq("certificate_hash", id)
           .single();
 
         if (error) throw error;
-        if (!sessionData) throw new Error("Certificate not found");
-
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("name")
-          .eq("id", sessionData.user_id)
-          .single();
-
-        setCertificate({
-          ...sessionData,
-          user: { name: profileData?.name || "Candidate" }
-        } as CertificateData);
-
+        setCertificate(data as unknown as CertificateData);
       } catch (err) {
-        console.error("Failed to load certificate data", err);
-        toast.error("Failed to load certificate data.");
+        console.error("Failed to load certificate", err);
       } finally {
         setLoading(false);
       }
     }
-
-    loadCertificateData();
+    loadCertificate();
   }, [id]);
 
-  const handleShareLinkedIn = () => {
-    if (!certificate) return;
-    const url = encodeURIComponent(window.location.href);
-    const text = encodeURIComponent(`I scored ${certificate.score}% on the ${certificate.test_type} placement preparation test on Confera! Preparing hard for placements. Try it free: conferav2.vercel.app #Placements2026 #Confera #PlacementPrep`);
-    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}&summary=${text}`, "_blank");
+  const handlePrint = () => {
+    window.print();
   };
 
-  const handleDownloadPDF = () => {
-    window.print();
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Certificate link copied to clipboard!");
+    } catch (e) {
+      toast.error("Failed to copy link");
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
       </div>
     );
   }
 
   if (!certificate) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-900 space-y-4">
-        <h1 className="text-2xl font-semibold">Certificate Not Found</h1>
-        <p className="text-gray-500 max-w-md text-center">
-          The requested certificate ID is invalid or does not exist.
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background text-foreground space-y-4">
+        <h1 className="text-3xl font-bold">Certificate Not Found</h1>
+        <p className="text-muted-foreground text-center max-w-md">
+          The requested certificate is invalid or does not exist.
         </p>
       </div>
     );
   }
 
-  const subjects = certificate.subjects_covered ? certificate.subjects_covered.split(", ") : [];
-  const totalQuestions = certificate.questions?.length || 0;
-  const correctCount = Object.keys(certificate.answers || {}).filter(
-    (k) => certificate.answers[k] === certificate.questions[parseInt(k)].correct_answer
-  ).length;
-
+  const theme = THEMES[certificate.job_role] || THEMES["fallback"];
+  const userName = certificate.profiles?.name || "Certified Professional";
+  const score = certificate.assessments?.score_percentage || 0;
+  const dateIssued = format(new Date(certificate.issued_at), "MMMM d, yyyy");
+  
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 font-sans print:p-0 print:bg-white print:min-h-0">
+    <div className="min-h-screen bg-background py-12 px-4 sm:px-6 lg:px-8 flex flex-col items-center print:bg-white print:py-0 print:px-0 print:min-h-0">
       
-      {/* Actions (Hidden on Print) */}
-      <div className="w-full max-w-[1000px] flex justify-end items-center gap-4 mb-8 print:hidden">
-        <Button 
-          onClick={handleShareLinkedIn}
-          className="bg-[#0077b5] hover:bg-[#006097] text-white flex items-center gap-2 font-semibold"
-        >
-          <Linkedin className="w-4 h-4" />
-          Share on LinkedIn
-        </Button>
-        <Button 
-          onClick={handleDownloadPDF}
-          variant="outline"
-          className="border-indigo-600 text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 font-semibold bg-white"
-        >
-          <Download className="w-4 h-4" />
-          Download as PDF
-        </Button>
-      </div>
-
-      {/* Certificate Wrapper */}
-      <div className="w-full max-w-[1000px] bg-white border border-gray-200 p-2 shadow-2xl relative overflow-hidden print:m-0 print:border-none print:shadow-none print:w-full print:max-w-none print:h-screen">
+      {/* Certificate Canvas */}
+      <div className="relative w-full max-w-5xl aspect-[1.414/1] bg-slate-50 shadow-2xl p-6 sm:p-10 md:p-12 print:shadow-none print:p-0 print:max-w-none print:w-[297mm] print:h-[210mm] print:overflow-hidden overflow-hidden flex flex-col">
         
-        {/* Decorative Inner Border */}
-        <div className="border-[4px] border-double border-gray-300 p-12 sm:p-20 h-full flex flex-col relative">
+        {/* Subtle Background Pattern */}
+        <div 
+          className="absolute inset-0 opacity-40 mix-blend-multiply pointer-events-none" 
+          style={{ backgroundImage: theme.bgPattern, backgroundSize: theme.bgSize }} 
+        />
+        
+        {/* Outer border */}
+        <div className={`w-full h-full border-[12px] sm:border-[16px] ${theme.border} p-2 relative z-10 flex flex-col bg-white/80 backdrop-blur-sm`}>
           
-          {/* Header Row */}
-          <div className="flex flex-col items-center justify-center text-center mb-12 relative z-10">
-             <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center">
-                  <span className="text-white font-bold text-2xl font-serif">C</span>
+          {/* Inner double border */}
+          <div className={`w-full h-full border-[3px] sm:border-[4px] border-double ${theme.border} p-6 sm:p-8 flex flex-col relative bg-transparent`}>
+            
+            {/* Top Logo */}
+            <div className="flex justify-center mb-6 sm:mb-8">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-slate-900 flex items-center justify-center shadow-lg">
+                  <span className="text-white font-bold text-xl sm:text-2xl">C</span>
                 </div>
-                <span className="text-gray-900 font-bold tracking-[0.2em] text-2xl uppercase">Confera</span>
-             </div>
-             <div className="w-32 h-[2px] bg-gradient-to-r from-transparent via-indigo-600/50 to-transparent my-6"></div>
-          </div>
-
-          <div className="flex-1 flex flex-col items-center text-center justify-center relative z-10">
-            <h1 className="text-4xl sm:text-6xl font-serif text-gray-900 mb-10 leading-tight font-medium">
-              Certificate of Achievement
-            </h1>
-
-            <p className="text-gray-500 text-lg sm:text-xl mb-6 italic font-serif">
-              This certifies that
-            </p>
-
-            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-8 font-serif border-b-2 border-indigo-100 pb-4 px-12 inline-block">
-              {certificate.user.name}
-            </h2>
-
-            <p className="text-gray-600 text-lg sm:text-xl max-w-3xl leading-relaxed mx-auto">
-              has successfully demonstrated placement preparation proficiency by completing the <span className="font-semibold text-gray-900">{certificate.test_type}</span> assessment with a score of <span className="font-semibold text-gray-900">{certificate.score}%</span> ({correctCount}/{totalQuestions} correct) on <span className="font-semibold text-gray-900">{format(new Date(certificate.completed_at), 'MMMM do, yyyy')}</span>.
-            </p>
-
-            {/* Badges */}
-            {subjects.length > 0 && (
-              <div className="mt-12 flex flex-wrap justify-center gap-3 w-full max-w-2xl">
-                {subjects.map((subject, idx) => (
-                  <span key={idx} className="px-4 py-1.5 rounded-full bg-gray-50 border border-gray-200 text-gray-600 text-sm font-medium">
-                    {subject}
-                  </span>
-                ))}
+                <span className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Confera</span>
               </div>
-            )}
-          </div>
-
-          {/* Footer Details */}
-          <div className="mt-16 w-full flex justify-between items-end relative z-10">
-            <div className="text-left flex flex-col gap-1">
-              <span className="text-gray-500 text-sm font-mono tracking-wide">Certificate ID: {certificate.id.split('-').pop()?.toUpperCase()}</span>
             </div>
-            <div className="text-right">
-               <span className="text-gray-500 text-sm">Verify at: conferav2.vercel.app/certificate/{certificate.id}</span>
-            </div>
-          </div>
 
+            {/* Header */}
+            <div className="text-center space-y-4 sm:space-y-6 flex-1 flex flex-col justify-center">
+              <h1 className="text-3xl sm:text-5xl md:text-6xl font-serif text-slate-900 tracking-wider uppercase" style={{ fontFamily: "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif" }}>
+                Certificate of Proficiency
+              </h1>
+              
+              <p className="text-base sm:text-xl text-slate-600 italic mt-4 sm:mt-6 font-serif">
+                This is to certify that
+              </p>
+              
+              <h2 className={`text-4xl sm:text-6xl md:text-7xl font-bold ${theme.text} py-2 sm:py-4`} style={{ fontFamily: "ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif" }}>
+                {userName}
+              </h2>
+              
+              <p className="text-base sm:text-xl text-slate-700 max-w-2xl mx-auto leading-relaxed mt-2 sm:mt-4">
+                has successfully completed the rigorous AI-evaluated assessment for
+              </p>
+              
+              <h3 className="text-xl sm:text-3xl font-bold text-slate-900 mt-1 sm:mt-2">
+                {certificate.job_role}
+              </h3>
+              
+              <p className="text-lg sm:text-2xl text-slate-800 font-medium mt-4 sm:mt-6">
+                Achieving an elite score of <span className={`${theme.text} font-bold`}>{score}%</span>
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="mt-8 sm:mt-16 flex justify-between items-end border-t-2 border-slate-200 pt-6 sm:pt-8">
+              <div className="text-slate-600 text-xs sm:text-sm md:text-base space-y-1">
+                <p>Issued on: <span className="font-semibold text-slate-900">{dateIssued}</span></p>
+                <p>Verification ID: <span className="font-mono text-[10px] sm:text-xs text-slate-500">{certificate.certificate_hash}</span></p>
+              </div>
+              
+              <div className="flex flex-col items-center">
+                {/* Signature Placeholder */}
+                <div className="text-2xl sm:text-4xl text-slate-800 mb-1 sm:mb-2 -rotate-2" style={{ fontFamily: "cursive" }}>
+                  Aditya Jha
+                </div>
+                <div className="w-32 sm:w-48 h-px bg-slate-400 mb-1 sm:mb-2"></div>
+                <p className="text-[10px] sm:text-xs font-bold tracking-widest text-slate-500 uppercase">Confera Evaluation Board</p>
+              </div>
+              
+              <div className="w-16 h-16 sm:w-24 sm:h-24 bg-white border border-slate-200 rounded-md sm:rounded-lg shadow-sm flex items-center justify-center relative overflow-hidden">
+                <div className="absolute inset-0 opacity-10 flex flex-wrap">
+                  {/* Fake QR pattern */}
+                  {Array.from({ length: 25 }).map((_, i) => (
+                    <div key={i} className={`w-1/5 h-1/5 ${Math.random() > 0.4 ? 'bg-slate-900' : 'bg-transparent'}`} />
+                  ))}
+                </div>
+                <Award className={`w-8 h-8 sm:w-10 sm:h-10 ${theme.iconColor} relative z-10 opacity-90`} />
+              </div>
+            </div>
+            
+          </div>
         </div>
       </div>
 
-      <style>{`
-        @media print {
-          @page {
-            size: landscape A4;
-            margin: 0;
-          }
-          body {
-            background-color: white !important;
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-          }
-        }
-      `}</style>
+      {/* Action Buttons */}
+      <div className="mt-8 flex gap-4 print:hidden">
+        <Button onClick={handlePrint} size="lg" className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-lg">
+          <Download className="w-5 h-5" /> Download as PDF
+        </Button>
+        <Button onClick={handleShare} size="lg" variant="outline" className="gap-2 bg-card/80 backdrop-blur border-border/50 text-foreground hover:bg-muted font-semibold shadow-sm">
+          <Share2 className="w-5 h-5" /> Share Link
+        </Button>
+      </div>
+
     </div>
   );
 }
