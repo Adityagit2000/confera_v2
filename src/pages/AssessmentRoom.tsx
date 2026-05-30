@@ -268,7 +268,7 @@ const AssessmentRoom = () => {
           >
             <ChevronLeft className="w-4 h-4 mr-2" /> Previous
           </Button>
-          
+          {isLast ? (
             <Button 
               onClick={() => handleSubmit()} 
               disabled={submitting}
