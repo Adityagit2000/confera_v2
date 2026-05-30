@@ -43,14 +43,18 @@ Distribution:
 Rules:
 1. The technical questions MUST directly test the skills required for ${jobRole}. If it is a software role, include code snippets or architectural questions. If it is a core engineering role (Mechanical/Civil), test physics, materials, and domain-specific theorems. If it is business/finance, test case logic and formulas.
 2. Provide 4 highly plausible options.
-3. Return ONLY a valid JSON array of objects matching this schema:
-[{
-  "category": "Aptitude" | "Technical",
-  "question_text": "string",
-  "options": ["string", "string", "string", "string"],
-  "correct_option": number (0-3),
-  "explanation": "string"
-}]`;
+3. Return ONLY a valid JSON object with a "questions" array matching this schema:
+{
+  "questions": [
+    {
+      "category": "Aptitude" | "Technical",
+      "question_text": "string",
+      "options": ["string", "string", "string", "string"],
+      "correct_option": number (0-3),
+      "explanation": "string"
+    }
+  ]
+}`;
 
     const responseText = await callAiWithFallback({
       systemPrompt: "You are an Expert Technical Examiner.",
@@ -60,17 +64,22 @@ Rules:
       timeoutMs: 30000
     });
     
+    let parsedData;
     let questions;
     try {
-      questions = JSON.parse(responseText);
+      parsedData = JSON.parse(responseText);
+      questions = Array.isArray(parsedData) ? parsedData : (parsedData.questions || []);
     } catch (parseError) {
-      console.error('Failed to parse Gemini response:', responseText);
+      console.error('Failed to parse AI response:', responseText);
       throw new Error('AI returned invalid JSON format');
     }
 
-    if (!Array.isArray(questions) || questions.length !== 20) {
+    if (!Array.isArray(questions) || questions.length === 0) {
+      throw new Error('AI failed to generate a valid array of questions');
+    }
+
+    if (questions.length !== 20) {
        console.warn(`Generated ${questions.length} questions, expected 20.`);
-       // We proceed anyway, though strictly we asked for 20.
     }
 
     // Insert Assessment
