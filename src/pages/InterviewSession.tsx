@@ -14,6 +14,7 @@ import { useTurnDetection, type TurnState } from '@/hooks/useTurnDetection';
 import { PreFlightCheck } from '@/components/PreFlightCheck';
 import { closeAudioContext, type DiagnosticReport } from '@/lib/voiceDiagnostics';
 import { useOnlineStatus, acquireInterviewLock, releaseInterviewLock } from '@/lib/networkUtils';
+import { InterviewSkeleton } from '@/components/InterviewSkeleton';
 import { 
   Mic, 
   MicOff, 
@@ -51,6 +52,17 @@ declare global {
     webkitSpeechRecognition: any;
   }
 }
+
+const SessionTimer = () => {
+  const [elapsedTime, setElapsedTime] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setElapsedTime(prev => prev + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const m = Math.floor(elapsedTime / 60).toString().padStart(2, '0');
+  const s = (elapsedTime % 60).toString().padStart(2, '0');
+  return <>{m}:{s}</>;
+};
 
 const InterviewSession = () => {
   const { sessionId } = useParams();
@@ -92,7 +104,6 @@ const InterviewSession = () => {
   const [liveTranscript, setLiveTranscript] = useState('');
   const [questionCount, setQuestionCount] = useState(0);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [elapsedTime, setElapsedTime] = useState(0);
   const [answeredQuestionsCount, setAnsweredQuestionsCount] = useState(0);
   const [lastFailedMessage, setLastFailedMessage] = useState<string | null>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
@@ -173,13 +184,13 @@ const InterviewSession = () => {
           turnDetection.reset();
         }, 600);
       } else {
-        // Answer too short — keep listening
+        // Answer too short - keep listening
         turnDetection.reset();
       }
     }
   }, [turnDetection.turnState]);
 
-  // Voice engine initialization — handled by useVoiceSynthesis hook
+  // Voice engine initialization - handled by useVoiceSynthesis hook
   // Just need to manage user's voice preference
   const availableVoices = voiceSynth.getVoices();
 
@@ -296,12 +307,6 @@ const InterviewSession = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Timer
-  useEffect(() => {
-    const timer = setInterval(() => setElapsedTime(prev => prev + 1), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   // Load Session & Auto-Start
   useEffect(() => {
     if (sessionId && user?.id) {
@@ -355,7 +360,7 @@ const InterviewSession = () => {
     }
   }, [sessionId, supabase]);
 
-  // Consolidated speak function — delegates to the production-grade voiceSynth hook
+  // Consolidated speak function - delegates to the production-grade voiceSynth hook
   // which handles Chrome 15s chunking, async voice loading, iOS audio unlock, and retry
   const speak = useCallback((text: string) => {
     voiceSynth.speak(
@@ -509,7 +514,8 @@ const InterviewSession = () => {
       setAnsweredQuestionsCount(prev => prev + 1);
       speak(aiMessage);
       
-      if (data.is_complete) {
+      const maxQuestions = session?.type === 'quick_practice' ? 3 : 10;
+      if (data.is_complete || currentQuestionIndexRef.current >= maxQuestions) {
         setTimeout(endInterview, 5000);
       }
     } catch (err) {
@@ -578,12 +584,6 @@ const InterviewSession = () => {
     }
   }, [finalTranscript, liveTranscript, handleSendVoiceMessage, turnDetection, toast]);
 
-  const formatTime = useCallback((seconds: number) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  }, []);
-
   // Show pre-flight check before interview room
   if (!preFlightComplete) {
     return (
@@ -595,12 +595,7 @@ const InterviewSession = () => {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0f] flex flex-col items-center justify-center text-white">
-        <Loader2 className="w-10 h-10 animate-spin text-primary mb-6" /> 
-        <h2 className="text-xl font-medium tracking-wide">Prepping Interview Room...</h2>
-      </div>
-    );
+    return <InterviewSkeleton />;
   }
 
   if (errorStatus) {
@@ -682,12 +677,11 @@ const InterviewSession = () => {
           {/* Conversation History Card */}
           <div className="flex-1 bg-[#121214] border border-white/[0.04] rounded-2xl p-6 flex flex-col overflow-hidden backdrop-blur-sm relative min-h-0">
             
-            {/* Section Header */}
-            <div className="flex items-center justify-between border-b border-white/[0.05] pb-4 mb-4 flex-shrink-0">
+              <div className="flex items-center justify-between border-b border-white/[0.05] pb-4 mb-4 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
                 <span className="text-xs font-semibold tracking-wider uppercase text-white/50">
-                  Question {Math.max(1, questionCount)} of 10
+                  Question {Math.max(1, questionCount)} of {session?.type === 'quick_practice' ? 3 : 10}
                 </span>
               </div>
             </div>
@@ -993,7 +987,7 @@ const InterviewSession = () => {
               <div className="flex items-center justify-between">
                 <span className="text-xs text-white/40 font-semibold uppercase tracking-wider">Elapsed Time</span>
                 <span className="text-xl font-mono font-bold tracking-tight text-white/90">
-                  {formatTime(elapsedTime)}
+                  <SessionTimer />
                 </span>
               </div>
 
@@ -1001,10 +995,10 @@ const InterviewSession = () => {
               <div className="space-y-3 pt-2">
                 <div className="flex justify-between text-xs font-semibold text-white/40">
                   <span>Questions Completed</span>
-                  <span>{Math.max(1, questionCount)} / 10</span>
+                  <span>{Math.max(1, questionCount)} / {session?.type === 'quick_practice' ? 3 : 10}</span>
                 </div>
-                <div className="flex items-center gap-1.5 w-full">
-                  {Array.from({ length: 10 }).map((_, i) => (
+                <div className="flex gap-1">
+                  {Array.from({ length: session?.type === 'quick_practice' ? 3 : 10 }).map((_, i) => (
                     <div 
                       key={i} 
                       className={`flex-1 h-1.5 rounded-full transition-colors duration-500 ${

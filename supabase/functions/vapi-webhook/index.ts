@@ -2,22 +2,29 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const geminiApiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('OPENAI_API_KEY') || '';
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'))
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    const vapiSecret = Deno.env.get('VAPI_WEBHOOK_SECRET')
+    if (vapiSecret) {
+      const incomingSecret = req.headers.get('x-vapi-secret')
+      if (incomingSecret !== vapiSecret) {
+        console.error('Invalid VAPI webhook secret')
+        return new Response('Unauthorized', { status: 401, headers: corsHeaders })
+      }
+    }
+
     const payload = await req.json();
     console.log('VAPI Webhook received:', JSON.stringify(payload, null, 2));
     
@@ -35,7 +42,7 @@ serve(async (req) => {
       
       if (!sessionId) {
         console.error('No session ID found in customer number:', customerNumber);
-        return new Response('OK', { status: 200, headers: corsHeaders });
+        return new Response('OK', { status: 200, headers: getCorsHeaders(req.headers.get('origin')) });
       }
       
       // Save call transcript and analysis
@@ -137,14 +144,14 @@ serve(async (req) => {
     
     return new Response('OK', { 
       status: 200, 
-      headers: corsHeaders 
+      headers: getCorsHeaders(req.headers.get('origin')) 
     });
     
   } catch (error: any) {
     console.error('Error in VAPI webhook:', error);
     return new Response('OK', { 
       status: 200, 
-      headers: corsHeaders 
+      headers: getCorsHeaders(req.headers.get('origin')) 
     });
   }
 });

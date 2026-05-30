@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Award, Clock, FileText, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { CertificationsSkeleton } from '@/components/CertificationsSkeleton';
 import {
   Dialog,
   DialogContent,
@@ -174,16 +175,7 @@ const Certifications = () => {
   };
 
   if (startingTrackId) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-        <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-6 relative">
-          <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
-          <Loader2 className="w-12 h-12 text-primary animate-spin" />
-        </div>
-        <h2 className="text-2xl font-bold text-foreground mb-3 text-center">AI is assembling your certification exam...</h2>
-        <p className="text-muted-foreground text-center">This may take a few seconds to generate original questions.</p>
-      </div>
-    );
+    return <CertificationsSkeleton />;
   }
 
   return (

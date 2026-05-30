@@ -1,5 +1,5 @@
 /**
- * useTurnDetection — Multi-signal intelligent turn detection for Confera
+ * useTurnDetection - Multi-signal intelligent turn detection for Confera
  * 
  * Replaces the simple silence timer with a 5-signal system that determines
  * when a user has genuinely finished their answer:
@@ -10,7 +10,7 @@
  *   Signal 4: Manual control (Done / Keep Listening buttons)
  *   Signal 5: Voice activity detection (audio energy below threshold)
  * 
- * The system only submits when multiple signals agree — not just silence alone.
+ * The system only submits when multiple signals agree - not just silence alone.
  */
 
 import { useRef, useState, useCallback, useEffect } from 'react'
@@ -43,7 +43,7 @@ export interface TurnDetectionResult {
   silenceProgress: number
   /** The active silence threshold in ms */
   currentThresholdMs: number
-  /** Reset and extend listening — the escape hatch */
+  /** Reset and extend listening - the escape hatch */
   keepListening: () => void
   /** Immediately complete the turn */
   forceDone: () => void
@@ -132,7 +132,7 @@ export function useTurnDetection(input: TurnDetectionInput): TurnDetectionResult
 
     // Check for explicit end-of-turn phrases
     const hasEndPhrase = END_OF_TURN_PHRASES.some(phrase => lower.endsWith(phrase))
-    // Check for trailing filler words (weaker — only combined with silence)
+    // Check for trailing filler words (weaker - only combined with silence)
     const hasTrailingFiller = TRAILING_FILLERS.some(w => {
       const words = lower.split(/\s+/)
       return words.length > 0 && words[words.length - 1] === w
@@ -154,7 +154,7 @@ export function useTurnDetection(input: TurnDetectionInput): TurnDetectionResult
       return
     }
 
-    // Force done — immediate
+    // Force done - immediate
     if (forceDoneRef.current) {
       forceDoneRef.current = false
       setTurnState('complete')
@@ -168,7 +168,7 @@ export function useTurnDetection(input: TurnDetectionInput): TurnDetectionResult
     const inSilence = audioEnergyBelowThreshold && !isSpeechDetected && hasFinalResult
 
     if (isSpeechDetected || !audioEnergyBelowThreshold) {
-      // Active speech detected — reset silence tracking
+      // Active speech detected - reset silence tracking
       silenceStartRef.current = null
       setSilenceProgress(0)
 
@@ -189,7 +189,7 @@ export function useTurnDetection(input: TurnDetectionInput): TurnDetectionResult
         : getSilenceThresholdMs(wordCount, speakingDurationMs)
 
       if (threshold === Infinity) {
-        // Under 15 words — never stop, just keep listening
+        // Under 15 words - never stop, just keep listening
         setTurnState('listening')
         setSilenceProgress(0)
       } else {
@@ -197,10 +197,10 @@ export function useTurnDetection(input: TurnDetectionInput): TurnDetectionResult
         setSilenceProgress(progress)
 
         if (progress >= 1) {
-          // Threshold fully elapsed — turn is complete
+          // Threshold fully elapsed - turn is complete
           setTurnState('complete')
         } else if (progress >= CONFIRMING_RATIO) {
-          // Nearing threshold — show escape hatch
+          // Nearing threshold - show escape hatch
           setTurnState('confirming')
         } else {
           // In the waiting zone
@@ -208,7 +208,7 @@ export function useTurnDetection(input: TurnDetectionInput): TurnDetectionResult
         }
       }
     } else {
-      // No final result yet but not hearing speech — just listening
+      // No final result yet but not hearing speech - just listening
       if (wordCount === 0) {
         setTurnState('listening')
       }

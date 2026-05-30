@@ -1,18 +1,18 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
 import { authenticateRequest } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   console.log('--- analyze-answer-deep: Function called ---');
 
   try {
     // Authenticate request
-    const auth = await authenticateRequest(req, corsHeaders)
+    const auth = await authenticateRequest(req, getCorsHeaders(req.headers.get('origin')))
     if ('response' in auth) return auth.response
     const { supabase } = auth
 
@@ -141,7 +141,7 @@ Respond with ONLY the valid JSON object.`;
     }
 
     return new Response(JSON.stringify({ success: true, coaching }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200,
     });
 
@@ -149,7 +149,7 @@ Respond with ONLY the valid JSON object.`;
     console.error('FATAL ERROR in analyze-answer:', error.message);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
   }
 })

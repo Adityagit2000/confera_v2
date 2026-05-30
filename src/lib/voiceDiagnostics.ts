@@ -43,7 +43,7 @@ export function detectBrowser(): BrowserInfo {
 
   const isBrave = (navigator as any).brave !== undefined;
 
-  // Order matters — Edge/Opera must be checked before Chrome
+  // Order matters - Edge/Opera must be checked before Chrome
   if (isBrave) {
     name = 'Brave';
     // Brave uses Chrome's UA string, so we extract the underlying Chromium version
@@ -89,7 +89,7 @@ function checkHTTPS(): DiagnosticCheck {
     status: isSecure ? 'pass' : 'fail',
     detail: isSecure
       ? 'Running on a secure origin'
-      : 'Not running over HTTPS — microphone access will be blocked',
+      : 'Not running over HTTPS - microphone access will be blocked',
     fix: isSecure ? undefined : 'Access this page via HTTPS. Microphone and speech APIs require a secure context.',
   };
 }
@@ -108,7 +108,7 @@ function checkBrowserSupport(browser: BrowserInfo): DiagnosticCheck {
         id: 'browser',
         label: 'Browser Compatibility',
         status: 'pass',
-        detail: `${browser.name} ${browser.version} — fully supported`,
+        detail: `${browser.name} ${browser.version} - fully supported`,
       };
     }
     return {
@@ -134,7 +134,7 @@ function checkBrowserSupport(browser: BrowserInfo): DiagnosticCheck {
     id: 'browser',
     label: 'Browser Compatibility',
     status: 'warn',
-    detail: `${browser.name} — compatibility unknown. Will attempt to use available APIs.`,
+    detail: `${browser.name} - compatibility unknown. Will attempt to use available APIs.`,
     fix: 'For guaranteed compatibility, use Chrome, Edge, or Safari.',
   };
 }
@@ -195,7 +195,7 @@ function checkMediaDevices(): DiagnosticCheck {
     id: 'media-devices',
     label: 'Media Device API',
     status: 'fail',
-    detail: 'getUserMedia is not available — cannot access microphone',
+    detail: 'getUserMedia is not available - cannot access microphone',
     fix: 'Ensure you are on HTTPS and using a modern browser.',
   };
 }
@@ -223,12 +223,12 @@ async function checkMicPermission(): Promise<DiagnosticCheck> {
             fix: 'Click the lock icon in the address bar → Site Settings → Microphone → Allow. Then reload this page.',
           };
         }
-        // state === 'prompt' — permission not yet asked
+        // state === 'prompt' - permission not yet asked
         return {
           id: 'mic-permission',
           label: 'Microphone Permission',
           status: 'warn',
-          detail: 'Microphone permission not yet granted — you will be prompted when the interview starts',
+          detail: 'Microphone permission not yet granted - you will be prompted when the interview starts',
         };
       } catch {
         // permissions.query may not support 'microphone' in all browsers
@@ -323,7 +323,7 @@ function checkAudioContext(): DiagnosticCheck {
         id: 'audio-context',
         label: 'Audio Context',
         status: 'warn',
-        detail: 'AudioContext not available — some audio features may not work',
+        detail: 'AudioContext not available - some audio features may not work',
       };
     }
 
@@ -344,7 +344,7 @@ function checkAudioContext(): DiagnosticCheck {
       id: 'audio-context',
       label: 'Audio Context',
       status: 'warn',
-      detail: `AudioContext is ${state} — will be resumed on user interaction`,
+      detail: `AudioContext is ${state} - will be resumed on user interaction`,
     };
   } catch {
     return {
@@ -362,7 +362,7 @@ function checkSpeechSynthesis(): DiagnosticCheck {
       id: 'speech-synthesis',
       label: 'Text-to-Speech',
       status: 'warn',
-      detail: 'SpeechSynthesis API not available — AI interviewer responses will be text-only',
+      detail: 'SpeechSynthesis API not available - AI interviewer responses will be text-only',
     };
   }
 
@@ -382,7 +382,7 @@ function checkSpeechSynthesis(): DiagnosticCheck {
     id: 'speech-synthesis',
     label: 'Text-to-Speech',
     status: 'warn',
-    detail: 'Voices not loaded yet — they will be available when the interview starts',
+    detail: 'Voices not loaded yet - they will be available when the interview starts',
   };
 }
 

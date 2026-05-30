@@ -1,5 +1,5 @@
 /**
- * PreFlightCheck — Pre-interview system health check component
+ * PreFlightCheck - Pre-interview system health check component
  * 
  * Runs voiceDiagnostics suite before interview starts.
  * Shows animated checklist with pass/fail/warn indicators.
@@ -207,7 +207,7 @@ export function PreFlightCheck({ onComplete, onSkip }: PreFlightCheckProps) {
             </p>
             {report.recommendedMode === 'media-recorder' && (
               <p className="text-xs text-white/40 mt-1">
-                Your answers will be transcribed using Whisper AI. Speak naturally — audio is processed every 6 seconds.
+                Your answers will be transcribed using Whisper AI. Speak naturally - audio is processed every 6 seconds.
               </p>
             )}
             {report.recommendedMode === 'text-only' && (

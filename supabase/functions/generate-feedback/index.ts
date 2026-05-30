@@ -1,11 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
 import { createRequestContext, createLogger, sanitizeError, authenticateRequest } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   const ctx = createRequestContext('generate-feedback')
@@ -14,7 +14,7 @@ Deno.serve(async (req) => {
   try {
     // Step 1: Authenticate request
     log.step(1, 'Authenticating request')
-    const auth = await authenticateRequest(req, corsHeaders)
+    const auth = await authenticateRequest(req, getCorsHeaders(req.headers.get('origin')))
     if ('response' in auth) return auth.response
     const { user, supabase } = auth
     ctx.userId = user.id
@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     if (!sessionId) {
       return new Response(
         JSON.stringify({ success: false, error: 'Session ID is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       )
     }
     log.info('Session', sessionId)
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       log.warn('No answers found', answersError?.message)
       return new Response(
         JSON.stringify({ success: false, error: 'No answers found for this session. Please complete the interview first.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       )
     }
     log.info('Answers found', `${answers.length} answers`)
@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
         .eq('user_id', session.user_id)
         .eq('status', 'completed');
       
-      let validReports: any[] = [];
+      const validReports: any[] = [];
       if (userSessions) {
         userSessions.forEach((s: any) => {
           if (s.feedback_reports) {
@@ -379,7 +379,7 @@ Deno.serve(async (req) => {
       // If the newly created report isn't in the list due to replication lag, it's safer to just trust validReports.
       // The current report was inserted in this same transaction for the user, so it will likely be returned.
       // We will double check if we need to add the current score manually, but let's assume it's in the DB.
-      let allScores = validReports.map(r => r.overall_score);
+      const allScores = validReports.map(r => r.overall_score);
       const count = allScores.length;
       
       if (count >= 3) {
@@ -405,6 +405,53 @@ Deno.serve(async (req) => {
       log.error('Failed to check certificate eligibility', certErr);
     }
 
+    // Step 16: Update Streak
+    log.step(16, 'Updating user streak')
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('current_streak, longest_streak, last_activity_date')
+        .eq('id', session.user_id)
+        .single();
+      
+      if (profile) {
+        const today = new Date();
+        today.setUTCHours(0,0,0,0);
+        
+        let newStreak = profile.current_streak || 0;
+        const lastDate = profile.last_activity_date ? new Date(profile.last_activity_date) : null;
+        
+        if (lastDate) {
+          const lastActivity = new Date(lastDate);
+          lastActivity.setUTCHours(0,0,0,0);
+          
+          const diffTime = today.getTime() - lastActivity.getTime();
+          const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+          
+          if (diffDays === 1) {
+            newStreak += 1;
+          } else if (diffDays > 1) {
+            newStreak = 1;
+          }
+        } else {
+          newStreak = 1;
+        }
+
+        const newLongest = Math.max(newStreak, profile.longest_streak || 0);
+
+        await supabase
+          .from('profiles')
+          .update({
+            current_streak: newStreak,
+            longest_streak: newLongest,
+            last_activity_date: new Date().toISOString()
+          })
+          .eq('id', session.user_id);
+      }
+    } catch (streakErr) {
+      log.error('Failed to update streak (non-fatal)', streakErr);
+    }
+
     log.timing('Total execution')
     log.info('Success', `Report ID: ${report.id}, Score: ${reportData.overall_score}`)
 
@@ -413,7 +460,7 @@ Deno.serve(async (req) => {
       report,
       message: 'Feedback generated successfully'
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200
     })
 
@@ -428,7 +475,7 @@ Deno.serve(async (req) => {
       }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       }
     )
   }

@@ -1,21 +1,21 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { encode as base64Encode } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
   const authHeader = req.headers.get('Authorization')
-  if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } })
   
   const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey)
   const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(authHeader.replace('Bearer ', ''))
-  if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } })
 
   console.log('--- create-order: Function called ---');
 
@@ -28,19 +28,19 @@ Deno.serve(async (req) => {
       console.error('Failed to parse request body:', e.message);
       return new Response(
         JSON.stringify({ error: 'Invalid request body', details: e.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       );
     }
 
     const { plan, billingCycle, userId, couponCode } = body;
-    if (user.id !== userId) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    if (user.id !== userId) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } })
     console.log(`Order request - Plan: ${plan}, Cycle: ${billingCycle}, User: ${userId}, Coupon: ${couponCode}`);
     
     if (!plan || !billingCycle || !userId) {
       console.error('Missing required fields:', { plan, billingCycle, userId });
       return new Response(
         JSON.stringify({ error: 'Missing required fields: plan, billingCycle, userId' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       console.error(`Invalid plan or billing cycle: ${amountKey}`);
       return new Response(
         JSON.stringify({ error: `Invalid plan or billing cycle: ${amountKey}` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
       console.error('RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is missing from environment');
       return new Response(
         JSON.stringify({ error: 'Razorpay credentials not configured in Supabase secrets' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
           details: responseText,
           status: orderResponse.status
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       );
     }
 
@@ -137,14 +137,14 @@ Deno.serve(async (req) => {
     console.log(`Order created successfully: ${order.id}`);
 
     return new Response(JSON.stringify({ orderId: order.id, amount, currency: 'INR', appliedDiscount }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
     });
 
   } catch (err: any) {
     console.error('Edge Function Catch Block:', err.message);
     return new Response(
       JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
   }
 });

@@ -1,15 +1,15 @@
 /**
- * useVoiceInput — Production-grade voice input hook for Confera
+ * useVoiceInput - Production-grade voice input hook for Confera
  * 
  * Supports two modes:
  * 1. speech-api: Web Speech API (Chrome/Edge/Safari desktop)
  * 2. media-recorder: MediaRecorder → Whisper transcription (iOS, Firefox, fallback)
  * 
- * v2 — Intelligent Turn Detection Integration:
+ * v2 - Intelligent Turn Detection Integration:
  * - AnalyserNode VAD for real-time audio energy monitoring
  * - Exports audioEnergy (0-1) for waveform visualization
  * - Exports isSpeechDetected boolean for turn detection
- * - Removed fixed silence timer — turn detection hook handles timing
+ * - Removed fixed silence timer - turn detection hook handles timing
  * - MediaRecorder uses VAD-driven variable-length recording
  * 
  * Preserved from v1:
@@ -268,7 +268,7 @@ export function useVoiceInput({
       }
       if (interim) onTranscript(interim, false)
       if (final) onTranscript(final, true)
-      // No silence timer — turn detection hook handles this
+      // No silence timer - turn detection hook handles this
     }
 
     recognition.onend = () => {
@@ -503,7 +503,7 @@ export function useVoiceInput({
         try {
           mediaRecorderRef.current.start()
           hasSpeechInCurrentChunkRef.current = false
-          // Records indefinitely — turn detection handles when to stop
+          // Records indefinitely - turn detection handles when to stop
         } catch (e) {
           console.error('[VoiceInput] Failed to start new recording chunk:', e)
         }
@@ -539,12 +539,12 @@ export function useVoiceInput({
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden' && isListening) {
-        console.log('[VoiceInput] Tab hidden — pausing recognition')
+        console.log('[VoiceInput] Tab hidden - pausing recognition')
         if (mode === 'speech-api' && recognitionRef.current) {
           try { recognitionRef.current.abort() } catch (_) {}
         }
       } else if (document.visibilityState === 'visible' && shouldContinueRef.current && !isListening) {
-        console.log('[VoiceInput] Tab visible — resuming recognition')
+        console.log('[VoiceInput] Tab visible - resuming recognition')
         if (mode === 'speech-api') {
           startSpeechAPI()
         }

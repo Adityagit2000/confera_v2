@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, Share2, Download } from "lucide-react";
+import { Share2, Download } from "lucide-react";
 import { toast } from "sonner";
+import { CertificateSkeleton } from "@/components/CertificateSkeleton";
 
 interface CertificateData {
   id: string;
@@ -67,11 +68,7 @@ export default function CertificateViewer() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-950">
-        <Loader2 className="w-10 h-10 animate-spin text-zinc-400" />
-      </div>
-    );
+    return <CertificateSkeleton />;
   }
 
   if (!certificate) {

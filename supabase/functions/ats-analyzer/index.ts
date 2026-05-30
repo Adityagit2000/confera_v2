@@ -1,16 +1,16 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
 import { authenticateRequest } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   try {
     // Authenticate request
-    const auth = await authenticateRequest(req, corsHeaders)
+    const auth = await authenticateRequest(req, getCorsHeaders(req.headers.get('origin')))
     if ('response' in auth) return auth.response
     const { user, supabase } = auth
 
@@ -213,13 +213,13 @@ Deno.serve(async (req) => {
       keywords_missing: analysisResult.missing_keywords || [],
       message: `Analysis complete. ATS Score: ${analysisResult.ats_score}%`
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (error) {
     console.error('Edge Function Error:', (error as any).message)
     return new Response(JSON.stringify({ error: (error as any).message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 400,
     })
   }

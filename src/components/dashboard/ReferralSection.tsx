@@ -87,7 +87,7 @@ export function ReferralSection() {
 
   const handleRequestPayout = () => {
     const earningsRupees = (stats.totalEarningsPaise / 100).toFixed(2);
-    const subject = encodeURIComponent(`Confera Referral Payout Request — ₹${earningsRupees}`);
+    const subject = encodeURIComponent(`Confera Referral Payout Request - ₹${earningsRupees}`);
     const body = encodeURIComponent(
       `Hi,\n\nI'd like to request a payout for my referral earnings.\n\nReferral Code: ${stats.referralCode}\nTotal Earnings: ₹${earningsRupees}\nSuccessful Referrals: ${stats.successfulReferrals}\nUser Email: ${user?.email}\n\nThanks!`
     );
@@ -101,7 +101,7 @@ export function ReferralSection() {
   }
 
   if (!stats.referralCode) {
-    return null; // Code not generated yet — skip rendering
+    return null; // Code not generated yet - skip rendering
   }
 
   const earningsRupees = (stats.totalEarningsPaise / 100).toFixed(2);
@@ -125,7 +125,7 @@ export function ReferralSection() {
         {/* Referral Link Section */}
         <div className="p-6 border-b border-border/30">
           <p className="text-sm text-muted-foreground mb-3">
-            Share your link — when someone signs up and goes Pro, you earn <span className="text-green-400 font-bold">10% cash</span> from their payment.
+            Share your link - when someone signs up and goes Pro, you earn <span className="text-green-400 font-bold">10% cash</span> from their payment.
           </p>
           <div className="flex items-center gap-2">
             <div className="flex-1 bg-muted/30 rounded-lg px-4 py-3 text-sm font-mono text-foreground/80 truncate border border-border/30">
@@ -180,7 +180,7 @@ export function ReferralSection() {
               className="w-full border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/50 transition-all"
             >
               <ExternalLink className="w-4 h-4 mr-2" />
-              Request Payout — ₹{earningsRupees}
+              Request Payout - ₹{earningsRupees}
             </Button>
           </div>
         )}

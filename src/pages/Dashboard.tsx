@@ -32,7 +32,8 @@ import {
   RefreshCw,
   Clock,
   GraduationCap,
-  Award
+  Award,
+  Flame
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ResumeUpload from '@/components/ResumeUpload';
@@ -146,13 +147,6 @@ const Dashboard = () => {
   const fetchDashboardData = useCallback(async () => {
     if (!user) return;
     try {
-      // Fetch profile for name if useSubscription didn't catch it yet
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('name')
-        .eq('id', user.id)
-        .single();
-
       const [sessionsResult, resumesResult] = await Promise.all([
         supabase
           .from('interview_sessions')
@@ -196,7 +190,7 @@ const Dashboard = () => {
 
       // Filter: show active sessions (user can continue) OR
       // completed sessions that have a feedback report.
-      // Hide ghost sessions — completed with no report and no transcript.
+      // Hide ghost sessions - completed with no report and no transcript.
       const visibleSessions = processedSessions.filter(session => {
         if (session.status === 'scheduled' || session.status === 'active') {
           // Only show active sessions that are recent (last 30 mins)
@@ -245,7 +239,7 @@ const Dashboard = () => {
         }
       }
     } catch {
-      // No plan found — that's fine
+      // No plan found - that's fine
     }
   }, [user]);
 
@@ -539,19 +533,19 @@ const Dashboard = () => {
                 const score = stats.avgScore;
                 if (hour >= 22 || hour < 5) {
                   return count > 0
-                    ? `${count} interviews in — the work you're putting in at this hour is what separates you.`
+                    ? `${count} interviews in - the work you're putting in at this hour is what separates you.`
                     : `Most people are asleep. You're here. That already puts you ahead.`;
                 }
                 if (hour >= 5 && hour < 12) {
                   return count > 0
-                    ? `You're off to a strong start. ${score > 0 ? `Averaging ${score}% — let's push that higher.` : `Keep the sessions coming.`}`
+                    ? `You're off to a strong start. ${score > 0 ? `Averaging ${score}% - let's push that higher.` : `Keep the sessions coming.`}`
                     : `Fresh start. Today's a good day to run your first mock interview.`;
                 }
                 if (count > 0 && score >= 75) {
-                  return `Strong numbers. ${score}% average across ${count} sessions — you're in the top tier.`;
+                  return `Strong numbers. ${score}% average across ${count} sessions - you're in the top tier.`;
                 }
                 if (count > 0 && score > 0) {
-                  return `${count} sessions done. There's room to improve — that's exactly why you're here.`;
+                  return `${count} sessions done. There's room to improve - that's exactly why you're here.`;
                 }
                 return `Here's a breakdown of your interview progress.`;
               })()}
@@ -559,7 +553,7 @@ const Dashboard = () => {
           </motion.div>
 
           {/* Stats Cards with Glow */}
-          <div id="stats-overview" className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          <div id="stats-overview" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <div className="glass-card rounded-2xl p-6 border border-border/50 bg-gradient-to-b from-card to-background relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-primary/20 transition-all font-bold"></div>
@@ -651,6 +645,22 @@ const Dashboard = () => {
                 </div>
               </div>
             </motion.div>
+
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+              <div className="glass-card rounded-2xl p-6 border border-border/50 bg-gradient-to-b from-card to-background relative overflow-hidden group h-full">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-orange-500/20 transition-all"></div>
+                <div className="flex items-start justify-between mb-4 relative z-10">
+                  <div className="p-3 rounded-xl bg-orange-500/10 text-orange-500">
+                    <Flame className="w-6 h-6" />
+                  </div>
+                </div>
+                <div className="relative z-10">
+                  <div className="text-4xl font-extrabold text-foreground mb-1">{profile?.current_streak || 0} <span className="text-xl text-muted-foreground font-medium">days</span></div>
+                  <p className="text-muted-foreground text-sm font-medium mb-3">Current Streak</p>
+                  <p className="text-xs text-muted-foreground/60">Longest: {profile?.longest_streak || 0} days</p>
+                </div>
+              </div>
+            </motion.div>
           </div>
 
           {/* Quick Actions Array */}
@@ -672,6 +682,37 @@ const Dashboard = () => {
               }
             }}>
               <Upload className="w-5 h-5 mr-2 text-primary" /> Update Resume
+            </Button>
+            <Button variant="outline" size="lg" className="w-full sm:w-auto px-8 h-14 text-base glass-card border-border hover:bg-primary/20 hover:text-primary hover:border-primary/30 hover:scale-[1.02] transition-all" onClick={async () => {
+              if (canStartInterview) {
+                try {
+                  const { data: sessionData, error: sessionError } = await supabase
+                    .from('interview_sessions')
+                    .insert({
+                      user_id: user?.id,
+                      type: 'quick_practice',
+                      job_role: 'General'
+                    })
+                    .select()
+                    .single();
+
+                  if (sessionError) throw sessionError;
+
+                  await supabase.functions.invoke('start-interview', {
+                    body: { sessionId: sessionData.id, job_role: 'General' }
+                  });
+
+                  navigate(`/interview/${sessionData.id}`);
+                } catch (error) {
+                  toast({ title: "Error", description: "Failed to start quick practice", variant: "destructive" });
+                }
+              }
+              else {
+                setUpgradeMessage("You've used all your free interviews this month. Upgrade to Pro for unlimited access.");
+                setShowUpgradeModal(true);
+              }
+            }}>
+              <Zap className="w-5 h-5 mr-2 text-accent" /> Quick Practice
             </Button>
           </div>
 

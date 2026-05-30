@@ -74,12 +74,12 @@ export async function fetchWithRetry(
     try {
       const response = await fn()
 
-      // Don't retry on client errors (4xx) — those won't fix themselves
+      // Don't retry on client errors (4xx) - those won't fix themselves
       if (response.ok || (response.status >= 400 && response.status < 500)) {
         return response
       }
 
-      // Server error (5xx) — retry
+      // Server error (5xx) - retry
       if (attempt < maxRetries) {
         lastError = new Error(`Server error: ${response.status}`)
         const delay = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs)
@@ -124,7 +124,7 @@ export function useSessionGuard(options: { onExpired?: () => void } = {}) {
         options.onExpired?.()
       }
     } catch {
-      // Session check failed — assume valid to avoid false logout
+      // Session check failed - assume valid to avoid false logout
     }
   }, [options.onExpired])
 

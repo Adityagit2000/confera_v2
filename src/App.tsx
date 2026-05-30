@@ -8,6 +8,8 @@ import { AnimatePresence } from "framer-motion";
 import { lazy, Suspense, useEffect } from "react";
 import PageTransition from "./components/PageTransition";
 import ErrorBoundary from "./components/ErrorBoundary";
+import Dashboard from "./pages/Dashboard";
+import Auth from "./pages/Auth";
 
 /**
  * Capture referral code from URL query param (?ref=ABC123)
@@ -30,8 +32,6 @@ function useReferralCapture() {
 
 // Lazy load pages for performance
 const Index = lazy(() => import("./pages/Index"));
-const Auth = lazy(() => import("./pages/Auth"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
 const InterviewSession = lazy(() => import("./pages/InterviewSession"));
 const Report = lazy(() => import("./pages/Report"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -47,6 +47,7 @@ const TestInterface = lazy(() => import("./pages/TestInterface"));
 const TestResults = lazy(() => import("./pages/TestResults"));
 const Certificate = lazy(() => import("./pages/Certificate"));
 const Certifications = lazy(() => import("./pages/Certifications"));
+const Analytics = lazy(() => import("./pages/Analytics"));
 
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const queryClient = new QueryClient();
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
+  const location = useLocation();
   
   if (loading) {
     return (
@@ -69,7 +71,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   }
   
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/auth" state={{ from: location.pathname }} replace />;
   }
   
   return <>{children}</>;
@@ -195,6 +197,14 @@ const AppRoutes = () => {
             </ErrorBoundary>
           </ProtectedRoute>
         } />
+        <Route path="/analytics" element={
+          <ProtectedRoute>
+            <ErrorBoundary>
+              <PageTransition><Analytics /></PageTransition>
+            </ErrorBoundary>
+          </ProtectedRoute>
+        } />
+        <Route path="/sessions" element={<Navigate to="/analytics" replace />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />
       </Routes>

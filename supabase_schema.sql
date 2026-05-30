@@ -137,3 +137,9 @@ USING (auth.uid() = user_id);
 
 CREATE INDEX IF NOT EXISTS idx_learning_paths_user_id ON public.learning_paths(user_id);
 CREATE INDEX IF NOT EXISTS idx_learning_paths_source_id ON public.learning_paths(source_id);
+
+-- Add streak fields to profiles
+ALTER TABLE public.profiles 
+ADD COLUMN IF NOT EXISTS current_streak INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS longest_streak INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS last_activity_date TIMESTAMP WITH TIME ZONE;

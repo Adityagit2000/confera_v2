@@ -1,15 +1,20 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
+import { authenticateRequest } from '../_shared/request-context.ts'
 
 const geminiKey = Deno.env.get('GEMINI_API_KEY')
 const openAiKey = Deno.env.get('OPENAI_API_KEY')
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'))
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    const auth = await authenticateRequest(req, corsHeaders)
+    if ('response' in auth) return auth.response
+    
     const { messages, jobRole = 'Software Engineer', isEvaluate = false } = await req.json()
 
     if (!messages || !Array.isArray(messages)) {
@@ -116,13 +121,13 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ content }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (error) {
     console.error('Edge Function Error:', (error as any).message)
     return new Response(JSON.stringify({ error: (error as any).message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 400,
     })
   }

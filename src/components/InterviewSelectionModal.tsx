@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { JOB_ROLES } from '@/constants/jobRoles';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { UpgradeModal } from '@/components/UpgradeModal';
 
 interface Props {
   open: boolean;
@@ -30,6 +31,7 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
   const [searchTerm, setSearchTerm] = useState('');
   const [jobRole, setJobRole] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -108,7 +110,12 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
       window.location.href = `/interview/${sessionData.id}`;
     } catch (error: any) {
       console.error('Error starting interview:', error);
-      toast({ title: "Error", description: error.message || "Failed to start interview", variant: "destructive" });
+      const msg = error.message || "";
+      if (msg.toLowerCase().includes('limit') || msg.toLowerCase().includes('upgrade') || msg.toLowerCase().includes('free')) {
+        setShowUpgradeModal(true);
+      } else {
+        toast({ title: "Error", description: msg || "Failed to start interview", variant: "destructive" });
+      }
     } finally {
       setLoading(false);
     }
@@ -238,6 +245,7 @@ export function InterviewSelectionModal({ open, onOpenChange }: Props) {
           </div>
         </div>
       </DialogContent>
+      <UpgradeModal open={showUpgradeModal} onOpenChange={setShowUpgradeModal} />
     </Dialog>
   );
 }

@@ -175,7 +175,7 @@ export default function PracticeTests() {
             Practice Tests
           </h1>
           <p className="text-lg text-zinc-400 max-w-2xl">
-            AI-generated tests that never repeat questions — uniquely yours every time.
+            AI-generated tests that never repeat questions - uniquely yours every time.
           </p>
         </div>
 

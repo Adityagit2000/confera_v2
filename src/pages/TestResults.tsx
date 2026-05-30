@@ -219,7 +219,7 @@ export default function TestResults() {
                 <Award className="w-16 h-16 text-amber-500/50 mx-auto mb-6" />
                 <h3 className="text-xl font-bold text-white mb-3">Keep Practicing</h3>
                 <p className="text-amber-200/60 mb-8">
-                  Score 70% or above to earn a certificate. You scored {score}% — you need {70 - score}% more.
+                  Score 70% or above to earn a certificate. You scored {score}% - you need {70 - score}% more.
                 </p>
                 <Button 
                   className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold mt-auto"

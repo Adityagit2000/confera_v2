@@ -124,6 +124,8 @@ export async function callAiWithFallback(options: AiRequestOptions): Promise<str
   return result.text;
 }
 
+import { detectPromptInjection } from './request-context.ts';
+
 /**
  * Detailed version that returns provider info, latency, and token estimates
  */
@@ -140,6 +142,10 @@ export async function callAiWithFallbackDetailed(options: AiRequestOptions): Pro
     responseMimeType = 'text/plain',
     timeoutMs = DEFAULT_TIMEOUT_MS,
   } = options;
+
+  if (detectPromptInjection(userMessage)) {
+    throw new Error('Suspicious input detected. Request blocked due to potential prompt injection.');
+  }
 
   const inputTokens = estimateTokens(systemPrompt + userMessage);
   let lastError: Error | null = null;

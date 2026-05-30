@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 interface EmailRequest {
   to: string | string[]
@@ -92,7 +92,7 @@ function getEmailContent(template: string, data: Record<string, any>): { subject
         `
       }
 
-    case 'post-interview':
+    case 'post-interview': {
       const jobRole = data.jobRole || 'Software Engineer'
       const score = data.score !== undefined ? `${data.score}/100` : 'Ready'
       const sessionId = data.sessionId || ''
@@ -108,16 +108,12 @@ function getEmailContent(template: string, data: Record<string, any>): { subject
                 <h2 style="margin-top: 0; font-size: 20px; color: #111827;">Great job completing your interview!</h2>
                 <p>You have successfully completed a mock interview for the <strong>${jobRole}</strong> role. Our AI has finished evaluating your responses.</p>
                 
-                <div style="background-color: #f3f4f6; border-radius: 12px; padding: 20px; margin: 24px 0; text-align: center;">
-                  <span style="font-size: 14px; text-transform: uppercase; color: #6b7280; font-weight: 600;">Your Score</span>
-                  <div style="font-size: 36px; font-weight: 800; color: #4f46e5; margin-top: 4px;">${score}</div>
+                <div style="background-color: #F9FAFB; border-left: 4px solid #4F46E5; padding: 16px; margin: 24px 0;">
+                  <p style="margin: 0; font-size: 14px; color: #4B5563;">Score: <strong style="color: #111827;">${score}</strong></p>
                 </div>
-
-                <p>Check out the full breakdown in your dashboard. It contains analysis of your key skills, tone, and specific suggestions on how to improve your answers.</p>
-
-                <div style="text-align: center;">
-                  <a href="${appUrl}/dashboard" style="${buttonStyle}">View Detailed Feedback</a>
-                </div>
+                
+                <a href="${siteUrl}/report/${sessionId}" style="${buttonStyle}">View Detailed Report</a>
+                <p style="margin-top: 32px; font-size: 14px; color: #6B7280;">Keep practicing! Consistent effort leads to success.</p>
               </div>
               <div style="${footerStyle}">
                 &copy; 2026 Confera Inc. All rights reserved.
@@ -126,6 +122,7 @@ function getEmailContent(template: string, data: Record<string, any>): { subject
           </div>
         `
       }
+    }
 
     case 'pro-upgrade':
       return {
@@ -159,6 +156,45 @@ function getEmailContent(template: string, data: Record<string, any>): { subject
           </div>
         `
       }
+
+    case 'subscription-active': {
+      const planName = data.planName || 'Pro'
+      const amount = data.amount ? `$${data.amount}` : '$0.00'
+      return {
+        subject: `Welcome to Confera ${planName}!`,
+        html: `
+          <div style="${baseStyle}">
+            <div style="${cardStyle}">
+              <div style="${headerStyle}">
+                <h1 style="margin: 0; font-size: 24px; font-weight: 800;">Confera ${planName}</h1>
+              </div>
+              <div style="${bodyStyle}">
+                <h2 style="margin-top: 0; font-size: 20px; color: #111827;">Your upgrade is complete!</h2>
+                <p>Thank you for upgrading to <strong>Confera ${planName}</strong>. You now have unlimited access to AI interviews, advanced ATS screening, and premium resources.</p>
+                
+                <div style="background-color: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px; margin: 24px 0;">
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Plan</td>
+                      <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${planName}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 8px 0; color: #6B7280; font-size: 14px;">Amount Paid</td>
+                      <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">${amount}</td>
+                    </tr>
+                  </table>
+                </div>
+                
+                <a href="${siteUrl}/dashboard" style="${buttonStyle}">Start Practicing Now</a>
+              </div>
+              <div style="${footerStyle}">
+                &copy; 2026 Confera Inc. All rights reserved.
+              </div>
+            </div>
+          </div>
+        `
+      }
+    }
 
     case 'referral-payout':
       const referredName = data.referredName || 'A friend'
@@ -230,12 +266,34 @@ function getEmailContent(template: string, data: Record<string, any>): { subject
   }
 }
 
+import { authenticateRequest } from '../_shared/request-context.ts'
+
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'))
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    const authHeader = req.headers.get('Authorization')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    let isAuthorized = false
+    if (authHeader === `Bearer ${supabaseServiceKey}`) {
+      isAuthorized = true
+    } else {
+      const auth = await authenticateRequest(req, corsHeaders)
+      if (!('response' in auth)) {
+        isAuthorized = true
+      }
+    }
+
+    if (!isAuthorized) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
     const resendApiKey = Deno.env.get('RESEND_API_KEY')
     if (!resendApiKey) {
       throw new Error('Missing RESEND_API_KEY environment variable')
@@ -246,7 +304,7 @@ Deno.serve(async (req) => {
     if (!to || !template) {
       return new Response(JSON.stringify({ error: 'Missing required fields (to, template)' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       })
     }
 
@@ -279,13 +337,13 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({ success: true, messageId: resData.id }), {
       status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
     })
   } catch (error: any) {
     console.error('Error in send-email function:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
     })
   }
 })

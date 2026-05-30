@@ -1,16 +1,30 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
+import { getCorsHeaders } from '../_shared/cors.ts'
+
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'))
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*' } })
+    return new Response('ok', { headers: corsHeaders })
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   
   if (!supabaseUrl || !supabaseKey) {
-    return new Response(JSON.stringify({ error: 'Missing environment variables' }), { status: 500 })
+    return new Response(JSON.stringify({ error: 'Missing environment variables' }), { 
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+
+  const authHeader = req.headers.get('Authorization')
+  if (authHeader !== `Bearer ${supabaseKey}`) {
+    return new Response(JSON.stringify({ error: 'Unauthorized: Service Role required' }), { 
+      status: 401, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey)

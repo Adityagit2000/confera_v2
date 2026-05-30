@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { authenticateRequest } from '../_shared/request-context.ts'
 
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')
@@ -65,12 +65,12 @@ const PRE_FETCHED_RESOURCES: Record<string, {title: string, url: string}[]> = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   try {
     // Authenticate request
-    const auth = await authenticateRequest(req, corsHeaders)
+    const auth = await authenticateRequest(req, getCorsHeaders(req.headers.get('origin')))
     if ('response' in auth) return auth.response
 
     const { topics } = await req.json()
@@ -116,12 +116,12 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify(results), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 400,
     })
   }

@@ -27,10 +27,22 @@ export default function TestInterface() {
   const sessionId = location.pathname.split('/').pop();
   
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, number>>({});
-  const [visited, setVisited] = useState<Record<number, boolean>>({ 0: true });
-  const [markedForReview, setMarkedForReview] = useState<Record<number, boolean>>({});
-  const [timeRemaining, setTimeRemaining] = useState(timeLimit || 3600);
+  const [answers, setAnswers] = useState<Record<number, number>>(() => {
+    const saved = localStorage.getItem(`confera_test_answers_${sessionId}`);
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [visited, setVisited] = useState<Record<number, boolean>>(() => {
+    const saved = localStorage.getItem(`confera_test_visited_${sessionId}`);
+    return saved ? JSON.parse(saved) : { 0: true };
+  });
+  const [markedForReview, setMarkedForReview] = useState<Record<number, boolean>>(() => {
+    const saved = localStorage.getItem(`confera_test_marked_${sessionId}`);
+    return saved ? JSON.parse(saved) : {};
+  });
+  const [timeRemaining, setTimeRemaining] = useState<number>(() => {
+    const saved = localStorage.getItem(`confera_test_timer_${sessionId}`);
+    return saved ? parseInt(saved, 10) : (timeLimit || 3600);
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
@@ -42,18 +54,31 @@ export default function TestInterface() {
   const currentQ = questions[currentIdx];
 
   useEffect(() => {
+    localStorage.setItem(`confera_test_answers_${sessionId}`, JSON.stringify(answers));
+  }, [answers, sessionId]);
+
+  useEffect(() => {
+    localStorage.setItem(`confera_test_visited_${sessionId}`, JSON.stringify(visited));
+  }, [visited, sessionId]);
+
+  useEffect(() => {
+    localStorage.setItem(`confera_test_marked_${sessionId}`, JSON.stringify(markedForReview));
+  }, [markedForReview, sessionId]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
       setTimeRemaining((prev: number) => {
-        if (prev <= 1) {
+        const newVal = prev <= 1 ? 0 : prev - 1;
+        localStorage.setItem(`confera_test_timer_${sessionId}`, newVal.toString());
+        if (newVal === 0) {
           clearInterval(timer);
           submitTest();
-          return 0;
         }
-        return prev - 1;
+        return newVal;
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [sessionId]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -81,7 +106,7 @@ export default function TestInterface() {
     
     try {
       let correctCount = 0;
-      let subjects = new Set<string>();
+      const subjects = new Set<string>();
       
       questions.forEach((q: any, i: number) => {
         if (q.topic) subjects.add(q.topic);
@@ -115,6 +140,13 @@ export default function TestInterface() {
       if (error) throw error;
 
       toast.success("Test submitted successfully!");
+      
+      // Clean up local storage
+      localStorage.removeItem(`confera_test_answers_${sessionId}`);
+      localStorage.removeItem(`confera_test_visited_${sessionId}`);
+      localStorage.removeItem(`confera_test_marked_${sessionId}`);
+      localStorage.removeItem(`confera_test_timer_${sessionId}`);
+      
       navigate(`/practice-tests/${sessionId}/results`, { replace: true });
 
     } catch (error: any) {
@@ -131,26 +163,26 @@ export default function TestInterface() {
   };
 
   const getQuestionStatusClass = (idx: number) => {
-    if (idx === currentIdx) return "ring-2 ring-indigo-500 ring-offset-2 ring-offset-zinc-950";
-    if (markedForReview[idx]) return "bg-yellow-500 text-black";
+    if (idx === currentIdx) return "ring-2 ring-indigo-500 ring-offset-2 ring-offset-slate-50";
+    if (markedForReview[idx]) return "bg-yellow-100 text-yellow-800 border border-yellow-300";
     if (answers[idx] !== undefined) return "bg-indigo-600 text-white";
-    if (visited[idx]) return "bg-zinc-900 border-2 border-white text-white";
-    return "bg-zinc-800 text-zinc-400"; // not visited
+    if (visited[idx]) return "bg-slate-100 border-2 border-slate-300 text-slate-700";
+    return "bg-white border border-slate-200 text-slate-500"; // not visited
   };
 
   const unansweredCount = totalQ - Object.keys(answers).length;
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       {/* Top Bar */}
-      <header className="h-16 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-10">
+      <header className="h-16 border-b border-slate-200 bg-white shadow-sm flex items-center justify-between px-6 sticky top-0 z-10">
         <div className="flex-1">
-          <h1 className="font-bold text-white text-sm md:text-base">{testType}</h1>
-          <p className="text-xs text-zinc-400">{branch}</p>
+          <h1 className="font-bold text-slate-900 text-sm md:text-base">{testType}</h1>
+          <p className="text-xs text-slate-500">{branch}</p>
         </div>
 
         <div className="flex-1 flex justify-center">
-          <div className="px-4 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-sm font-medium text-zinc-300">
+          <div className="px-4 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-sm font-medium text-slate-700">
             Question {currentIdx + 1} of {totalQ}
           </div>
         </div>
@@ -176,13 +208,13 @@ export default function TestInterface() {
           <div className="max-w-4xl w-full mx-auto flex-1 flex flex-col relative">
             
             <div className="mb-6 flex items-center gap-3">
-              <span className="px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 text-xs font-bold uppercase tracking-wider">
+              <span className="px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 text-xs font-bold uppercase tracking-wider">
                 Question {currentIdx + 1}
               </span>
-              <span className="text-sm text-zinc-500">{currentQ.topic}</span>
+              <span className="text-sm text-slate-500 font-medium">{currentQ.topic}</span>
             </div>
 
-            <p className="text-lg md:text-2xl text-zinc-100 whitespace-pre-wrap leading-relaxed mb-10">
+            <p className="text-lg md:text-2xl text-slate-900 font-medium whitespace-pre-wrap leading-relaxed mb-10">
               {currentQ.question}
             </p>
 
@@ -192,17 +224,17 @@ export default function TestInterface() {
                   key={i}
                   onClick={() => handleAnswerChange(i)}
                   className={cn(
-                    "w-full flex items-center text-left p-4 rounded-xl border-2 transition-all duration-200",
+                    "w-full flex items-center text-left p-4 rounded-xl border-2 transition-all duration-200 shadow-sm",
                     answers[currentIdx] === i 
-                      ? "bg-indigo-600/10 border-indigo-500 text-white" 
-                      : "bg-zinc-900/50 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-700"
+                      ? "bg-indigo-50 border-indigo-500 text-indigo-900" 
+                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                   )}
                 >
                   <div className={cn(
                     "w-8 h-8 rounded flex items-center justify-center font-bold text-sm mr-4 transition-colors",
                     answers[currentIdx] === i 
                       ? "bg-indigo-600 text-white" 
-                      : "bg-zinc-800 text-zinc-400"
+                      : "bg-slate-100 text-slate-500 border border-slate-200"
                   )}>
                     {String.fromCharCode(65 + i)}
                   </div>
@@ -212,11 +244,11 @@ export default function TestInterface() {
             </div>
 
             {/* Bottom Navigation */}
-            <div className="flex flex-wrap items-center justify-between gap-4 mt-12 pt-6 border-t border-zinc-800">
+            <div className="flex flex-wrap items-center justify-between gap-4 mt-12 pt-6 border-t border-slate-200">
               <div className="flex gap-3">
                 <Button
                   variant="outline"
-                  className="bg-zinc-900 border-zinc-700 text-white hover:bg-zinc-800 h-12 px-6"
+                  className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50 h-12 px-6"
                   onClick={() => goToQuestion(Math.max(0, currentIdx - 1))}
                   disabled={currentIdx === 0}
                 >
@@ -224,7 +256,7 @@ export default function TestInterface() {
                 </Button>
                 <Button
                   variant="outline"
-                  className="bg-zinc-900 border-zinc-700 text-white hover:bg-zinc-800 h-12 px-6"
+                  className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50 h-12 px-6"
                   onClick={() => goToQuestion(Math.min(totalQ - 1, currentIdx + 1))}
                   disabled={currentIdx === totalQ - 1}
                 >
@@ -237,10 +269,10 @@ export default function TestInterface() {
                   variant="outline"
                   onClick={toggleMarkForReview}
                   className={cn(
-                    "h-12 px-6 border-zinc-700 transition-colors",
+                    "h-12 px-6 border-slate-300 transition-colors",
                     markedForReview[currentIdx] 
-                      ? "bg-yellow-500/10 border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/20" 
-                      : "bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800"
+                      ? "bg-yellow-50 border-yellow-300 text-yellow-700 hover:bg-yellow-100" 
+                      : "bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                   )}
                 >
                   <Star className={cn("w-4 h-4 mr-2", markedForReview[currentIdx] && "fill-current")} />
@@ -259,24 +291,24 @@ export default function TestInterface() {
         </div>
 
         {/* Right: Question Palette */}
-        <div className="w-full xl:w-80 border-t xl:border-t-0 xl:border-l border-zinc-800 bg-zinc-950/50 p-6 overflow-y-auto hidden md:block">
-          <div className="flex items-center gap-2 mb-6 text-white font-bold">
-            <LayoutGrid className="w-5 h-5 text-indigo-400" />
+        <div className="w-full xl:w-80 border-t xl:border-t-0 xl:border-l border-slate-200 bg-white p-6 overflow-y-auto hidden md:block shadow-sm">
+          <div className="flex items-center gap-2 mb-6 text-slate-800 font-bold">
+            <LayoutGrid className="w-5 h-5 text-indigo-600" />
             Question Palette
           </div>
 
-          <div className="space-y-3 mb-8 text-xs text-zinc-400 bg-zinc-900/50 p-4 rounded-xl border border-zinc-800">
-            <div className="flex items-center gap-3">
+          <div className="space-y-3 mb-8 text-xs text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-3 font-medium">
               <div className="w-4 h-4 rounded bg-indigo-600" /> Answered
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-4 h-4 rounded bg-yellow-500" /> Marked for Review
+            <div className="flex items-center gap-3 font-medium">
+              <div className="w-4 h-4 rounded bg-yellow-100 border border-yellow-300" /> Marked for Review
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-4 h-4 rounded bg-zinc-900 border-2 border-white" /> Visited, Not Answered
+            <div className="flex items-center gap-3 font-medium">
+              <div className="w-4 h-4 rounded bg-slate-100 border-2 border-slate-300" /> Visited, Not Answered
             </div>
-            <div className="flex items-center gap-3">
-              <div className="w-4 h-4 rounded bg-zinc-800" /> Not Visited
+            <div className="flex items-center gap-3 font-medium">
+              <div className="w-4 h-4 rounded bg-white border border-slate-200" /> Not Visited
             </div>
           </div>
 
@@ -298,12 +330,12 @@ export default function TestInterface() {
       </div>
 
       <AlertDialog open={showSubmitModal} onOpenChange={setShowSubmitModal}>
-        <AlertDialogContent className="bg-zinc-950 border-zinc-800">
+        <AlertDialogContent className="bg-white border-slate-200">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription className="text-zinc-400">
+            <AlertDialogTitle className="text-slate-900">Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-600">
               {unansweredCount > 0 ? (
-                <>You have <strong className="text-white">{unansweredCount} questions unanswered</strong>. </>
+                <>You have <strong className="text-slate-900">{unansweredCount} questions unanswered</strong>. </>
               ) : (
                 <>You have answered all questions. </>
               )}
@@ -311,7 +343,7 @@ export default function TestInterface() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-transparent text-white hover:bg-zinc-800 border-zinc-700">
+            <AlertDialogCancel className="bg-white text-slate-700 hover:bg-slate-50 border-slate-300">
               Return to Test
             </AlertDialogCancel>
             <AlertDialogAction 

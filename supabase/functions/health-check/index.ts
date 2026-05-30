@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 /**
  * Health Check Endpoint
@@ -14,7 +14,7 @@ import { corsHeaders } from '../_shared/cors.ts'
  */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   const startTime = Date.now()
@@ -111,6 +111,6 @@ Deno.serve(async (req) => {
     checks
   }), {
     status: allOk ? 200 : anyError ? 503 : 200,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
   })
 })

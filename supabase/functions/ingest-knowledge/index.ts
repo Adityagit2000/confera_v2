@@ -1,10 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'npm:@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   console.log('--- ingest-knowledge: Function called ---');
@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
       ingested_count: successCount,
       total_attempted: items.length
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200,
     });
 
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
     console.error('FATAL ERROR in ingest-knowledge:', error.message);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      { status: error.message.includes('Unauthorized') ? 401 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: error.message.includes('Unauthorized') ? 401 : 500, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
   }
 })

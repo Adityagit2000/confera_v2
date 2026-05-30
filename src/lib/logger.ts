@@ -202,7 +202,7 @@ class Logger {
         await supabase.from('event_logs').insert(validRows);
       }
     } catch (e) {
-      // Don't log the logging failure to avoid recursion — just console
+      // Don't log the logging failure to avoid recursion - just console
       if (IS_DEV) console.error('[Logger] Failed to flush logs:', e);
 
       // Put entries back for next flush attempt (but cap to avoid memory leak)

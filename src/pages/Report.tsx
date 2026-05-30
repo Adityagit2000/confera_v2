@@ -6,13 +6,12 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
-import { 
+import {
   ArrowLeft, 
   MessageSquare, 
   Code,
   CheckCircle2,
   AlertTriangle,
-  Loader2,
   Users,
   Target,
   Zap,
@@ -25,6 +24,7 @@ import {
   Activity
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { ReportSkeleton } from '@/components/ReportSkeleton';
 
 
 const Report = () => {
@@ -40,49 +40,14 @@ const Report = () => {
   const [hasFetched, setHasFetched] = useState(false);
 
   useEffect(() => {
-    if (!sessionId || !user?.id || hasFetched) return;
+    if (!sessionId || !user?.id) return;
+    
     let cancelled = false;
-    setHasFetched(true);
+    let pollTimeout: NodeJS.Timeout | null = null;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 60; // 3 minutes max (60 * 3s)
 
-    fetchReportData();
-
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, user?.id]);
-
-  const fetchReportData = async () => {
-    try {
-      const { data: session, error: sessError } = await supabase
-        .from('interview_sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .single();
-
-      if (sessError) throw sessError;
-      setSessionData(session);
-
-      const { data: report, error: repError } = await supabase
-        .from('feedback_reports')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (repError && repError.code !== 'PGRST116') {
-         throw repError;
-      }
-
-      if (report) {
-         setReportData(report);
-      } else {
-         const transcript = typeof session.transcript === 'string' ? JSON.parse(session.transcript) : session.transcript;
-         if (transcript && transcript.length > 2) {
-             await generateReport();
-         }
-      }
-
-      // Fetch per-answer coaching data
+    const fetchAnswerCoaching = async () => {
       try {
         const { data: answers } = await supabase
           .from('interview_answers')
@@ -90,7 +55,7 @@ const Report = () => {
           .eq('session_id', sessionId)
           .order('created_at', { ascending: true });
 
-        if (answers) {
+        if (answers && !cancelled) {
           const coachingRows = answers
             .filter(a => a.tags && (a.tags as any).coaching)
             .map(a => ({
@@ -103,38 +68,78 @@ const Report = () => {
       } catch (coachErr) {
         console.warn('Failed to load per-answer coaching:', coachErr);
       }
-    } catch (error: any) {
-      console.error('Error loading report:', error);
-      toast({ title: "Error", description: "Failed to load report", variant: "destructive" });
-      navigate('/dashboard');
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  const generateReport = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.functions.invoke('generate-feedback', {
-        body: { sessionId }
-      });
-      if (error) throw error;
-      
-      const { data: report } = await supabase
-        .from('feedback_reports')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-        
-      if (report) setReportData(report);
-    } catch (error: any) {
-      toast({ title: "Error generating report", description: error.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
+    const pollReportData = async () => {
+      try {
+        const { data: session, error: sessError } = await supabase
+          .from('interview_sessions')
+          .select('*')
+          .eq('id', sessionId)
+          .single();
+
+        if (sessError) throw sessError;
+        if (!cancelled) setSessionData(session);
+
+        const { data: report, error: repError } = await supabase
+          .from('feedback_reports')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (repError && repError.code !== 'PGRST116') {
+           throw repError;
+        }
+
+        if (report) {
+           if (!cancelled) {
+             setReportData(report);
+             await fetchAnswerCoaching();
+             setLoading(false);
+           }
+        } else {
+           attempts++;
+           if (attempts >= MAX_ATTEMPTS) {
+             if (!cancelled) {
+               setLoading(false);
+               toast({ title: "Timeout", description: "Report generation timed out.", variant: "destructive" });
+             }
+             return;
+           }
+
+           if (attempts === 1) {
+             const transcript = typeof session.transcript === 'string' ? JSON.parse(session.transcript) : session.transcript;
+             if (transcript && transcript.length > 2) {
+                 supabase.functions.invoke('generate-feedback', { body: { sessionId } }).catch(console.error);
+             } else {
+                 if (!cancelled) setLoading(false);
+                 return;
+             }
+           }
+
+           if (!cancelled) {
+             pollTimeout = setTimeout(pollReportData, 3000);
+           }
+        }
+      } catch (error: any) {
+        console.error('Error loading report:', error);
+        if (!cancelled) {
+          toast({ title: "Error", description: "Failed to load report", variant: "destructive" });
+          navigate('/dashboard');
+        }
+      }
+    };
+
+    pollReportData();
+
+    return () => { 
+      cancelled = true; 
+      if (pollTimeout) clearTimeout(pollTimeout);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, user?.id]);
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return { text: 'text-success', bg: 'bg-success/10', border: 'border-success/20', stroke: 'stroke-success' };
@@ -152,15 +157,7 @@ const Report = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex flex-col items-center justify-center text-foreground">
-        <Loader2 className="w-12 h-12 animate-spin text-primary mb-6 shadow-glow" /> 
-        <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
-          Analyzing Performance
-        </h2>
-        <p className="text-muted-foreground mt-2 animate-pulse">Generating your comprehensive feedback report...</p>
-      </div>
-    );
+    return <ReportSkeleton />;
   }
 
   if (!reportData) {

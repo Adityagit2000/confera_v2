@@ -33,7 +33,7 @@ const limitWords = (text: string, maxWords: number = 250) => {
 let totalScraped = 0;
 let totalStored = 0;
 const failedUrls: string[] = [];
-let scrapedItems: any[] = [];
+const scrapedItems: any[] = [];
 
 // ==========================================
 // 1. IndiaBix Scraper (Quantitative Aptitude)

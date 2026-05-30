@@ -1,5 +1,5 @@
 /**
- * useVoiceSynthesis — Production-grade TTS hook for Confera
+ * useVoiceSynthesis - Production-grade TTS hook for Confera
  * 
  * Improvements:
  * - Async voice loading: waits for voiceschanged event before speaking
@@ -12,7 +12,7 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
 import { detectBrowser } from '@/lib/voiceDiagnostics'
 
-const CHROME_MAX_UTTERANCE_LENGTH = 180 // chars — stay under Chrome's ~15s limit
+const CHROME_MAX_UTTERANCE_LENGTH = 180 // chars - stay under Chrome's ~15s limit
 const SPEAK_TIMEOUT_MS = 3000
 
 function splitTextIntoChunks(text: string, maxLength: number): string[] {
@@ -238,7 +238,7 @@ export function useVoiceSynthesis() {
       // Safety timeout: if onstart doesn't fire within 3 seconds, retry once
       speakTimeoutRef.current = setTimeout(() => {
         if (currentUtteranceRef.current && !isSpeaking) {
-          console.warn('[VoiceSynthesis] Speak timeout — retrying')
+          console.warn('[VoiceSynthesis] Speak timeout - retrying')
           window.speechSynthesis.cancel()
           setTimeout(() => {
             if (cleanupRef.current) return

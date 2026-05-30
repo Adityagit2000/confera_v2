@@ -16,6 +16,8 @@ import {
 import ResumeUpload from '@/components/ResumeUpload';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 const STEPS = [
   { id: 1, title: 'Primary Goal' },
@@ -38,16 +40,37 @@ const Onboarding = () => {
   
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < 5) {
       setCurrentStep(prev => prev + 1);
     } else {
-      toast({
-        title: "Simulation Initialized",
-        description: "Your neural profile has been synchronized. Welcome to Confera.",
-      });
-      navigate('/dashboard');
+      if (!user) return;
+      setIsSubmitting(true);
+      try {
+        const targetDate = formData.interviewDate ? new Date(formData.interviewDate).toISOString() : null;
+        const { error } = await supabase
+          .from('profiles')
+          .update({ 
+             target_interview_date: targetDate,
+             // Could also save other onboarding fields here if there were columns for them
+          })
+          .eq('id', user.id);
+          
+        if (error) throw error;
+
+        toast({
+          title: "Simulation Initialized",
+          description: "Your neural profile has been synchronized. Welcome to Confera.",
+        });
+        navigate('/dashboard');
+      } catch (err: any) {
+        toast({ title: "Error saving profile", description: err.message, variant: "destructive" });
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -271,10 +294,10 @@ const Onboarding = () => {
                 
                 <Button
                   onClick={handleNext}
-                  disabled={!isStepValid()}
+                  disabled={!isStepValid() || isSubmitting}
                   className="h-12 sm:h-20 px-6 sm:px-16 rounded-full bg-primary text-black hover:bg-primary/90 text-xs sm:text-sm font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] shadow-glow flex-1 md:flex-none active:scale-95 transition-all disabled:opacity-20"
                 >
-                  {currentStep === 5 ? "Initialize Core" : "Next Protocol"} <ChevronRight className="ml-3 w-5 h-5" />
+                  {isSubmitting ? "Initializing..." : (currentStep === 5 ? "Initialize Core" : "Next Protocol")} <ChevronRight className="ml-3 w-5 h-5" />
                 </Button>
               </div>
             </motion.div>

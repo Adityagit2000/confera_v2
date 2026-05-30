@@ -1,15 +1,15 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { authenticateRequest } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   try {
     // Authenticate request
-    const auth = await authenticateRequest(req, corsHeaders)
+    const auth = await authenticateRequest(req, getCorsHeaders(req.headers.get('origin')))
     if ('response' in auth) return auth.response
     const { user, supabase } = auth
 
@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     // Verify the session belongs to the authenticated user
     if (session.user_id !== user.id) {
       return new Response(JSON.stringify({ error: 'Forbidden: session does not belong to this user' }), {
-        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        status: 403, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       })
     }
 
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
         error: 'Interview limit reached', 
         details: 'You have used your 5 free interviews for this month. Upgrade to Pro for unlimited access.' 
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
         status: 403,
       })
     }
@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       sessionId,
       job_role: job_role || session.job_role
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200,
     })
 
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
       }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       }
     )
   }

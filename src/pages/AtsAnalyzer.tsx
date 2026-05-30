@@ -74,7 +74,7 @@ const AtsAnalyzer = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const { isPro, canAnalyzeResume, refetch: refetchSubscription } = useSubscription();
 
-  // Load existing analysis on mount — stable dep: user?.id only
+  // Load existing analysis on mount - stable dep: user?.id only
   useEffect(() => {
     if (!user?.id || hasFetched) {
       if (!user?.id) setInitialLoading(false);
@@ -124,7 +124,7 @@ const AtsAnalyzer = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // Re-fetch helper — only used by handleAnalyze fallback, NOT by the mount effect
+  // Re-fetch helper - only used by handleAnalyze fallback, NOT by the mount effect
   const refetchAnalysis = async () => {
     try {
       setInitialLoading(true);
@@ -194,9 +194,12 @@ const AtsAnalyzer = () => {
         fullText += pageText + '\n\n';
       }
       return fullText;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error extracting text from PDF:', error);
-      throw new Error('Could not read the PDF file.');
+      if (error?.name === 'PasswordException' || error?.message?.toLowerCase().includes('password')) {
+        throw new Error('This PDF is password protected. Please unlock it and try again.');
+      }
+      throw new Error('Could not read the PDF file. It might be corrupted or not a valid text PDF.');
     }
   };
 
@@ -216,7 +219,13 @@ const AtsAnalyzer = () => {
         body: { resumeText: text, userId: user.id, jobRole }
       });
 
-      if (error) throw new Error(error.message || 'Failed to analyze resume.');
+      if (error) {
+        throw new Error(
+          error.message?.includes('500') || error.message?.includes('non-2xx') 
+            ? 'The analysis server is currently overloaded or encountered an error. Please try again.'
+            : error.message || 'Failed to analyze resume.'
+        );
+      }
 
       // Fix 4: Use returned data directly instead of refetching
       if (data && data.parsed_data) {
@@ -243,7 +252,12 @@ const AtsAnalyzer = () => {
       });
       refetchSubscription();
     } catch (error: any) {
-      toast({ title: "Analysis failed", description: error.message, variant: "destructive" });
+      toast({ 
+        title: "Analysis failed", 
+        description: error.message || "An unexpected error occurred. Please try again later.", 
+        variant: "destructive",
+        duration: 5000 
+      });
     } finally {
       setLoading(false);
     }

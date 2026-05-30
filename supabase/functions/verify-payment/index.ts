@@ -1,21 +1,21 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 
   const authHeader = req.headers.get('Authorization')
-  if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } })
   
   const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey)
   const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(authHeader.replace('Bearer ', ''))
-  if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+  if (authError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } })
 
   console.log('--- verify-payment: Function called ---');
 
@@ -56,14 +56,14 @@ Deno.serve(async (req) => {
 
       if (expectedSignature !== webhookSignature) {
         console.error('Webhook signature mismatch!');
-        return new Response(JSON.stringify({ error: 'Invalid webhook signature' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        return new Response(JSON.stringify({ error: 'Invalid webhook signature' }), { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } });
       }
       
       console.log('Webhook signature valid.');
       // Webhook payload usually has event type like payment.captured.
       // We can return success, but we won't process the complex webhook logic here 
       // since the prompt asked for webhook signature verification but the rest of the file relies on frontend payload.
-      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      return new Response(JSON.stringify({ success: true }), { headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } });
     }
 
     // Otherwise, process as frontend callback
@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
       amount
     } = await req.json();
 
-    if (user.id !== userId) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    if (user.id !== userId) return new Response(JSON.stringify({ error: 'Forbidden' }), { status: 403, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } })
 
     console.log(`Verifying payment - Order: ${razorpay_order_id}, User: ${userId}, Plan: ${plan}`);
 
@@ -113,7 +113,7 @@ Deno.serve(async (req) => {
       console.error('Signature mismatch!', { expected: expectedSignature, received: razorpay_signature });
       return new Response(
         JSON.stringify({ error: 'Payment verification failed - invalid signature' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -149,8 +149,8 @@ Deno.serve(async (req) => {
 
     // Ensure amount matches the plan and billing cycle
     const expectedAmounts: Record<string, number> = {
-      pro_monthly: 79900,
-      pro_yearly: 499900
+      pro_monthly: 199900,
+      pro_yearly: 1999900
     };
     const amountKey = `${plan}_${billingCycle}`;
     const expectedAmount = expectedAmounts[amountKey];
@@ -288,14 +288,14 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true, message: 'Payment verified and plan upgraded' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
 
   } catch (err: any) {
     console.error('Edge Function Catch Block:', err.message);
     return new Response(
       JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
   }
 });

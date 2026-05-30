@@ -1,8 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'npm:@supabase/supabase-js@2.38.4'
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
+import { checkRateLimit, rateLimitResponse } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'))
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -11,6 +13,11 @@ Deno.serve(async (req) => {
     const { email, code } = await req.json()
     if (!email || !code) {
       return new Response(JSON.stringify({ error: 'Email and code are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
+    // Rate limiting: 10 attempts per minute per email per isolate
+    if (!checkRateLimit(`verify-otp-${email}`, 10, 60_000)) {
+      return rateLimitResponse(corsHeaders)
     }
 
     const supabaseAdmin = createClient(
@@ -37,7 +44,7 @@ Deno.serve(async (req) => {
 
     if (fetchError) throw fetchError
     if (!otpRecords || otpRecords.length === 0) {
-      return new Response(JSON.stringify({ error: 'Invalid or expired code' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'Invalid or expired code' }), { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } })
     }
 
     const otpId = otpRecords[0].id
@@ -96,14 +103,14 @@ Deno.serve(async (req) => {
     if (signInError) throw signInError
 
     return new Response(JSON.stringify({ session: signInData.session }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200,
     })
 
   } catch (error: any) {
     console.error('Verify OTP Error:', error)
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 500,
     })
   }

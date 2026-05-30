@@ -23,7 +23,10 @@ const StatsCard = ({ label, value, icon: Icon, subInfo, trend, color = 'primary'
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-[#141414] border border-[#2A2A2A] rounded-3xl p-6 relative overflow-hidden group hover:border-[#444] transition-all duration-300"
+      whileHover={{ y: -4, scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+      className="bg-[#141414] border border-[#2A2A2A] rounded-3xl p-6 relative overflow-hidden group hover:border-[#444]"
     >
       {/* Background Glow */}
       <div className={cn(

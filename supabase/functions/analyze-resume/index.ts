@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
 import { authenticateRequest } from '../_shared/request-context.ts'
 
@@ -15,7 +15,7 @@ function makeErrorResponse(message: string, status: number, details?: string) {
     }),
     {
       status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
     }
   )
 }
@@ -53,13 +53,13 @@ const sanitizeJobRole = (role: string): string => {
 Deno.serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   console.log('--- analyze-resume: Function started ---')
 
   // ─── Step 0: Authenticate request ────────────────────────────────────────
-  const auth = await authenticateRequest(req, corsHeaders)
+  const auth = await authenticateRequest(req, getCorsHeaders(req.headers.get('origin')))
   if ('response' in auth) return auth.response
   const { user, supabase: supabaseAdmin } = auth
 
@@ -158,7 +158,7 @@ Deno.serve(async (req) => {
         error: 'Resume analysis limit reached',
         details: 'You have used your 2 free resume analyses for this month. Upgrade to Pro for unlimited access.'
       }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
         status: 403,
       })
     }
@@ -404,7 +404,7 @@ Deno.serve(async (req) => {
     keywords_missing: parsed.ats_improvements?.map((imp: string) => ({ keyword: imp, importance: 8 })) || [],
     message: `Analysis complete. ATS Score: ${parsed.ats_score}%`
   }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
     status: 200,
   })
 })

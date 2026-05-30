@@ -1,13 +1,22 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req.headers.get('origin'))
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
+    const authHeader = req.headers.get('Authorization')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    if (authHeader !== `Bearer ${supabaseServiceKey}`) {
+      return new Response(JSON.stringify({ error: 'Unauthorized: Service Role required' }), { 
+        status: 401, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
@@ -88,7 +97,7 @@ Deno.serve(async (req) => {
       if (dates.includes(yesterdayStr)) {
         // They are at risk! Let's calculate the streak count going backward from yesterday
         let streakCount = 0
-        let checkDate = new Date(yesterday)
+        const checkDate = new Date(yesterday)
         
         while (true) {
           const checkDateStr = checkDate.toISOString().split('T')[0]
@@ -151,14 +160,14 @@ Deno.serve(async (req) => {
       details: results
     }), {
       status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
     })
 
   } catch (error: any) {
     console.error('Error in send-streak-reminders function:', error)
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
     })
   }
 })

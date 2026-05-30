@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import BackButton from '@/components/BackButton';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,8 @@ const Auth = () => {
   
   const { sendOtp, verifyOtp, resendOtp, signIn, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || '/';
   const { toast } = useToast();
 
   useEffect(() => {
@@ -38,9 +40,9 @@ const Auth = () => {
 
   useEffect(() => {
     if (user) {
-      navigate('/');
+      navigate(from, { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, from]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +68,7 @@ const Auth = () => {
     const { error } = await signIn(email, password);
     
     if (!error) {
-      navigate('/');
+      navigate(from, { replace: true });
     }
     setLoading(false);
   };
@@ -78,7 +80,7 @@ const Auth = () => {
     const { error } = await verifyOtp(email, otp);
     
     if (!error) {
-      navigate('/');
+      navigate(from, { replace: true });
     }
     // If there is an error, useAuth already shows a toast
     setLoading(false);
@@ -156,7 +158,7 @@ const Auth = () => {
                     try {
                       const { error } = await supabase.auth.signInWithOAuth({
                         provider: 'google',
-                        options: { redirectTo: `${window.location.origin}/` }
+                        options: { redirectTo: `${window.location.origin}${from === '/' ? '' : from}` }
                       });
                       if (error) throw error;
                     } catch (err: any) {

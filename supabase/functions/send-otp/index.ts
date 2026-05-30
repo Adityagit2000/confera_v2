@@ -1,16 +1,16 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from 'npm:@supabase/supabase-js@2.38.4'
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   try {
     const { email } = await req.json()
     if (!email) {
-      return new Response(JSON.stringify({ error: 'Email is required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'Email is required' }), { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } })
     }
 
     const supabaseAdmin = createClient(
@@ -31,12 +31,14 @@ Deno.serve(async (req) => {
     if (recentAttempts !== null && recentAttempts >= 3) {
       return new Response(JSON.stringify({ error: 'Too many attempts, please try again later' }), {
         status: 429,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       })
     }
 
-    // Generate 6 digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString()
+    // Generate 6 digit code securely
+    const randomBuffer = new Uint32Array(1)
+    crypto.getRandomValues(randomBuffer)
+    const code = (100000 + (randomBuffer[0] % 900000)).toString()
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString() // 5 minutes
 
     const { error: dbError } = await supabaseAdmin
@@ -80,13 +82,13 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (error: any) {
     console.error('Send OTP Error:', error)
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 500,
     })
   }

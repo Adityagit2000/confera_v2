@@ -1,12 +1,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { callAiWithFallback } from '../_shared/ai-service.ts'
 import { getEmbedding } from '../_shared/embedding-service.ts'
 import { createRequestContext, createLogger, sanitizeError, sanitizeInput, detectPromptInjection, authenticateRequest, checkRateLimit, rateLimitResponse } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   const ctx = createRequestContext('ai-interview-chat')
@@ -15,7 +15,7 @@ Deno.serve(async (req) => {
   try {
     // Step 1: Authenticate request
     log.step(1, 'Authenticating request')
-    const auth = await authenticateRequest(req, corsHeaders)
+    const auth = await authenticateRequest(req, getCorsHeaders(req.headers.get('origin')))
     if ('response' in auth) return auth.response
     const { user, supabase } = auth
     ctx.userId = user.id
@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     // Rate limit: max 30 chat messages per minute per user
     if (!checkRateLimit(`chat:${user.id}`, 30, 60_000)) {
       log.warn('Rate limit exceeded', user.id)
-      return rateLimitResponse(corsHeaders)
+      return rateLimitResponse(getCorsHeaders(req.headers.get('origin')))
     }
 
     // Step 2: Parse and validate request
@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     if (!sessionId) {
       return new Response(
         JSON.stringify({ success: false, error: 'sessionId is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       log.error('Session not found', sessionError)
       return new Response(
         JSON.stringify({ success: false, error: `Session not found: ${sessionId}` }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 404, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
         success: true,
         response: firstMsg 
        }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
         status: 200,
       });
     }
@@ -291,9 +291,11 @@ ${alreadyAskedContext}
     return openerAlreadyIncluded ? recent : [opener, ...recent]
   })()
 
-    let conversationStr = windowedTranscript.map((m: any) => `${m.role === 'user' ? 'Candidate' : 'Interviewer'}: ${m.content}`).join('\n');
+    const conversationStr = windowedTranscript.map((m: any) => `${m.role === 'user' ? 'Candidate' : 'Interviewer'}: ${m.content}`).join('\n');
     
-    let evaluationPrompt = `
+    const maxQ = sanitizedType === 'quick_practice' ? 3 : 10;
+    
+    const evaluationPrompt = `
     Based on the following conversation and the candidate's latest answer, provide the next interviewer response.
     
     Current Conversation History:
@@ -305,7 +307,7 @@ ${alreadyAskedContext}
     Task: 
     1. Acknowledge their response briefly.
     2. If not finished (current question count is ${questionIndex}), ask the next relevant question for ${sanitizedType} based on YOUR ROLE and THE LENS. Focus heavily on probing their 'Weak Areas to probe' if any are listed in the CONTEXT.
-    3. If 10 or more questions have been asked, conclude the interview.
+    3. If ${maxQ} or more questions have been asked, conclude the interview.
     
     Respond with ONLY the text of the interviewer's next response (concise, professional). No JSON, no markdown tags.
     `;
@@ -383,7 +385,7 @@ ${alreadyAskedContext}
       response: nextResponseText,
       is_complete: isFinalAnswer
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200,
     });
 
@@ -398,7 +400,7 @@ ${alreadyAskedContext}
       }),
       { 
         status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } 
       }
     );
   }

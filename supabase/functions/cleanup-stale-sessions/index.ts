@@ -1,17 +1,25 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { authenticateRequest } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   try {
-    // Authenticate request
-    const auth = await authenticateRequest(req, corsHeaders)
-    if ('response' in auth) return auth.response
-    const { supabase } = auth
+    // Authenticate request (Admin Only)
+    const authHeader = req.headers.get('Authorization')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    if (!supabaseServiceKey || authHeader !== `Bearer ${supabaseServiceKey}`) {
+      return new Response(JSON.stringify({ error: 'Unauthorized: Service Role required' }), { 
+        status: 401, 
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+      })
+    }
+    const { createClient } = await import('npm:@supabase/supabase-js@2')
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const twoHoursAgo = new Date(
       Date.now() - 2 * 60 * 60 * 1000
@@ -28,7 +36,7 @@ Deno.serve(async (req) => {
     if (!staleSessions || staleSessions.length === 0) {
       return new Response(
         JSON.stringify({ success: true, cleaned: 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -62,7 +70,7 @@ Deno.serve(async (req) => {
         success: true, 
         cleaned: staleSessions.length 
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     )
 
   } catch (error: any) {
@@ -70,7 +78,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: false, error: error.message }),
       { 
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } 
       }
     )
   }

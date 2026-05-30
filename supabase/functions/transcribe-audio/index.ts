@@ -1,21 +1,21 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { authenticateRequest, checkRateLimit, rateLimitResponse } from '../_shared/request-context.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) })
   }
 
   try {
     // Authenticate request — prevents unauthorized callers from burning Groq credits
-    const auth = await authenticateRequest(req, corsHeaders)
+    const auth = await authenticateRequest(req, getCorsHeaders(req.headers.get('origin')))
     if ('response' in auth) return auth.response
     const { user } = auth
 
     // Rate limit: max 20 transcriptions per minute per user
     if (!checkRateLimit(`transcribe:${user.id}`, 20, 60_000)) {
-      return rateLimitResponse(corsHeaders)
+      return rateLimitResponse(getCorsHeaders(req.headers.get('origin')))
     }
 
     const { audio, mimeType } = await req.json()
@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
     if (!audio) {
       return new Response(
         JSON.stringify({ error: 'audio is required', success: false }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     if (audio.length > 25 * 1024 * 1024) {
       return new Response(
         JSON.stringify({ error: 'Audio payload too large (max 25MB)', success: false }),
-        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 413, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       )
     }
 
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
           transcript: data.text?.trim() || '',
           success: true 
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
       )
     } finally {
       clearTimeout(timeout)
@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
       JSON.stringify({ error: message, success: false }),
       {
         status,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       }
     )
   }

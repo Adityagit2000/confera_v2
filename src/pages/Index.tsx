@@ -94,7 +94,7 @@ export default function Index() {
                     onClick={handleStartMockInterview}
                     className="h-14 px-8 bg-primary hover:bg-primary-glow text-primary-foreground font-semibold text-lg shadow-glow transition-all rounded-full"
                   >
-                    Start Free — 5 interviews
+                    Start Free - 5 interviews
                     <ChevronRight className="ml-2 w-5 h-5" />
                   </Button>
                   <Button 
@@ -165,7 +165,7 @@ export default function Index() {
         </section>
 
         {/* 2. SOCIAL PROOF */}
-        <section className="py-10 border-y border-white/5 bg-white/[0.02]">
+        <section className="py-24 border-y border-white/5 bg-white/[0.02]">
           <div className="container mx-auto px-6">
             <p className="text-center text-sm font-semibold tracking-widest uppercase text-white/40 mb-6">
               Join 10,000+ students already preparing from
@@ -366,7 +366,7 @@ export default function Index() {
       </main>
 
       {/* 8. FOOTER */}
-      <footer className="py-12 border-t border-white/5 bg-[#0a0a0f]">
+      <footer className="py-24 border-t border-white/5 bg-[#0a0a0f]">
         <div className="container mx-auto px-6 text-center md:text-left grid md:grid-cols-2 gap-8 items-center">
           <div>
             <div className="flex items-center justify-center md:justify-start space-x-2 mb-4 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
