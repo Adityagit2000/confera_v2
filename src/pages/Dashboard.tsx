@@ -29,6 +29,7 @@ import {
   X,
   BookOpen,
   Sparkles,
+  RefreshCw,
   Clock,
   GraduationCap,
   Award
