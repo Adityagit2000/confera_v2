@@ -31,18 +31,18 @@ Deno.serve(async (req) => {
 
     let subTopics = '';
     if (jobRole === 'Data Engineering & Analytics') {
-      subTopics = '\nCRITICAL FOCUS: Ensure the technical questions heavily test SQL, PySpark, Python Data Pipelines, Data Warehousing, and scalable data processing patterns.';
+      subTopics = '\nCRITICAL FOCUS: Ensure the technical questions heavily test Advanced SQL (Window functions, CTEs), PySpark (Dataframes vs RDDs, transformations), Data Warehousing (Star vs Snowflake schema), and ETL/ELT pipelines.';
     } else if (jobRole === 'Generative AI & Machine Learning Engineering') {
-      subTopics = '\nCRITICAL FOCUS: Ensure the technical questions heavily test LLMs, RAG architectures, prompt engineering, Core ML algorithms, and MLOps best practices.';
+      subTopics = '\nCRITICAL FOCUS: Ensure the technical questions heavily test LLM Architecture (Attention mechanism, Tokenization), RAG (Vector DBs, Embeddings), MLOps (Model monitoring, Deployment), and Model Evaluation (Precision, Recall, F1, ROC-AUC).';
     } else if (jobRole === 'Advanced Full-Stack & System Design') {
-      subTopics = '\nCRITICAL FOCUS: Ensure the technical questions heavily test Scalable Architectures, React advanced concepts, Node.js performance, microservices, and API Integration patterns.';
+      subTopics = '\nCRITICAL FOCUS: Ensure the technical questions heavily test System Design (Load balancing, Caching, Sharding), Advanced React (Hooks, Performance optimization), Node.js (Event loop, Streams), and API Design (REST vs GraphQL).';
     }
 
     const prompt = `You are an Expert Technical Examiner. Generate a strict 20-question Multiple Choice Question (MCQ) assessment for the following job role/branch: "${jobRole}".${subTopics}
 
 Distribution:
 - 5 Aptitude & Logical Reasoning questions (Universal).
-- 15 Core Technical questions strictly tailored to "${jobRole}". 
+- 15 Core Technical questions strictly tailored to "${jobRole}". Ensure these are ORIGINAL, HIGH-QUALITY, and EXPERT-LEVEL questions.
 
 Rules:
 1. The technical questions MUST directly test the skills required for ${jobRole}. If it is a software role, include code snippets or architectural questions. If it is a core engineering role (Mechanical/Civil), test physics, materials, and domain-specific theorems. If it is business/finance, test case logic and formulas.

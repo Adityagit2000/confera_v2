@@ -5,8 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Award, Clock, FileText, ArrowRight, Loader2 } from 'lucide-react';
-import BackButton from '@/components/BackButton';
+import { Award, Clock, FileText, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const CERTIFICATION_TRACKS = [
@@ -90,18 +89,45 @@ const Certifications = () => {
       
       navigate(`/assessment-room/${data.assessmentId}`);
     } catch (err: any) {
-      toast({
-        title: "Generation Failed",
-        description: err.message || "Failed to start certification.",
-        variant: "destructive"
-      });
+      const msg = err.message || "";
+      if (msg.toLowerCase().includes('limit') || msg.toLowerCase().includes('upgrade') || msg.toLowerCase().includes('tier')) {
+        toast({
+          title: "Limit Reached",
+          description: "You've used all your free assessments. Please upgrade to Pro.",
+          variant: "destructive"
+        });
+        navigate('/pricing');
+      } else {
+        toast({
+          title: "Generation Failed",
+          description: msg || "Failed to start certification.",
+          variant: "destructive"
+        });
+      }
       setStartingTrackId(null);
     }
   };
 
+  if (startingTrackId) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+        <div className="w-24 h-24 bg-primary/10 rounded-full flex items-center justify-center mb-6 relative">
+          <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+          <Loader2 className="w-12 h-12 text-primary animate-spin" />
+        </div>
+        <h2 className="text-2xl font-bold text-foreground mb-3 text-center">AI is assembling your certification exam...</h2>
+        <p className="text-muted-foreground text-center">This may take a few seconds to generate original questions.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background py-10 px-4 sm:px-6 relative">
-      <BackButton />
+      <div className="absolute top-6 left-6 z-10">
+        <Button variant="ghost" onClick={() => navigate('/dashboard')} className="text-muted-foreground hover:text-foreground">
+          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+        </Button>
+      </div>
       
       <div className="max-w-6xl mx-auto space-y-12 mt-12">
         <div className="text-center">

@@ -65,17 +65,8 @@ const AssessmentRoom = () => {
         if (qError || !qData) throw new Error("Questions not found");
         setQuestions(qData);
         
-        // Timer calculation
-        const startedAt = new Date(assessment.started_at).getTime();
-        const now = Date.now();
-        const elapsedSeconds = Math.floor((now - startedAt) / 1000);
-        const remaining = (assessment.duration_minutes * 60) - elapsedSeconds;
-        
-        if (remaining <= 0) {
-          handleSubmit(qData);
-        } else {
-          setTimeLeft(remaining);
-        }
+        // Timer calculation - starts exactly when questions are displayed
+        setTimeLeft(assessment.duration_minutes * 60);
       } catch (err: any) {
         toast({ title: "Error", description: err.message, variant: "destructive" });
         navigate('/dashboard');
@@ -178,8 +169,16 @@ const AssessmentRoom = () => {
               <p className="text-muted-foreground">Review your weak areas in the Reports tab and try again.</p>
             )}
             {result.certificateHash && (
-              <div className="mt-4 p-4 bg-muted/20 rounded-lg text-sm break-all font-mono border border-border/50">
-                Certificate ID: {result.certificateHash}
+              <div className="mt-6 flex flex-col items-center gap-4">
+                <div className="p-4 bg-muted/20 rounded-lg text-sm break-all font-mono border border-border/50 w-full text-center">
+                  Certificate ID: {result.certificateHash}
+                </div>
+                <Button 
+                  onClick={() => navigate(`/certificate/${result.certificateHash}`)}
+                  className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold shadow-lg shadow-emerald-500/20"
+                >
+                  <Award className="w-4 h-4 mr-2" /> Download Confera Verified Certificate
+                </Button>
               </div>
             )}
           </CardContent>
