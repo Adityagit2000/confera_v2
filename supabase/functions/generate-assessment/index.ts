@@ -34,20 +34,20 @@ Deno.serve(async (req) => {
       subTopics = '\nCRITICAL FOCUS: Ensure the technical questions heavily test System Design (Load balancing, Caching, Sharding), Advanced React (Hooks, Performance optimization), Node.js (Event loop, Streams), and API Design (REST vs GraphQL).';
     }
 
-    const prompt = `You are an Expert Technical Examiner. Generate a strict 20-question Multiple Choice Question (MCQ) assessment for the following job role/branch: "${jobRole}".${subTopics}
+    const prompt = `You are an Expert Technical Examiner. Generate exactly 20 highly advanced, purely technical Multiple Choice Questions for the track: "${jobRole}".${subTopics}
 
-Distribution:
-- 5 Aptitude & Logical Reasoning questions (Universal).
-- 15 Core Technical questions strictly tailored to "${jobRole}". Ensure these are ORIGINAL, HIGH-QUALITY, and EXPERT-LEVEL questions.
+Do NOT include any general aptitude, math, or logical reasoning questions. Every single question must test core domain knowledge, architecture, or coding concepts specific to ${jobRole}.
 
 Rules:
-1. The technical questions MUST directly test the skills required for ${jobRole}. If it is a software role, include code snippets or architectural questions. If it is a core engineering role (Mechanical/Civil), test physics, materials, and domain-specific theorems. If it is business/finance, test case logic and formulas.
+1. The questions MUST directly test the skills required for ${jobRole}. Include code snippets, architectural paradigms, or deep conceptual tests where appropriate.
 2. Provide 4 highly plausible options.
-3. Return ONLY a valid JSON object with a "questions" array matching this schema:
+3. Keep the "explanation" concise (maximum 1 to 2 sentences).
+4. You MUST generate exactly 20 items in the JSON array. Do not stop early. Ensure the JSON is perfectly formatted and closed.
+5. Return ONLY a valid JSON object with a "questions" array matching this schema:
 {
   "questions": [
     {
-      "category": "Aptitude" | "Technical",
+      "category": "Technical",
       "question_text": "string",
       "options": ["string", "string", "string", "string"],
       "correct_option": number (0-3),
@@ -79,7 +79,8 @@ Rules:
     }
 
     if (questions.length !== 20) {
-       console.warn(`Generated ${questions.length} questions, expected 20.`);
+      console.warn(`Generated ${questions.length} questions, expected 20. Truncation occurred.`);
+      throw new Error('AI generation truncated. Please try again.');
     }
 
     // Insert Assessment
