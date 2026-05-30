@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { corsHeaders } from '../_shared/cors.ts';
+import { callAiWithFallback } from '../_shared/ai-service.ts';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -8,11 +9,6 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  const geminiApiKey = Deno.env.get('GEMINI_API_KEY') ?? '';
-
-  if (!geminiApiKey) {
-    return new Response(JSON.stringify({ error: 'GEMINI_API_KEY is not set' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  }
 
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -56,30 +52,13 @@ Rules:
   "explanation": "string"
 }]`;
 
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          temperature: 0.2,
-          response_mime_type: "application/json"
-        }
-      })
+    const responseText = await callAiWithFallback({
+      systemPrompt: "You are an Expert Technical Examiner.",
+      userMessage: prompt,
+      temperature: 0.2,
+      responseMimeType: 'application/json',
+      timeoutMs: 30000
     });
-
-    if (!geminiRes.ok) {
-      const errorText = await geminiRes.text();
-      console.error('Gemini API Error:', errorText);
-      throw new Error('Failed to generate assessment content');
-    }
-
-    const geminiData = await geminiRes.json();
-    const responseText = geminiData.candidates[0].content.parts[0].text;
     
     let questions;
     try {
