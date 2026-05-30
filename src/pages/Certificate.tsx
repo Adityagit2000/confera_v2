@@ -98,14 +98,14 @@ export default function CertificateViewer() {
     <div className="min-h-screen bg-zinc-950 py-12 px-4 sm:px-6 lg:px-8 flex flex-col items-center print:bg-white print:py-0 print:px-0 print:min-h-0">
       
       {/* Certificate Canvas */}
-      <div className="relative w-full max-w-[1050px] aspect-[1.414/1] bg-gradient-to-br from-[#175b8e] via-[#175b8e] to-[#8eb3d5] p-4 sm:p-8 md:p-10 print:shadow-none print:p-8 print:max-w-none print:w-[297mm] print:h-[210mm] print:overflow-hidden flex flex-col shadow-2xl">
+      <div className="relative w-full max-w-[1050px] min-h-[700px] bg-gradient-to-br from-[#175b8e] via-[#175b8e] to-[#8eb3d5] p-4 sm:p-8 md:p-10 print:shadow-none print:p-8 print:max-w-none print:w-[297mm] print:h-[210mm] flex flex-col shadow-2xl">
         
         {/* Geometric Corner Cuts (to closely simulate Canva template border styling) */}
         <div className="absolute bottom-0 left-[20%] w-32 h-10 bg-[#1e669e] -skew-x-12 opacity-80 print:hidden z-0" />
         <div className="absolute bottom-0 left-[35%] w-24 h-10 bg-[#2d82c4] -skew-x-12 opacity-80 print:hidden z-0" />
 
         {/* White Inner Canvas */}
-        <div className="w-full h-full bg-[#fcfdfd] border border-gray-300 p-8 sm:p-12 md:p-16 flex flex-col items-center text-center relative z-10">
+        <div className="w-full h-full min-h-[600px] bg-[#fcfdfd] border border-gray-300 p-8 sm:p-12 md:p-16 flex flex-col items-center text-center relative z-10">
           
           <div className="flex-1 flex flex-col items-center justify-center w-full mt-4">
             

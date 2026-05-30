@@ -7,6 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import { Award, Clock, FileText, ArrowRight, Loader2, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const CERTIFICATION_TRACKS = [
   {
@@ -47,6 +57,12 @@ const Certifications = () => {
   const [loading, setLoading] = useState(true);
   const [startingTrackId, setStartingTrackId] = useState<string | null>(null);
 
+  // Modal states
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedTrack, setSelectedTrack] = useState<typeof CERTIFICATION_TRACKS[0] | null>(null);
+  const [legalName, setLegalName] = useState("");
+  const [isUpdatingName, setIsUpdatingName] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     
@@ -66,17 +82,64 @@ const Certifications = () => {
         setLoading(false);
       }
     };
+
+    const fetchProfileName = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('name')
+          .eq('id', user.id)
+          .single();
+          
+        if (data && data.name) {
+          setLegalName(data.name);
+        } else if (user.user_metadata?.full_name) {
+          setLegalName(user.user_metadata.full_name);
+        }
+      } catch (err) {
+        console.error("Error fetching profile:", err);
+      }
+    };
     
     fetchCertificates();
+    fetchProfileName();
   }, [user]);
 
-  const handleStartCertification = async (track: typeof CERTIFICATION_TRACKS[0]) => {
+  const openConfirmationModal = (track: typeof CERTIFICATION_TRACKS[0]) => {
     if (!user) return;
-    setStartingTrackId(track.id);
+    setSelectedTrack(track);
+    setIsModalOpen(true);
+  };
+
+  const handleStartCertification = async () => {
+    if (!user || !selectedTrack) return;
+    
+    if (!legalName.trim()) {
+      toast({
+        title: "Name Required",
+        description: "Please enter your full legal name for the certificate.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUpdatingName(true);
     
     try {
+      // Update the user's name in the profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ name: legalName.trim() })
+        .eq('id', user.id);
+        
+      if (profileError) throw new Error("Failed to update name: " + profileError.message);
+
+      // Close modal and show main loading state
+      setIsModalOpen(false);
+      setStartingTrackId(selectedTrack.id);
+
       const { data, error } = await supabase.functions.invoke('generate-assessment', {
-        body: { jobRole: track.title }
+        body: { jobRole: selectedTrack.title }
       });
 
       if (error) throw new Error(error.message);
@@ -84,7 +147,7 @@ const Certifications = () => {
 
       toast({
         title: "Assessment Ready",
-        description: `Starting ${track.title} certification exam.`,
+        description: `Starting ${selectedTrack.title} certification exam.`,
       });
       
       navigate(`/assessment-room/${data.assessmentId}`);
@@ -105,6 +168,8 @@ const Certifications = () => {
         });
       }
       setStartingTrackId(null);
+    } finally {
+      setIsUpdatingName(false);
     }
   };
 
@@ -181,18 +246,9 @@ const Certifications = () => {
                     <Button 
                       className="w-full bg-card hover:bg-primary hover:text-primary-foreground border border-border/50 group-hover:border-primary/50 transition-colors"
                       disabled={startingTrackId !== null}
-                      onClick={() => handleStartCertification(track)}
+                      onClick={() => openConfirmationModal(track)}
                     >
-                      {startingTrackId === track.id ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Preparing Environment...
-                        </>
-                      ) : (
-                        <>
-                          Start Certification <ArrowRight className="w-4 h-4 ml-2" />
-                        </>
-                      )}
+                      Start Certification <ArrowRight className="w-4 h-4 ml-2" />
                     </Button>
                   </CardContent>
                 </Card>
@@ -246,6 +302,44 @@ const Certifications = () => {
           )}
         </div>
       </div>
+
+      {/* Name Confirmation Modal */}
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Confirm Certificate Details</DialogTitle>
+            <DialogDescription>
+              Please enter your full legal name exactly as it should appear on your verified certificate.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="legal-name">Full Legal Name</Label>
+              <Input
+                id="legal-name"
+                value={legalName}
+                onChange={(e) => setLegalName(e.target.value)}
+                placeholder="e.g. Aditya Jha"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isUpdatingName}>
+              Cancel
+            </Button>
+            <Button onClick={handleStartCertification} disabled={isUpdatingName}>
+              {isUpdatingName ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save & Start Assessment"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
