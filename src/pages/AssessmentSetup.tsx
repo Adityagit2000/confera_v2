@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { BookOpen, BrainCircuit } from 'lucide-react';
+import { BookOpen, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const AssessmentSetup = () => {
@@ -100,7 +100,7 @@ const AssessmentSetup = () => {
             >
               {isGenerating ? (
                 <div className="flex items-center gap-2">
-                  <BrainCircuit className="w-5 h-5 animate-pulse" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                   <span>AI is assembling your custom paper...</span>
                 </div>
               ) : (

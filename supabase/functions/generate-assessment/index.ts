@@ -29,7 +29,16 @@ Deno.serve(async (req) => {
 
     console.log(`Generating assessment for: ${jobRole}, user: ${user.id}`);
 
-    const prompt = `You are an Expert Technical Examiner. Generate a strict 20-question Multiple Choice Question (MCQ) assessment for the following job role/branch: "${jobRole}".
+    let subTopics = '';
+    if (jobRole === 'Data Engineering & Analytics') {
+      subTopics = '\nCRITICAL FOCUS: Ensure the technical questions heavily test SQL, PySpark, Python Data Pipelines, Data Warehousing, and scalable data processing patterns.';
+    } else if (jobRole === 'Generative AI & Machine Learning Engineering') {
+      subTopics = '\nCRITICAL FOCUS: Ensure the technical questions heavily test LLMs, RAG architectures, prompt engineering, Core ML algorithms, and MLOps best practices.';
+    } else if (jobRole === 'Advanced Full-Stack & System Design') {
+      subTopics = '\nCRITICAL FOCUS: Ensure the technical questions heavily test Scalable Architectures, React advanced concepts, Node.js performance, microservices, and API Integration patterns.';
+    }
+
+    const prompt = `You are an Expert Technical Examiner. Generate a strict 20-question Multiple Choice Question (MCQ) assessment for the following job role/branch: "${jobRole}".${subTopics}
 
 Distribution:
 - 5 Aptitude & Logical Reasoning questions (Universal).

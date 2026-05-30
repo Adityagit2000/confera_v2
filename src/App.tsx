@@ -46,6 +46,7 @@ const PracticeTests = lazy(() => import("./pages/PracticeTests"));
 const TestInterface = lazy(() => import("./pages/TestInterface"));
 const TestResults = lazy(() => import("./pages/TestResults"));
 const Certificate = lazy(() => import("./pages/Certificate"));
+const Certifications = lazy(() => import("./pages/Certifications"));
 
 
 const queryClient = new QueryClient();
@@ -186,6 +187,13 @@ const AppRoutes = () => {
         } />
         <Route path="/certificate/:id" element={
           <PageTransition><Certificate /></PageTransition>
+        } />
+        <Route path="/certifications" element={
+          <ProtectedRoute>
+            <ErrorBoundary>
+              <PageTransition><Certifications /></PageTransition>
+            </ErrorBoundary>
+          </ProtectedRoute>
         } />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<PageTransition><NotFound /></PageTransition>} />

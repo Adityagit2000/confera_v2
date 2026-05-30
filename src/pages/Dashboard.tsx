@@ -29,9 +29,9 @@ import {
   X,
   BookOpen,
   Sparkles,
-  RefreshCw,
   Clock,
-  GraduationCap
+  GraduationCap,
+  Award
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import ResumeUpload from '@/components/ResumeUpload';
@@ -409,6 +409,9 @@ const Dashboard = () => {
           <button onClick={() => navigate('/practice-tests')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
             <GraduationCap className="w-5 h-5 group-hover:text-primary transition-colors" /> Practice Tests
           </button>
+          <button onClick={() => navigate('/certifications')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
+            <Award className="w-5 h-5 group-hover:text-primary transition-colors" /> Certifications
+          </button>
           <button onClick={() => handleNavClick('sessions')} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
             <FolderClock className="w-5 h-5 group-hover:text-primary transition-colors" /> Past Sessions
           </button>
@@ -487,6 +490,9 @@ const Dashboard = () => {
                 </button>
                 <button onClick={() => { navigate('/practice-tests'); setMobileSidebarOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
                   <GraduationCap className="w-5 h-5 group-hover:text-primary transition-colors" /> Practice Tests
+                </button>
+                <button onClick={() => { navigate('/certifications'); setMobileSidebarOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
+                  <Award className="w-5 h-5 group-hover:text-primary transition-colors" /> Certifications
                 </button>
                 <button onClick={() => { handleNavClick('sessions'); setMobileSidebarOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors group">
                   <FolderClock className="w-5 h-5 group-hover:text-primary transition-colors" /> Past Sessions

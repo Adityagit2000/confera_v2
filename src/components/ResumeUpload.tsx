@@ -222,7 +222,7 @@ const ResumeUpload = ({ onAnalysisComplete }: ResumeUploadProps) => {
                 onClick={() => document.getElementById('resume-upload')?.click()}
                 className="w-48 shadow-lg"
               >
-                {uploading ? 'Uploading...' : 'Browse Files'}
+                {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading...</> : 'Browse Files'}
               </Button>
             </div>
             
@@ -444,9 +444,14 @@ const ResumeUpload = ({ onAnalysisComplete }: ResumeUploadProps) => {
 
             <Button 
               onClick={analyzeResume} 
+              disabled={analyzing}
               className="w-full bg-primary hover:bg-primary-glow text-primary-foreground font-semibold py-6 text-lg rounded-xl shadow-glow"
             >
-              Start AI Analysis
+              {analyzing ? (
+                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Analyzing...</>
+              ) : (
+                'Start AI Analysis'
+              )}
             </Button>
           </motion.div>
         )}

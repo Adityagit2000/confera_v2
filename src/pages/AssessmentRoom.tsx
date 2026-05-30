@@ -8,7 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Clock, CheckCircle2, ChevronRight, ChevronLeft, Award } from 'lucide-react';
+import { Clock, CheckCircle2, ChevronRight, ChevronLeft, Award, Sun, Moon, Loader2 } from 'lucide-react';
 import BackButton from '@/components/BackButton';
 
 interface Question {
@@ -31,6 +31,7 @@ const AssessmentRoom = () => {
   const [submitting, setSubmitting] = useState(false);
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
   const [result, setResult] = useState<any>(null);
+  const [isLightMode, setIsLightMode] = useState(false);
 
   useEffect(() => {
     if (!user || !assessmentId) return;
@@ -149,39 +150,41 @@ const AssessmentRoom = () => {
   }
 
   if (result) {
+    const isPass = result.passed || result.scorePercentage >= 70;
+    
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background py-10 px-4">
+      <div className={`min-h-screen flex items-center justify-center py-10 px-4 transition-colors duration-300 ${isLightMode ? 'bg-white text-gray-900' : 'bg-background text-foreground'}`}>
         <BackButton />
-        <Card className="max-w-md w-full glass-card border-border/50 text-center py-10">
+        <Card className={`max-w-md w-full border-border/50 text-center py-10 ${isLightMode ? 'bg-zinc-50 shadow-xl' : 'glass-card'}`}>
           <CardHeader>
             <div className="mx-auto mb-4">
-              {result.passed ? (
+              {isPass ? (
                 <Award className="w-20 h-20 text-emerald-500 mx-auto" />
               ) : (
                 <CheckCircle2 className="w-20 h-20 text-muted-foreground mx-auto" />
               )}
             </div>
             <CardTitle className="text-3xl font-bold">
-              {result.passed ? "Congratulations!" : "Assessment Completed"}
+              {isPass ? "Congratulations! You passed." : "Keep Practicing."}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-lg text-muted-foreground">
               You scored <span className="text-primary font-bold text-2xl">{result.scorePercentage?.toFixed(0)}%</span>
             </p>
-            {result.passed ? (
+            {isPass ? (
               <p className="text-emerald-500 font-medium">You have successfully passed the certification exam.</p>
             ) : (
-              <p className="text-muted-foreground">You need 70% to pass. Keep practicing and try again!</p>
+              <p className="text-muted-foreground">Review your weak areas in the Reports tab and try again.</p>
             )}
             {result.certificateHash && (
-              <div className="mt-4 p-4 bg-muted/50 rounded-lg text-sm break-all font-mono">
+              <div className="mt-4 p-4 bg-muted/20 rounded-lg text-sm break-all font-mono border border-border/50">
                 Certificate ID: {result.certificateHash}
               </div>
             )}
           </CardContent>
           <CardFooter className="justify-center mt-6">
-            <Button onClick={() => navigate('/dashboard')}>Return to Dashboard</Button>
+            <Button onClick={() => navigate('/dashboard')} className="shadow-glow">Return to Dashboard</Button>
           </CardFooter>
         </Card>
       </div>
@@ -192,21 +195,31 @@ const AssessmentRoom = () => {
   const isLast = currentIdx === questions.length - 1;
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4 sm:px-6 flex flex-col">
-      <div className="max-w-4xl w-full mx-auto flex-1 flex flex-col">
+    <div className={`min-h-screen py-8 px-4 sm:px-6 flex flex-col transition-colors duration-300 ${isLightMode ? 'bg-white text-gray-900' : 'bg-background text-foreground'}`}>
+      <div className="max-w-4xl w-full mx-auto flex-1 flex flex-col relative">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8 p-4 glass-card rounded-2xl border border-border/50">
+        <div className={`flex items-center justify-between mb-8 p-4 rounded-2xl border border-border/50 ${isLightMode ? 'bg-zinc-50' : 'glass-card'}`}>
           <div className="flex items-center gap-4">
             <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
               Question {currentIdx + 1} of {questions.length}
             </span>
-            <span className="px-3 py-1 bg-primary/10 text-primary text-xs font-bold rounded-full">
+            <span className={`px-3 py-1 text-xs font-bold rounded-full ${isLightMode ? 'bg-primary/20 text-primary-600' : 'bg-primary/10 text-primary'}`}>
               {currentQ?.category}
             </span>
           </div>
-          <div className={`flex items-center gap-2 font-mono text-lg font-bold ${timeLeft < 300 ? 'text-destructive animate-pulse' : 'text-primary'}`}>
-            <Clock className="w-5 h-5" />
-            {formatTime(timeLeft)}
+          <div className="flex items-center gap-6">
+            <div className={`flex items-center gap-2 font-mono text-lg font-bold ${timeLeft < 300 ? 'text-destructive animate-pulse' : 'text-primary'}`}>
+              <Clock className="w-5 h-5" />
+              {formatTime(timeLeft)}
+            </div>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => setIsLightMode(!isLightMode)}
+              className={isLightMode ? 'bg-white text-gray-900 border-gray-200 hover:bg-gray-100' : 'bg-transparent'}
+            >
+              {isLightMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </Button>
           </div>
         </div>
 
@@ -220,7 +233,7 @@ const AssessmentRoom = () => {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              <Card className="glass-card border-border/50 shadow-glow">
+              <Card className={`border-border/50 shadow-glow ${isLightMode ? 'bg-zinc-50 text-gray-900' : 'glass-card'}`}>
                 <CardHeader>
                   <CardTitle className="text-xl leading-relaxed">
                     {currentQ?.question_text}
@@ -233,9 +246,9 @@ const AssessmentRoom = () => {
                     className="space-y-4"
                   >
                     {currentQ?.options.map((opt, i) => (
-                      <div key={i} className={`flex items-center space-x-3 p-4 rounded-xl border transition-all duration-200 cursor-pointer ${answers[currentQ?.id] === i ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border/50 hover:border-primary/30 hover:bg-muted/20'}`} onClick={() => handleOptionSelect(i.toString())}>
+                      <div key={i} className={`flex items-center space-x-3 p-4 rounded-xl border transition-all duration-200 cursor-pointer ${answers[currentQ?.id] === i ? 'border-primary bg-primary/10 ring-1 ring-primary/30' : `border-border/50 hover:border-primary/30 ${isLightMode ? 'hover:bg-gray-100' : 'hover:bg-muted/20'}`}`} onClick={() => handleOptionSelect(i.toString())}>
                         <RadioGroupItem value={i.toString()} id={`opt-${i}`} className="mt-0.5" />
-                        <Label htmlFor={`opt-${i}`} className="flex-1 text-base cursor-pointer leading-relaxed">{opt}</Label>
+                        <Label htmlFor={`opt-${i}`} className={`flex-1 text-base cursor-pointer leading-relaxed ${isLightMode ? 'text-gray-800' : ''}`}>{opt}</Label>
                       </div>
                     ))}
                   </RadioGroup>
@@ -256,14 +269,16 @@ const AssessmentRoom = () => {
             <ChevronLeft className="w-4 h-4 mr-2" /> Previous
           </Button>
           
-          {isLast ? (
             <Button 
               onClick={() => handleSubmit()} 
               disabled={submitting}
-              className="w-48 bg-gradient-to-r from-primary to-secondary"
+              className="w-48 bg-gradient-to-r from-primary to-secondary text-white font-medium shadow-glow hover:opacity-90"
             >
-              {submitting ? "Submitting..." : "Submit Assessment"}
-              {!submitting && <CheckCircle2 className="w-4 h-4 ml-2" />}
+              {submitting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Submitting...</>
+              ) : (
+                <>Submit Assessment <CheckCircle2 className="w-4 h-4 ml-2" /></>
+              )}
             </Button>
           ) : (
             <Button 
