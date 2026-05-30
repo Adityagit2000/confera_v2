@@ -43,8 +43,8 @@ const TermsOfService = lazy(() => import("./pages/TermsOfService"));
 const AssessmentSetup = lazy(() => import("./pages/AssessmentSetup"));
 const AssessmentRoom = lazy(() => import("./pages/AssessmentRoom"));
 const PracticeTests = lazy(() => import("./pages/PracticeTests"));
-const PracticeTestRoom = lazy(() => import("./pages/PracticeTestRoom"));
-const PracticeTestResults = lazy(() => import("./pages/PracticeTestResults"));
+const TestInterface = lazy(() => import("./pages/TestInterface"));
+const TestResults = lazy(() => import("./pages/TestResults"));
 const Certificate = lazy(() => import("./pages/Certificate"));
 
 
@@ -170,21 +170,21 @@ const AppRoutes = () => {
             </ErrorBoundary>
           </ProtectedRoute>
         } />
-        <Route path="/practice-tests/room" element={
+        <Route path="/practice-tests/:sessionId" element={
           <ProtectedRoute>
             <ErrorBoundary>
-              <PageTransition><PracticeTestRoom /></PageTransition>
+              <PageTransition><TestInterface /></PageTransition>
             </ErrorBoundary>
           </ProtectedRoute>
         } />
-        <Route path="/practice-tests/results/:id" element={
+        <Route path="/practice-tests/:sessionId/results" element={
           <ProtectedRoute>
             <ErrorBoundary>
-              <PageTransition><PracticeTestResults /></PageTransition>
+              <PageTransition><TestResults /></PageTransition>
             </ErrorBoundary>
           </ProtectedRoute>
         } />
-        <Route path="/certificate/:userId" element={
+        <Route path="/certificate/:id" element={
           <PageTransition><Certificate /></PageTransition>
         } />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

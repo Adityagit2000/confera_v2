@@ -1,61 +1,64 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Loader2, Share2, Download, Award, ShieldCheck, Linkedin } from "lucide-react";
-import QRCode from "react-qr-code";
+import { Loader2, Share2, Download, Linkedin } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
 interface CertificateData {
   id: string;
-  average_score: number;
-  interview_count: number;
-  issued_at: string;
-}
-
-interface ProfileData {
-  name: string;
-}
-
-interface TopSkill {
-  name: string;
+  test_type: string;
   score: number;
+  completed_at: string;
+  subjects_covered: string;
+  user: {
+    name: string;
+  };
+  questions: any[];
+  answers: Record<string, number>;
 }
 
 export default function Certificate() {
-  const { userId } = useParams<{ userId: string }>();
+  const { id } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [certificate, setCertificate] = useState<CertificateData | null>(null);
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [topSkills, setTopSkills] = useState<TopSkill[]>([]);
 
   useEffect(() => {
     async function loadCertificateData() {
-      if (!userId) return;
+      if (!id) return;
       try {
         setLoading(true);
 
-        const [certRes, profileRes, skillsRes] = await Promise.all([
-          supabase.from("interview_certificates").select("*").eq("user_id", userId).maybeSingle(),
-          supabase.from("profiles").select("name").eq("id", userId).maybeSingle(),
-          supabase.from("user_skill_memory").select("*").eq("user_id", userId).maybeSingle(),
-        ]);
+        const { data: sessionData, error } = await supabase
+          .from("test_sessions")
+          .select(`
+            id,
+            test_type,
+            score,
+            completed_at,
+            subjects_covered,
+            questions,
+            answers,
+            user_id
+          `)
+          .eq("id", id)
+          .single();
 
-        if (certRes.data) setCertificate(certRes.data);
-        if (profileRes.data) setProfile(profileRes.data);
+        if (error) throw error;
+        if (!sessionData) throw new Error("Certificate not found");
 
-        if (skillsRes.data) {
-          const s = skillsRes.data;
-          const allSkills = [
-            { name: "Communication", score: s.communication || 0 },
-            { name: "Technical", score: s.technical_depth || 0 },
-            { name: "Problem Solving", score: s.problem_solving || 0 },
-            { name: "Domain Knowledge", score: s.domain_knowledge || 0 },
-          ];
-          const sorted = allSkills.sort((a, b) => b.score - a.score).slice(0, 3);
-          setTopSkills(sorted);
-        }
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("id", sessionData.user_id)
+          .single();
+
+        setCertificate({
+          ...sessionData,
+          user: { name: profileData?.name || "Candidate" }
+        } as CertificateData);
+
       } catch (err) {
         console.error("Failed to load certificate data", err);
         toast.error("Failed to load certificate data.");
@@ -65,11 +68,13 @@ export default function Certificate() {
     }
 
     loadCertificateData();
-  }, [userId]);
+  }, [id]);
 
   const handleShareLinkedIn = () => {
+    if (!certificate) return;
     const url = encodeURIComponent(window.location.href);
-    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}`, "_blank");
+    const text = encodeURIComponent(`I scored ${certificate.score}% on the ${certificate.test_type} placement preparation test on Confera! Preparing hard for placements. Try it free: conferav2.vercel.app #Placements2026 #Confera #PlacementPrep`);
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${url}&summary=${text}`, "_blank");
   };
 
   const handleDownloadPDF = () => {
@@ -78,32 +83,37 @@ export default function Certificate() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0B0F19]">
-        <Loader2 className="w-8 h-8 text-[#D4AF37] animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
       </div>
     );
   }
 
-  if (!certificate || !profile) {
+  if (!certificate) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#0B0F19] text-white space-y-4">
-        <Award className="w-16 h-16 text-gray-500" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 text-gray-900 space-y-4">
         <h1 className="text-2xl font-semibold">Certificate Not Found</h1>
-        <p className="text-gray-400 max-w-md text-center">
-          This user hasn't met the requirements for an interview readiness certificate yet, or the ID is invalid.
+        <p className="text-gray-500 max-w-md text-center">
+          The requested certificate ID is invalid or does not exist.
         </p>
       </div>
     );
   }
 
+  const subjects = certificate.subjects_covered ? certificate.subjects_covered.split(", ") : [];
+  const totalQuestions = certificate.questions?.length || 0;
+  const correctCount = Object.keys(certificate.answers || {}).filter(
+    (k) => certificate.answers[k] === certificate.questions[parseInt(k)].correct_answer
+  ).length;
+
   return (
-    <div className="min-h-screen bg-[#0B0F19] flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 font-sans selection:bg-[#D4AF37] selection:text-black">
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center py-12 px-4 sm:px-6 lg:px-8 font-sans print:p-0 print:bg-white print:min-h-0">
       
       {/* Actions (Hidden on Print) */}
-      <div className="w-full max-w-4xl flex justify-end items-center gap-4 mb-8 print:hidden">
+      <div className="w-full max-w-[1000px] flex justify-end items-center gap-4 mb-8 print:hidden">
         <Button 
           onClick={handleShareLinkedIn}
-          className="bg-[#0077b5] hover:bg-[#006097] text-white flex items-center gap-2"
+          className="bg-[#0077b5] hover:bg-[#006097] text-white flex items-center gap-2 font-semibold"
         >
           <Linkedin className="w-4 h-4" />
           Share on LinkedIn
@@ -111,7 +121,7 @@ export default function Certificate() {
         <Button 
           onClick={handleDownloadPDF}
           variant="outline"
-          className="border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37] hover:text-black flex items-center gap-2"
+          className="border-indigo-600 text-indigo-600 hover:bg-indigo-50 flex items-center gap-2 font-semibold bg-white"
         >
           <Download className="w-4 h-4" />
           Download as PDF
@@ -119,71 +129,58 @@ export default function Certificate() {
       </div>
 
       {/* Certificate Wrapper */}
-      <div className="w-full max-w-4xl bg-gradient-to-br from-[#1a1f2e] to-[#0f121b] border-[12px] border-double border-[#D4AF37] p-1 shadow-2xl relative overflow-hidden rounded-sm print:m-0 print:border-[8px] print:shadow-none print:bg-black">
+      <div className="w-full max-w-[1000px] bg-white border border-gray-200 p-2 shadow-2xl relative overflow-hidden print:m-0 print:border-none print:shadow-none print:w-full print:max-w-none print:h-screen">
         
-        {/* Subtle Background Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-lg max-h-lg bg-[#D4AF37] opacity-[0.03] blur-[100px] rounded-full pointer-events-none" />
-
-        <div className="border border-[#D4AF37]/30 p-12 sm:p-16 relative z-10 flex flex-col items-center text-center bg-[url('/noise.png')] bg-repeat opacity-95">
+        {/* Decorative Inner Border */}
+        <div className="border-[4px] border-double border-gray-300 p-12 sm:p-20 h-full flex flex-col relative">
           
-          {/* Logo & Header */}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#D4AF37] to-[#aa8929] flex items-center justify-center shadow-[0_0_20px_rgba(212,175,55,0.3)]">
-              <span className="text-black font-bold text-2xl">C</span>
-            </div>
-            <span className="text-white font-bold tracking-widest text-2xl uppercase">Confera</span>
+          {/* Header Row */}
+          <div className="flex flex-col items-center justify-center text-center mb-12 relative z-10">
+             <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center">
+                  <span className="text-white font-bold text-2xl font-serif">C</span>
+                </div>
+                <span className="text-gray-900 font-bold tracking-[0.2em] text-2xl uppercase">Confera</span>
+             </div>
+             <div className="w-32 h-[2px] bg-gradient-to-r from-transparent via-indigo-600/50 to-transparent my-6"></div>
           </div>
 
-          <h3 className="text-[#D4AF37] tracking-[0.2em] text-sm font-semibold uppercase mb-6">
-            Official Certification
-          </h3>
+          <div className="flex-1 flex flex-col items-center text-center justify-center relative z-10">
+            <h1 className="text-4xl sm:text-6xl font-serif text-gray-900 mb-10 leading-tight font-medium">
+              Certificate of Achievement
+            </h1>
 
-          <h1 className="text-4xl sm:text-6xl font-serif text-white mb-10 leading-tight">
-            Certificate of <br/> Interview Readiness
-          </h1>
+            <p className="text-gray-500 text-lg sm:text-xl mb-6 italic font-serif">
+              This certifies that
+            </p>
 
-          <p className="text-gray-400 text-lg mb-4 italic">
-            This is to certify that
-          </p>
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-8 font-serif border-b-2 border-indigo-100 pb-4 px-12 inline-block">
+              {certificate.user.name}
+            </h2>
 
-          <h2 className="text-4xl sm:text-5xl font-bold text-[#D4AF37] mb-8 font-serif">
-            {profile.name}
-          </h2>
+            <p className="text-gray-600 text-lg sm:text-xl max-w-3xl leading-relaxed mx-auto">
+              has successfully demonstrated placement preparation proficiency by completing the <span className="font-semibold text-gray-900">{certificate.test_type}</span> assessment with a score of <span className="font-semibold text-gray-900">{certificate.score}%</span> ({correctCount}/{totalQuestions} correct) on <span className="font-semibold text-gray-900">{format(new Date(certificate.completed_at), 'MMMM do, yyyy')}</span>.
+            </p>
 
-          <p className="text-gray-300 text-lg max-w-2xl leading-relaxed mb-12">
-            has demonstrated interview preparation proficiency with an average score of <span className="text-white font-semibold">{certificate.average_score}/100</span> across <span className="text-white font-semibold">{certificate.interview_count}</span> mock interviews on the Confera AI platform.
-          </p>
-
-          {/* Badges */}
-          {topSkills.length > 0 && (
-            <div className="flex flex-wrap justify-center gap-4 mb-16 w-full">
-              {topSkills.map((skill, idx) => (
-                <div key={idx} className="flex flex-col items-center bg-[#151a26] border border-[#D4AF37]/20 rounded-lg px-6 py-4 min-w-[160px]">
-                  <span className="text-gray-400 text-xs uppercase tracking-wider mb-2">{skill.name}</span>
-                  <div className="text-2xl font-bold text-white">
-                    {(skill.score / 10).toFixed(1)} <span className="text-sm text-[#D4AF37]">/ 10</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+            {/* Badges */}
+            {subjects.length > 0 && (
+              <div className="mt-12 flex flex-wrap justify-center gap-3 w-full max-w-2xl">
+                {subjects.map((subject, idx) => (
+                  <span key={idx} className="px-4 py-1.5 rounded-full bg-gray-50 border border-gray-200 text-gray-600 text-sm font-medium">
+                    {subject}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Footer Details */}
-          <div className="w-full flex flex-col sm:flex-row justify-between items-end border-t border-[#D4AF37]/20 pt-8 mt-4 gap-8 sm:gap-0">
-            
+          <div className="mt-16 w-full flex justify-between items-end relative z-10">
             <div className="text-left flex flex-col gap-1">
-              <ShieldCheck className="w-8 h-8 text-[#D4AF37] mb-2" />
-              <span className="text-gray-400 text-sm">Certificate ID</span>
-              <span className="text-white font-mono text-xs">{certificate.id}</span>
-              <span className="text-gray-400 text-sm mt-2">Issued On</span>
-              <span className="text-white text-sm">{format(new Date(certificate.issued_at), 'MMMM do, yyyy')}</span>
+              <span className="text-gray-500 text-sm font-mono tracking-wide">Certificate ID: {certificate.id.split('-').pop()?.toUpperCase()}</span>
             </div>
-
-            <div className="flex flex-col items-center gap-3">
-              <div className="bg-white p-2 rounded-lg">
-                <QRCode value={window.location.href} size={80} level="H" />
-              </div>
-              <span className="text-gray-500 text-xs uppercase tracking-widest">Scan to Verify</span>
+            <div className="text-right">
+               <span className="text-gray-500 text-sm">Verify at: conferav2.vercel.app/certificate/{certificate.id}</span>
             </div>
           </div>
 
@@ -193,11 +190,11 @@ export default function Certificate() {
       <style>{`
         @media print {
           @page {
-            size: landscape;
+            size: landscape A4;
             margin: 0;
           }
           body {
-            background-color: #0B0F19;
+            background-color: white !important;
             print-color-adjust: exact;
             -webkit-print-color-adjust: exact;
           }

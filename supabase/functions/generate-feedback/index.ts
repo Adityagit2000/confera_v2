@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     log.step(3, 'Fetching interview answers')
     const { data: answers, error: answersError } = await supabase
       .from('interview_answers')
-      .select('question, answer_text, score')
+      .select('question, answer_text, score, words_per_minute, filler_word_count, confidence_level, answer_structure, completeness_score, behavioral_tags')
       .eq('session_id', sessionId)
       .order('created_at', { ascending: true });
 
@@ -205,6 +205,44 @@ Deno.serve(async (req) => {
     if (reportError) {
       log.error('Report insert failed', reportError)
       throw reportError
+    }
+
+    // Step 10.5: Generate Interview Personality Profile
+    log.step(10.5, 'Generating Interview Personality Profile')
+    let personalityProfile = null;
+    try {
+      const behavioralDataStr = answers.map((a, i) => 
+        `Q${i+1}: Score: ${a.score || a.completeness_score}, WPM: ${a.words_per_minute}, Fillers: ${a.filler_word_count}, Confidence: ${a.confidence_level}, Structure: ${a.answer_structure}`
+      ).join('\n');
+
+      const personalityPrompt = `Based on this candidate's behavioral data across all interview answers, generate their Interview Personality Profile. Data provided: per-answer scores, filler word counts, words per minute, confidence levels, answer structures, completeness ratings. Generate a profile with these exact fields: communication_style (one of: Direct Communicator / Storyteller / Technical Expert / Rambler — with one sentence explanation), confidence_level (High/Medium/Low with specific evidence from their answers like which answer showed most confidence), technical_depth (Surface Level/Adequate/Deep Thinker with evidence), stress_response (Calm Under Pressure/Slightly Nervous/Highly Stressed — based on filler word rate change across session, if filler words increased toward end they got more nervous), strongest_answer (question number and why), weakest_answer (question number and why), key_insight (one powerful personalized insight about this candidate that a human coach would notice — be specific, reference actual patterns from their answers). Return ONLY valid JSON with these exact fields.`;
+
+      const personalityResponseText = await callAiWithFallback({
+        systemPrompt: "You are an expert interview psychologist.",
+        userMessage: personalityPrompt + "\n\nBEHAVIORAL DATA:\n" + behavioralDataStr,
+        temperature: 0.3,
+        maxTokens: 1024,
+        responseMimeType: 'application/json'
+      });
+
+      const cleanedPersonality = personalityResponseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      personalityProfile = JSON.parse(cleanedPersonality);
+
+      // Update the report with the personality profile
+      await supabase
+        .from('feedback_reports')
+        .update({ interview_personality_profile: personalityProfile })
+        .eq('id', report.id);
+        
+      // Try forward compatibility for final_reports
+      await supabase
+        .from('final_reports')
+        .update({ interview_personality_profile: personalityProfile })
+        .eq('session_id', sessionId)
+        .catch(() => {});
+        
+    } catch (profileError) {
+      log.error('Personality profile generation failed (non-fatal)', profileError);
     }
 
     // Step 11: Update skill memory

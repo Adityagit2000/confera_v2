@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
       : (session.transcript || []);
     
     const questionIndex = transcript.filter((m: any) => m.role === 'assistant').length;
+    let difficulty_level = session.difficulty_level || 'medium';
 
     // Step 4: Fetch resume context
     log.step(4, 'Fetching resume context')
@@ -201,6 +202,44 @@ Deno.serve(async (req) => {
     // Step 8: Build prompt and call AI
     log.step(8, 'Generating next question')
 
+    // Dynamic Difficulty Adjustment
+    if (questionIndex > 0 && questionIndex % 3 === 0) {
+      log.info('Dynamic Difficulty', 'Checking last 3 answers to adjust difficulty...');
+      try {
+        const { data: recentAnswers, error: scoresErr } = await supabase
+          .from('interview_answers')
+          .select('score')
+          .eq('session_id', sessionId)
+          .not('score', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(3);
+
+        if (!scoresErr && recentAnswers && recentAnswers.length === 3) {
+          const avgScore = recentAnswers.reduce((acc, curr) => acc + (curr.score || 0), 0) / 3;
+          
+          if (avgScore >= 8) {
+            difficulty_level = 'hard';
+          } else if (avgScore < 5) {
+            difficulty_level = 'easy';
+          } else {
+            difficulty_level = 'medium';
+          }
+          log.info('Dynamic Difficulty Updated', `Avg: ${avgScore.toFixed(1)}, New Level: ${difficulty_level}`);
+        }
+      } catch (err) {
+        log.warn('Failed to calculate dynamic difficulty', (err as any).message);
+      }
+    }
+
+    let difficultyDirective = "";
+    if (difficulty_level === 'hard') {
+      difficultyDirective = "\n# DIFFICULTY LEVEL: HARD\nThe candidate is performing excellently. Ask significantly harder questions that require deep expertise, edge cases, and multi-concept integration.";
+    } else if (difficulty_level === 'easy') {
+      difficultyDirective = "\n# DIFFICULTY LEVEL: EASY\nThe candidate is struggling. Ask more foundational questions to help them build confidence. Focus on core concepts before advanced topics.";
+    } else {
+      difficultyDirective = "\n# DIFFICULTY LEVEL: MEDIUM\nThe candidate is performing adequately. Maintain current difficulty and probe weak areas identified in recent answers.";
+    }
+
     // Multi-Track Persona Injection
     const trackLenses: Record<string, string> = {
       'technical_core': "Focus on core technical proficiency relevant to the specific job role. Ask about domain-specific knowledge, tools, methodologies, and real-world problem solving for this profession (e.g., for a Civil Engineer ask about structural analysis, for a Data Engineer ask about pipelines and PySpark).",
@@ -228,6 +267,7 @@ You are a Senior ${sanitizedType?.toUpperCase() || 'General'} Interviewer. Your 
 
 # THE LENS (How to read the Resume)
 - ${currentLens}
+${difficultyDirective}
 
 # CONTEXT
 - Candidate Resume: ${resumeJsonSummary}
@@ -331,7 +371,8 @@ ${alreadyAskedContext}
       .from('interview_sessions')
       .update({ 
         transcript: JSON.stringify(updatedHistory),
-        status: isFinalAnswer ? 'completed' : 'in_progress'
+        status: isFinalAnswer ? 'completed' : 'in_progress',
+        difficulty_level
       })
       .eq('id', sessionId);
 

@@ -19,7 +19,10 @@ import {
   TrendingUp,
   Share2,
   Download,
-  PlayCircle
+  PlayCircle,
+  Brain,
+  Quote,
+  Activity
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -174,6 +177,8 @@ const Report = () => {
   }
 
   let recommendations: any = {};
+  let personalityProfile: any = null;
+
   try {
     recommendations = typeof reportData.recommendations === 'string' 
       ? JSON.parse(reportData.recommendations) 
@@ -181,6 +186,14 @@ const Report = () => {
   } catch {
     console.warn('Failed to parse recommendations JSON, using empty fallback');
     recommendations = {};
+  }
+
+  try {
+    personalityProfile = typeof reportData.interview_personality_profile === 'string'
+      ? JSON.parse(reportData.interview_personality_profile)
+      : reportData.interview_personality_profile;
+  } catch {
+    console.warn('Failed to parse personality profile JSON');
   }
 
   const overallScoreColor = getScoreColor(reportData.overall_score || 0);
@@ -377,6 +390,88 @@ const Report = () => {
             <CircularScore score={reportData.behavior_score || 0} label="Behavioral" icon={Users} />
           </div>
         </section>
+
+        {/* Interview Personality Profile */}
+        {personalityProfile && (
+          <section className="animate-in fade-in slide-in-from-bottom-5 duration-700">
+            <h3 className="text-2xl font-bold text-foreground mb-6 flex items-center gap-3">
+              <Brain className="w-6 h-6 text-indigo-500" /> Interview Personality Profile
+            </h3>
+            <Card className="bg-zinc-950 border border-zinc-800 rounded-[2rem] shadow-xl overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
+              <CardContent className="p-8 md:p-10">
+                <div className="grid md:grid-cols-2 gap-10">
+                  <div className="space-y-8">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
+                        <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                          <MessageSquare className="w-4 h-4 text-indigo-400" />
+                          <span className="text-xs uppercase tracking-wider font-bold">Communication</span>
+                        </div>
+                        <p className="text-sm text-zinc-200 font-medium">{personalityProfile.communication_style || 'Direct & Clear'}</p>
+                      </div>
+                      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
+                        <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                          <Activity className="w-4 h-4 text-emerald-400" />
+                          <span className="text-xs uppercase tracking-wider font-bold">Confidence</span>
+                        </div>
+                        <Badge variant="outline" className={`
+                          ${(personalityProfile.confidence_level || '').toLowerCase().includes('high') ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                          (personalityProfile.confidence_level || '').toLowerCase().includes('low') ? 'bg-red-500/10 text-red-400 border-red-500/20' : 
+                          'bg-amber-500/10 text-amber-400 border-amber-500/20'} 
+                          text-xs`}>
+                          {personalityProfile.confidence_level || 'Moderate'}
+                        </Badge>
+                      </div>
+                      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
+                        <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                          <Code className="w-4 h-4 text-blue-400" />
+                          <span className="text-xs uppercase tracking-wider font-bold">Tech Depth</span>
+                        </div>
+                        <p className="text-sm text-zinc-200 font-medium">{personalityProfile.technical_depth || 'Solid Fundamentals'}</p>
+                      </div>
+                      <div className="bg-zinc-900/50 p-4 rounded-2xl border border-zinc-800/50">
+                        <div className="flex items-center gap-2 text-zinc-400 mb-2">
+                          <TrendingUp className="w-4 h-4 text-rose-400" />
+                          <span className="text-xs uppercase tracking-wider font-bold">Stress Response</span>
+                        </div>
+                        <p className="text-sm text-zinc-200 font-medium">{personalityProfile.stress_response || 'Calm under pressure'}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-indigo-500/5 border-l-4 border-indigo-500 p-6 rounded-r-2xl relative">
+                      <Quote className="absolute top-4 right-4 w-8 h-8 text-indigo-500/20" />
+                      <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-3">Key Insight</h4>
+                      <p className="text-zinc-300 text-sm leading-relaxed italic">
+                        "{personalityProfile.key_insight || 'You show great potential but need to focus on structuring your answers more clearly.'}"
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-6">
+                      <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" /> Strongest Answer Pattern
+                      </h4>
+                      <p className="text-sm text-zinc-300 leading-relaxed">
+                        {personalityProfile.strongest_answer_highlight || 'You excel at explaining complex technical concepts with simple real-world analogies.'}
+                      </p>
+                    </div>
+
+                    <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-6">
+                      <h4 className="text-xs font-bold text-red-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" /> Weakest Answer Pattern
+                      </h4>
+                      <p className="text-sm text-zinc-300 leading-relaxed">
+                        {personalityProfile.weakest_answer_highlight || 'You tend to use more filler words and lose structure when asked behavioral or opinion-based questions.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
 
         {/* Per-Answer Coaching */}
         {answerCoaching.length > 0 && (
