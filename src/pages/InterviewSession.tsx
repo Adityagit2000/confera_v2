@@ -15,6 +15,7 @@ import { PreFlightCheck } from '@/components/PreFlightCheck';
 import { closeAudioContext, type DiagnosticReport } from '@/lib/voiceDiagnostics';
 import { useOnlineStatus, acquireInterviewLock, releaseInterviewLock } from '@/lib/networkUtils';
 import { InterviewSkeleton } from '@/components/InterviewSkeleton';
+import AnimatedInterviewer from '@/components/AnimatedInterviewer';
 import { 
   Mic, 
   MicOff, 
@@ -670,347 +671,218 @@ const InterviewSession = () => {
         )}
       </AnimatePresence>
 
-      <main className="flex-1 flex flex-col lg:flex-row p-6 gap-6 relative z-10 overflow-hidden w-full h-full">
-        {/* Left Panel (60%) */}
-        <div className="w-full lg:w-[60%] flex flex-col gap-4 min-h-0 overflow-hidden">
-          
-          {/* Conversation History Card */}
-          <div className="flex-1 bg-[#121214] border border-white/[0.04] rounded-2xl p-6 flex flex-col overflow-hidden backdrop-blur-sm relative min-h-0">
-            
-              <div className="flex items-center justify-between border-b border-white/[0.05] pb-4 mb-4 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-xs font-semibold tracking-wider uppercase text-white/50">
-                  Question {Math.max(1, questionCount)} of {session?.type === 'quick_practice' ? 3 : 10}
-                </span>
-              </div>
-            </div>
+      <main className="flex-1 flex p-6 gap-6 relative z-10 overflow-hidden w-full h-full">
+        {/* Main Video Area */}
+        <div className={`flex flex-col gap-6 transition-all duration-300 ease-in-out h-full ${isTextChatOpen ? 'w-full lg:w-[70%]' : 'w-full'}`}>
+          <div className="flex-1 bg-[#121214] border border-white/[0.04] rounded-3xl overflow-hidden relative shadow-lg backdrop-blur-sm flex items-center justify-center">
+             <div className="w-full h-full flex flex-col md:flex-row relative">
+               
+               {/* Confera Avatar */}
+               <div className="flex-1 flex flex-col items-center justify-center relative bg-gradient-to-br from-[#0f0f12] to-[#1a1a24]">
+                 <div className="w-full h-full flex items-center justify-center">
+                   <AnimatedInterviewer isSpeaking={isSpeaking} isListening={isListening} isThinking={isThinking} />
+                 </div>
+                 {/* Voice Energy Indicator Overlay */}
+                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                   <div className="flex items-center gap-2 mb-2 bg-black/40 px-3 py-1.5 rounded-full border border-white/[0.05]">
+                      <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-indigo-500 animate-pulse' : 'bg-white/20'}`} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/80">
+                        {isSpeaking ? 'Confera Speaking' : isListening ? 'Listening to you' : isThinking ? 'Thinking...' : 'Ready'}
+                      </span>
+                   </div>
+                   {isListening && (
+                     <div className="flex items-center justify-center gap-[2px] h-8 px-4 bg-black/60 rounded-full border border-white/[0.05]">
+                        {Array.from({ length: 24 }).map((_, i) => {
+                          const centerDist = Math.abs(i - 11.5);
+                          const scale = Math.max(0.1, 1 - centerDist / 12);
+                          const height = Math.max(4, Math.round(voiceInput.audioEnergy * 30 * scale * (0.8 + Math.random() * 0.4)));
+                          return (
+                            <div
+                              key={i}
+                              style={{ height: `${height}px`, transition: 'height 0.1s ease' }}
+                              className={`w-1 rounded-full ${turnDetection.turnState === 'confirming' ? 'bg-amber-500' : 'bg-indigo-500'}`}
+                            />
+                          );
+                        })}
+                     </div>
+                   )}
+                 </div>
+               </div>
 
-            {/* Scrollable messages area */}
-            <div className="flex-1 overflow-y-auto pr-2 space-y-6 scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
-              {messages.map((msg, idx) => {
-                const isAi = msg.role === 'assistant';
-                return (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, x: isAi ? -20 : 20, y: 10 }}
-                    animate={{ opacity: 1, x: 0, y: 0 }}
-                    transition={{ type: "spring", stiffness: 260, damping: 20 }}
-                    className={`flex gap-3 max-w-[85%] ${isAi ? 'self-start' : 'self-end flex-row-reverse ml-auto'}`}
-                  >
-                    {isAi ? (
-                      <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 mt-1">
-                        <Sparkles className="w-4 h-4 text-primary" />
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0 mt-1">
-                        <User className="w-4 h-4 text-white/60" />
-                      </div>
-                    )}
-                    <div className={`p-4 text-[15px] leading-relaxed shadow-sm ${
-                      isAi 
-                        ? 'bg-[#18181b] border-l-2 border-l-indigo-500 border-y border-r border-white/[0.02] text-white/90 rounded-2xl rounded-tl-sm' 
-                        : 'bg-[#1c1c1f] border border-white/[0.04] text-white/90 rounded-2xl rounded-tr-sm'
-                    }`}>
-                      {msg.content}
-                    </div>
-                  </motion.div>
-                );
-              })}
-
-              {/* Live Transcript User Bubble */}
-              {isListening && (liveTranscript || finalTranscript) && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-3 max-w-[85%] self-end flex-row-reverse ml-auto"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 animate-pulse">
-                    <User className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="p-4 rounded-2xl text-sm bg-[#1c1c21]/40 border border-dashed border-primary/30 text-white/60 italic">
-                    {(finalTranscript + liveTranscript).trim() || "Listening..."}
-                  </div>
-                </motion.div>
-              )}
-
-              {/* AI Thinking Placeholder */}
-              {isThinking && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex gap-3 max-w-[85%] self-start"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0">
-                    <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-                  </div>
-                  <div className="p-4 rounded-2xl bg-[#18181c] border border-white/[0.03] flex items-center gap-1.5 py-3">
-                    <span className="w-2 h-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-2 h-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-2 h-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '300ms' }} />
-                  </div>
-                </motion.div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-          </div>
-
-          {/* Voice Input & Waveform Panel */}
-          <div className="bg-[#121214] border border-white/[0.04] rounded-2xl p-5 flex flex-col relative flex-shrink-0 backdrop-blur-sm">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${isListening ? 'bg-indigo-500 animate-pulse' : 'bg-white/20'}`} />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-                  {isListening ? 'Listening Active' : 'Voice Input Inactive'}
-                </span>
-              </div>
-
-              {/* Auto-send Switch */}
-              <div className="relative flex items-center gap-2">
-                <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Auto-submit</span>
-                <Switch 
-                  checked={autoSend} 
-                  onCheckedChange={(val) => {
-                    setAutoSend(val);
-                    completeStep(2);
-                  }} 
-                />
-                {onboardingStep === 2 && (
-                  <div className="absolute bottom-full mb-3 right-0 w-52 p-4 bg-indigo-500 text-white rounded-2xl shadow-2xl z-[60] text-xs font-bold leading-snug animate-in fade-in slide-in-from-bottom-2">
-                    <div className="absolute -bottom-2 right-6 w-4 h-4 bg-indigo-500 rotate-45" />
-                    Enable Auto-submit for a hands-free conversation.
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="mt-2 h-7 px-2 text-[10px] hover:bg-black/20 font-black p-0 border border-white/20 rounded-md w-full justify-center" 
-                      onClick={() => completeStep(2)}
-                    >
-                      FINISH GUIDE
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Waveform Visualization */}
-            <div className="flex items-center justify-center gap-[2px] h-14 w-full my-3 px-6 bg-black/40 rounded-xl border border-white/[0.03]">
-              {Array.from({ length: 48 }).map((_, i) => {
-                const centerDist = Math.abs(i - 23.5);
-                const scale = Math.max(0.1, 1 - centerDist / 24);
-                const height = isListening
-                  ? Math.max(4, Math.round(voiceInput.audioEnergy * 80 * scale * (0.8 + Math.random() * 0.4)))
-                  : 4;
-                const barColor = turnDetection.turnState === 'confirming'
-                  ? 'bg-amber-500/80'
-                  : 'bg-indigo-500/80';
-                return (
-                  <motion.div
-                    key={i}
-                    animate={{ height }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                    className={`w-1 rounded-full ${barColor}`}
+               {/* Candidate Camera */}
+               <div className="w-full md:w-[35%] border-l border-white/[0.05] bg-[#09090b] relative flex flex-col shrink-0">
+                  <video
+                    ref={candidateVideoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
                   />
-                );
-              })}
-            </div>
-
-            {/* Controls and Amber Indicator */}
-            <div className="flex items-center justify-between gap-4 mt-2">
-              <div className="flex items-center gap-3">
-                {/* Microhone Button */}
-                <div className="relative">
-                  <Button
-                    onClick={() => { toggleMic(); completeStep(1); }}
-                    disabled={!voiceAvailable}
-                    className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
-                      isListening ? 'bg-red-500 hover:bg-red-600 text-white' : 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-glow'
-                    } ${onboardingStep === 1 ? 'ring-4 ring-indigo-500/20 scale-105 z-50' : ''}`}
-                  >
-                    {isListening ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
-                  </Button>
-                  {onboardingStep === 1 && (
-                    <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-52 p-4 bg-indigo-500 text-white rounded-2xl shadow-2xl z-[60] text-xs font-bold leading-snug animate-in fade-in slide-in-from-bottom-2 text-center">
-                      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-indigo-500 rotate-45" />
-                      Tap to start speaking. Speak clearly into your microphone.
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="mt-2 h-7 px-2 text-[10px] hover:bg-black/20 font-black p-0 border border-white/20 rounded-md w-full justify-center" 
-                        onClick={() => completeStep(1)}
-                      >
-                        GOT IT
-                      </Button>
+                  {!cameraAvailable && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#0f0f11] p-4 text-center">
+                      <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mb-3">
+                        <span className="text-xl font-bold text-primary uppercase">
+                          {profile?.name?.substring(0, 2) || user?.email?.substring(0, 2) || 'ME'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-white/40 font-semibold tracking-wider uppercase">Camera Off</span>
                     </div>
                   )}
-                </div>
-
-                {/* Confirming/Still Listening indicator */}
-                <AnimatePresence>
-                  {isListening && turnDetection.turnState === 'confirming' && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-semibold animate-pulse"
-                    >
-                      <span>Still listening...</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => turnDetection.keepListening()}
-                        className="h-5 px-2 text-[9px] text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 font-bold border border-amber-500/20 rounded-md"
-                      >
-                        Keep Listening
-                      </Button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Done Answering Pill Button */}
-              {isListening && (finalTranscript.trim().length > 0 || liveTranscript.trim().length > 0) && (
-                <Button
-                  onClick={handleDoneAnswering}
-                  className="rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-5 h-10 text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-lg shadow-indigo-950/20"
-                >
-                  <CheckCircle className="w-3.5 h-3.5" /> Done Answering
-                </Button>
-              )}
-
-              {/* Retry button for failed messages */}
-              {lastFailedMessage && !isThinking && (
-                <Button
-                  onClick={retryLastMessage}
-                  className="rounded-full bg-amber-600 hover:bg-amber-500 text-white font-bold px-5 h-10 text-xs uppercase tracking-wider flex items-center gap-1.5"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" /> Retry Response
-                </Button>
-              )}
-            </div>
-
-            {/* Standard Text Chat Form for Fallback */}
-            <form onSubmit={handleManualSend} className="flex gap-2 w-full mt-4 border-t border-white/[0.04] pt-4">
-              <input
-                className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-primary/40 font-medium"
-                placeholder="Type your response instead..."
-                value={inputMsg}
-                onChange={(e) => setInputMsg(e.target.value)}
-              />
-              <Button type="submit" size="icon" className="rounded-xl h-9 w-9 bg-primary hover:bg-primary/80">
-                <Send className="w-3.5 h-3.5 text-black" />
+                  <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/[0.05] flex items-center gap-1.5 z-10">
+                    <span className={`w-1.5 h-1.5 rounded-full ${cameraAvailable ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/80">You</span>
+                  </div>
+               </div>
+             </div>
+          </div>
+          
+          {/* Bottom Control Bar */}
+          <div className="bg-[#121214] border border-white/[0.04] rounded-2xl p-4 flex items-center justify-between shadow-lg backdrop-blur-sm shrink-0">
+            <div className="flex items-center gap-6">
+              <Button variant="ghost" onClick={() => setIsTextChatOpen(!isTextChatOpen)} className="gap-2 text-white/60 hover:text-white rounded-xl bg-white/5">
+                <MessageSquare className="w-4 h-4" />
+                {isTextChatOpen ? 'Hide Chat' : 'Show Chat'}
               </Button>
-            </form>
-          </div>
-        </div>
-
-        {/* Right Panel (40%) */}
-        <div className="w-full lg:w-[40%] flex flex-col gap-4 min-h-0 overflow-hidden">
-          {/* Camera Card (45% equivalent aspect) */}
-          <div className="bg-[#121214] border border-white/[0.04] rounded-3xl overflow-hidden w-full relative flex flex-col shadow-lg flex-shrink-0 backdrop-blur-sm" style={{ height: '45%' }}>
-            <video
-              ref={candidateVideoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-            />
-            {!cameraAvailable && (
-              <div className="absolute inset-0 bg-gradient-to-br from-[#18181c] to-[#0f0f11] flex flex-col items-center justify-center p-4">
-                <div className="w-16 h-16 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mb-3">
-                  <span className="text-xl font-bold text-primary uppercase">
-                    {profile?.name?.substring(0, 2) || user?.email?.substring(0, 2) || 'C'}
-                  </span>
-                </div>
-                <span className="text-xs text-white/40 font-semibold tracking-wider uppercase">Camera Unavailable</span>
+              <div className="flex items-center gap-2 text-white/50 font-mono text-sm font-semibold">
+                <Clock className="w-4 h-4" /> <SessionTimer />
               </div>
-            )}
-            <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/[0.05] flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full ${cameraAvailable ? 'bg-emerald-500' : 'bg-white/20'}`} />
-              <span className="text-[10px] font-bold uppercase tracking-wider text-white/80">
-                {cameraAvailable ? 'Candidate Live' : 'Camera Off'}
-              </span>
             </div>
-          </div>
 
-          {/* Voice Energy & Details Panel */}
-          <div className="bg-[#121214] border border-white/[0.04] rounded-2xl p-6 flex flex-col gap-4 justify-between flex-1 min-h-0 overflow-hidden backdrop-blur-sm">
-            {/* Concentric Pulsing Voice Energy Rings */}
-            <div className="flex flex-col items-center justify-center py-4">
-              <div className="relative w-36 h-36 flex items-center justify-center">
-                {/* Outer Ring */}
-                <motion.div
-                  animate={{
-                    scale: 1 + voiceInput.audioEnergy * 1.6,
-                    opacity: isListening ? Math.max(0.05, 0.3 - voiceInput.audioEnergy) : 0.05,
-                  }}
-                  transition={{ type: 'spring', stiffness: 220, damping: 18 }}
-                  className="absolute inset-0 rounded-full border border-indigo-500/20 bg-indigo-500/5"
-                />
-                {/* Inner Ring */}
-                <motion.div
-                  animate={{
-                    scale: 1 + voiceInput.audioEnergy * 0.9,
-                    opacity: isListening ? Math.max(0.1, 0.5 - voiceInput.audioEnergy * 0.6) : 0.1,
-                  }}
-                  transition={{ type: 'spring', stiffness: 220, damping: 18 }}
-                  className="absolute w-24 h-24 rounded-full border border-indigo-500/40 bg-indigo-500/10"
-                />
-                {/* Center Pulse Orb */}
-                <motion.div
-                  animate={{
-                    scale: 1 + voiceInput.audioEnergy * 0.3,
-                  }}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center z-10 transition-all ${
-                    isListening 
-                      ? 'bg-indigo-500 text-white shadow-[0_0_20px_rgba(99,102,241,0.3)]' 
-                      : 'bg-white/10 text-white/50'
+            <div className="flex items-center gap-4">
+               <Button
+                  onClick={() => toggleMic()}
+                  disabled={!voiceAvailable}
+                  className={`w-14 h-14 rounded-full flex items-center justify-center transition-all ${
+                    isListening ? 'bg-red-500 hover:bg-red-600 shadow-[0_0_20px_rgba(239,68,68,0.4)]' : 'bg-indigo-600 hover:bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.3)] text-white border-2 border-indigo-400/20'
                   }`}
                 >
-                  {isListening ? <Mic className="w-5 h-5 animate-pulse" /> : <MicOff className="w-5 h-5" />}
-                </motion.div>
-              </div>
-              <span className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-4">
-                {isListening ? 'Voice Analysis Active' : 'Voice Input Inactive'}
-              </span>
+                  {isListening ? <Mic className="w-6 h-6 text-white" /> : <MicOff className="w-6 h-6" />}
+                </Button>
+
+                {isListening && (finalTranscript.trim().length > 0 || liveTranscript.trim().length > 0) && (
+                  <Button
+                    onClick={handleDoneAnswering}
+                    className="rounded-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 h-12 text-sm uppercase tracking-wider flex items-center gap-2 shadow-[0_0_15px_rgba(79,70,229,0.4)]"
+                  >
+                    <CheckCircle className="w-4 h-4" /> Done Answering
+                  </Button>
+                )}
+
+                {lastFailedMessage && !isThinking && (
+                  <Button
+                    onClick={retryLastMessage}
+                    className="rounded-full bg-amber-600 hover:bg-amber-500 text-white font-bold px-5 h-12 text-xs uppercase tracking-wider flex items-center gap-1.5"
+                  >
+                    <RotateCcw className="w-4 h-4" /> Retry
+                  </Button>
+                )}
             </div>
 
-            {/* Session Stats and Timer */}
-            <div className="border-t border-white/[0.05] pt-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-white/40 font-semibold uppercase tracking-wider">Interview Track</span>
-                <span className="px-2.5 py-1 rounded-md bg-white/5 border border-white/5 text-[11px] font-bold text-white/80 uppercase tracking-wide">
-                  {session?.type?.replace('_', ' ')}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-white/40 font-semibold uppercase tracking-wider">Elapsed Time</span>
-                <span className="text-xl font-mono font-bold tracking-tight text-white/90">
-                  <SessionTimer />
-                </span>
-              </div>
-
-              {/* Progress dots out of 10 */}
-              <div className="space-y-3 pt-2">
-                <div className="flex justify-between text-xs font-semibold text-white/40">
-                  <span>Questions Completed</span>
-                  <span>{Math.max(1, questionCount)} / {session?.type === 'quick_practice' ? 3 : 10}</span>
-                </div>
-                <div className="flex gap-1">
-                  {Array.from({ length: session?.type === 'quick_practice' ? 3 : 10 }).map((_, i) => (
-                    <div 
-                      key={i} 
-                      className={`flex-1 h-1.5 rounded-full transition-colors duration-500 ${
-                        i < questionCount ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]' : 'bg-white/10'
-                      }`}
-                    />
-                  ))}
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 bg-black/40 px-4 py-2.5 rounded-xl border border-white/5">
+                <span className="text-[10px] font-bold text-white/60 uppercase tracking-wider">Auto-submit</span>
+                <Switch checked={autoSend} onCheckedChange={setAutoSend} />
               </div>
             </div>
           </div>
         </div>
+
+        {/* Collapsible Chat Sidebar */}
+        <AnimatePresence>
+          {isTextChatOpen && (
+            <motion.div 
+              initial={{ width: 0, opacity: 0, marginLeft: 0 }}
+              animate={{ width: '30%', opacity: 1, marginLeft: 24 }}
+              exit={{ width: 0, opacity: 0, marginLeft: 0 }}
+              className="h-full hidden lg:flex flex-col bg-[#121214] border border-white/[0.04] rounded-3xl overflow-hidden shadow-lg backdrop-blur-sm shrink-0"
+            >
+               <div className="p-5 border-b border-white/[0.05] flex items-center justify-between shrink-0 bg-[#0f0f12]">
+                 <h3 className="font-bold text-sm text-white/90 uppercase tracking-widest flex items-center gap-2">
+                   <Layout className="w-4 h-4 text-primary" /> Transcript
+                 </h3>
+                 <span className="text-xs font-semibold text-white/50 bg-white/5 px-2 py-1 rounded-md">Q {Math.max(1, questionCount)}/{session?.type === 'quick_practice' ? 3 : 10}</span>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin scrollbar-thumb-white/5 scrollbar-track-transparent">
+                  {messages.map((msg, idx) => {
+                    const isAi = msg.role === 'assistant';
+                    return (
+                      <motion.div
+                        key={idx}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`flex gap-3 max-w-[90%] ${isAi ? 'self-start' : 'self-end flex-row-reverse ml-auto'}`}
+                      >
+                        {isAi ? (
+                          <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-1">
+                            <Sparkles className="w-4 h-4 text-primary" />
+                          </div>
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center shrink-0 mt-1">
+                            <User className="w-4 h-4 text-white/60" />
+                          </div>
+                        )}
+                        <div className={`p-4 text-[14px] leading-relaxed shadow-sm ${
+                          isAi 
+                            ? 'bg-[#18181b] border-l-2 border-l-indigo-500 border-y border-r border-white/[0.02] text-white/90 rounded-2xl rounded-tl-sm' 
+                            : 'bg-[#1c1c1f] border border-white/[0.04] text-white/90 rounded-2xl rounded-tr-sm'
+                        }`}>
+                          {msg.content}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+
+                  {isListening && (liveTranscript || finalTranscript) && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex gap-3 max-w-[90%] self-end flex-row-reverse ml-auto"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 animate-pulse">
+                        <User className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="p-4 rounded-2xl text-sm bg-[#1c1c21]/40 border border-dashed border-primary/30 text-white/60 italic">
+                        {(finalTranscript + liveTranscript).trim() || "Listening..."}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {isThinking && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex gap-3 max-w-[85%] self-start"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+                      </div>
+                      <div className="p-4 rounded-2xl bg-[#18181c] border border-white/[0.03] flex items-center gap-1.5 py-3">
+                        <span className="w-2 h-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-2 h-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-2 h-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                      </div>
+                    </motion.div>
+                  )}
+                  <div ref={messagesEndRef} />
+               </div>
+               
+               <div className="p-4 border-t border-white/[0.05] shrink-0 bg-[#0f0f12]">
+                  <form onSubmit={handleManualSend} className="flex gap-2 w-full">
+                    <input
+                      className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 focus:outline-none focus:ring-1 focus:ring-primary/40 font-medium"
+                      placeholder="Type response instead..."
+                      value={inputMsg}
+                      onChange={(e) => setInputMsg(e.target.value)}
+                    />
+                    <Button type="submit" size="icon" className="rounded-xl h-11 w-11 bg-primary hover:bg-primary/80 shrink-0">
+                      <Send className="w-4 h-4 text-black" />
+                    </Button>
+                  </form>
+               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* Exit confirmation modal */}

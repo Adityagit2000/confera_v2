@@ -621,7 +621,7 @@ export function useVoiceInput({
           console.log('[VoiceInput] Silence detected in media-recorder, sending chunk')
           hasSpeechInCurrentChunkRef.current = false
           sendCurrentChunk()
-        }, 2000)
+        }, 4000)
       }
     } else {
       hasSpeechInCurrentChunkRef.current = true

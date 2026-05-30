@@ -82,9 +82,7 @@ const Dashboard = () => {
     fetchDashboardData();
     fetchPrepPlan();
 
-    // Silently clean up any stale active sessions on the backend
-    supabase.functions.invoke('cleanup-stale-sessions').catch(() => {});
-
+    // Removed stale session cleanup as it requires service role key and should run via cron
     // Show welcome toast once per session
     const hasWelcomed = sessionStorage.getItem('confera_welcomed');
     if (!hasWelcomed) {
