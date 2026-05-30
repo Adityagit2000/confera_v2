@@ -167,12 +167,12 @@ const Certifications = () => {
                 transition={{ delay: 0.3 + (i * 0.1) }}
               >
                 <Card className="h-full flex flex-col glass-card border-border/50 shadow-lg hover:shadow-primary/20 transition-all duration-300 overflow-hidden relative group">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${track.color} opacity-20 group-hover:opacity-40 transition-opacity`} />
-                  <CardHeader>
+                  <div className={`absolute inset-0 bg-gradient-to-br ${track.color} opacity-20 group-hover:opacity-40 transition-opacity pointer-events-none z-0`} />
+                  <CardHeader className="relative z-10">
                     <CardTitle className="text-xl">{track.title}</CardTitle>
                     <CardDescription className="text-sm pt-2">{track.description}</CardDescription>
                   </CardHeader>
-                  <CardContent className="flex-1 flex flex-col justify-end">
+                  <CardContent className="flex-1 flex flex-col justify-end relative z-10">
                     <div className="flex items-center gap-4 text-sm font-medium text-muted-foreground mb-6">
                       <span className="flex items-center"><Clock className="w-4 h-4 mr-1.5" /> {track.duration} mins</span>
                       <span className="flex items-center"><FileText className="w-4 h-4 mr-1.5" /> {track.questions} Questions</span>
