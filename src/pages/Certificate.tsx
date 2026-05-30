@@ -95,10 +95,23 @@ export default function CertificateViewer() {
   const serifFont = "Georgia, Cambria, 'Times New Roman', Times, serif";
 
   return (
-    <div className="min-h-screen bg-zinc-950 py-12 px-4 sm:px-6 lg:px-8 flex flex-col items-center print:bg-white print:py-0 print:px-0 print:min-h-0">
-      
-      {/* Certificate Canvas */}
-      <div className="relative w-full max-w-[1050px] min-h-[700px] bg-gradient-to-br from-[#175b8e] via-[#175b8e] to-[#8eb3d5] p-4 sm:p-8 md:p-10 print:shadow-none print:p-8 print:max-w-none print:w-[297mm] print:h-[210mm] flex flex-col shadow-2xl">
+    <>
+      <style type="text/css" media="print">
+        {`
+          @page {
+            size: landscape;
+            margin: 0mm;
+          }
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+        `}
+      </style>
+      <div className="min-h-screen bg-zinc-950 py-12 px-4 sm:px-6 lg:px-8 flex flex-col items-center print:bg-white print:py-0 print:px-0 print:min-h-0 print:block">
+        
+        {/* Certificate Canvas */}
+        <div className="relative w-full max-w-[1050px] min-h-[700px] bg-gradient-to-br from-[#175b8e] via-[#175b8e] to-[#8eb3d5] p-4 sm:p-8 md:p-10 print:shadow-none print:p-8 print:max-w-none print:w-screen print:h-screen print:min-h-0 flex flex-col shadow-2xl">
         
         {/* Geometric Corner Cuts (to closely simulate Canva template border styling) */}
         <div className="absolute bottom-0 left-[20%] w-32 h-10 bg-[#1e669e] -skew-x-12 opacity-80 print:hidden z-0" />
@@ -191,5 +204,6 @@ export default function CertificateViewer() {
       </div>
 
     </div>
+    </>
   );
 }
