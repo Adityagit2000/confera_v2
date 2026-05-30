@@ -15,7 +15,6 @@ import { PreFlightCheck } from '@/components/PreFlightCheck';
 import { closeAudioContext, type DiagnosticReport } from '@/lib/voiceDiagnostics';
 import { useOnlineStatus, acquireInterviewLock, releaseInterviewLock } from '@/lib/networkUtils';
 import { InterviewSkeleton } from '@/components/InterviewSkeleton';
-import AnimatedInterviewer from '@/components/AnimatedInterviewer';
 import { 
   Mic, 
   MicOff, 
@@ -679,8 +678,40 @@ const InterviewSession = () => {
                
                {/* Confera Avatar */}
                <div className="flex-1 flex flex-col items-center justify-center relative bg-gradient-to-br from-[#0f0f12] to-[#1a1a24]">
-                 <div className="w-full h-full flex items-center justify-center">
-                   <AnimatedInterviewer isSpeaking={isSpeaking} isListening={isListening} isThinking={isThinking} />
+                 <div className="w-full h-full flex items-center justify-center absolute inset-0">
+                   <div className="relative w-48 h-48 flex items-center justify-center">
+                     {/* Outer Ring */}
+                     <motion.div
+                       animate={{
+                         scale: 1 + voiceInput.audioEnergy * 1.6,
+                         opacity: isListening ? Math.max(0.05, 0.3 - voiceInput.audioEnergy) : 0.05,
+                       }}
+                       transition={{ type: 'spring', stiffness: 220, damping: 18 }}
+                       className="absolute inset-0 rounded-full border border-indigo-500/20 bg-indigo-500/5"
+                     />
+                     {/* Inner Ring */}
+                     <motion.div
+                       animate={{
+                         scale: 1 + voiceInput.audioEnergy * 0.9,
+                         opacity: isListening ? Math.max(0.1, 0.5 - voiceInput.audioEnergy * 0.6) : 0.1,
+                       }}
+                       transition={{ type: 'spring', stiffness: 220, damping: 18 }}
+                       className="absolute w-32 h-32 rounded-full border border-indigo-500/40 bg-indigo-500/10"
+                     />
+                     {/* Center Pulse Orb */}
+                     <motion.div
+                       animate={{
+                         scale: 1 + voiceInput.audioEnergy * 0.3,
+                       }}
+                       className={`w-20 h-20 rounded-full flex items-center justify-center z-10 transition-all ${
+                         isListening 
+                           ? 'bg-indigo-500 text-white shadow-[0_0_30px_rgba(99,102,241,0.4)]' 
+                           : 'bg-white/10 text-white/50'
+                       }`}
+                     >
+                       {isListening ? <Mic className="w-8 h-8 animate-pulse" /> : <MicOff className="w-8 h-8" />}
+                     </motion.div>
+                   </div>
                  </div>
                  {/* Voice Energy Indicator Overlay */}
                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center">
